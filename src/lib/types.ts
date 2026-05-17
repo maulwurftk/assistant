@@ -34,7 +34,7 @@ export interface TimeEntry {
   assistant?: Profile
 }
 
-export type SlotStatus = 'open' | 'assigned' | 'cancelled'
+export type SlotStatus = 'open' | 'pending' | 'assigned' | 'cancelled'
 
 export interface CalendarSlot {
   id: string
@@ -48,6 +48,7 @@ export interface CalendarSlot {
   status: SlotStatus
   created_at: string
   assigned_profile?: Profile
+  pending_request_by?: string | null
 }
 
 export type ReportStatus = 'pending' | 'confirmed' | 'sent'

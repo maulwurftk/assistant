@@ -64,6 +64,7 @@ const emptyForm: SlotForm = {
 
 const statusColors: Record<string, string> = {
   open: '#f59e0b',
+  pending: '#8b5cf6',
   assigned: '#3b82f6',
   cancelled: '#9ca3af',
 }
@@ -254,6 +255,7 @@ export default function KalenderPage() {
 
       <div className="flex gap-3 text-sm flex-wrap">
         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-amber-400" /> Offen</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-violet-500" /> Angefragt</div>
         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500" /> Besetzt</div>
         {googleEvents.length > 0 && (
           <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4285F4' }} /> Google Kalender</div>

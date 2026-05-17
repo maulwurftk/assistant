@@ -6,7 +6,7 @@ import { Notification } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CheckCheck, Bell } from 'lucide-react'
+import { CheckCheck, Bell, Check, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -22,6 +22,7 @@ export default function BenachrichtigungenPage() {
   const supabase = createClient()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [userId, setUserId] = useState<string | null>(null)
+  const [actionPending, setActionPending] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -51,6 +52,28 @@ export default function BenachrichtigungenPage() {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
   }
 
+  async function handleSlotAction(n: Notification, action: 'approve' | 'deny') {
+    if (!n.related_id) return
+    setActionPending(prev => new Set([...prev, n.id]))
+    try {
+      const res = await fetch('/api/slot-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot_id: n.related_id, action, notification_id: n.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Fehler')
+      } else {
+        toast.success(action === 'approve' ? 'Slot genehmigt' : 'Slot abgelehnt')
+        setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true, related_type: action === 'approve' ? 'slot_approved' : 'slot_rejected' } : x))
+      }
+    } catch {
+      toast.error('Verbindungsfehler')
+    }
+    setActionPending(prev => { const s = new Set(prev); s.delete(n.id); return s })
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   return (
@@ -78,28 +101,55 @@ export default function BenachrichtigungenPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {notifications.map(n => (
-            <Card
-              key={n.id}
-              className={`border cursor-pointer transition-opacity ${typeStyles[n.type]} ${n.read ? 'opacity-60' : ''}`}
-              onClick={() => !n.read && markRead(n.id)}
-            >
-              <CardContent className="py-3 px-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="font-medium text-sm">{n.title}</p>
-                      {!n.read && <Badge className="text-xs bg-emerald-500 text-white px-1.5 py-0">Neu</Badge>}
+          {notifications.map(n => {
+            const isSlotRequest = n.related_type === 'slot_request' && !n.read
+            const isActioned = n.related_type === 'slot_approved' || n.related_type === 'slot_rejected'
+
+            return (
+              <Card
+                key={n.id}
+                className={`border transition-opacity ${typeStyles[n.type]} ${n.read && !isActioned ? 'opacity-60' : ''}`}
+                onClick={() => !n.read && !isSlotRequest && markRead(n.id)}
+              >
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="font-medium text-sm">{n.title}</p>
+                        {!n.read && <Badge className="text-xs bg-emerald-500 text-white px-1.5 py-0">Neu</Badge>}
+                      </div>
+                      <p className="text-sm text-gray-600">{n.message}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {format(new Date(n.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-600">{n.message}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {format(new Date(n.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}
-                    </p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  {isSlotRequest && (
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-amber-200">
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        disabled={actionPending.has(n.id)}
+                        onClick={() => handleSlotAction(n, 'approve')}
+                      >
+                        <Check className="h-3.5 w-3.5" /> Genehmigen
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50 gap-1.5"
+                        disabled={actionPending.has(n.id)}
+                        onClick={() => handleSlotAction(n, 'deny')}
+                      >
+                        <X className="h-3.5 w-3.5" /> Ablehnen
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
     </div>

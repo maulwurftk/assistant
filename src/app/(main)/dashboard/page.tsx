@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Clock, CalendarDays, CheckCircle, AlertCircle } from 'lucide-react'
+import { OpenSlotsCard } from '@/components/open-slots-card'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { de } from 'date-fns/locale'
 import Link from 'next/link'
@@ -28,6 +29,13 @@ export default async function DashboardPage() {
       .gte('date', monthStart)
       .lte('date', monthEnd)
       .order('date', { ascending: false })
+
+    const { data: openSlots } = await supabase
+      .from('calendar_slots')
+      .select('*')
+      .eq('status', 'open')
+      .gte('date', format(now, 'yyyy-MM-dd'))
+      .order('date')
 
     const { data: report } = await supabase
       .from('monthly_reports')
@@ -106,6 +114,8 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         )}
+
+        <OpenSlotsCard slots={openSlots ?? []} />
 
         <Card>
           <CardHeader>
