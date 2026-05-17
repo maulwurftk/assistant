@@ -81,6 +81,7 @@ export default function KalenderPage() {
   const [icalUrl, setIcalUrl] = useState<string | null>(null)
   const [icalDialogOpen, setIcalDialogOpen] = useState(false)
   const [icalResetting, setIcalResetting] = useState(false)
+  const [googleEvents, setGoogleEvents] = useState<object[]>([])
   const calendarRef = useRef<any>(null)
 
   useEffect(() => {
@@ -99,6 +100,9 @@ export default function KalenderPage() {
     if (p?.role === 'admin') {
       const { data: asst } = await supabase.from('profiles').select('*').eq('role', 'assistant').eq('active', true)
       setAssistants(asst ?? [])
+      fetch('/api/google-calendar').then(r => r.json()).then(data => {
+        if (Array.isArray(data)) setGoogleEvents(data)
+      }).catch(() => {})
     }
 
     // Realtime
@@ -127,6 +131,7 @@ export default function KalenderPage() {
   }
 
   function handleEventClick(info: EventClickArg) {
+    if (info.event.extendedProps?.source === 'google') return
     const slot = slots.find(s => s.id === info.event.id)
     if (!slot) return
     setEditSlot(slot)
@@ -210,7 +215,7 @@ export default function KalenderPage() {
     window.open(`https://calendar.google.com/calendar/r?cid=${encoded}`, '_blank')
   }
 
-  const calendarEvents = slots.map(slot => ({
+  const calendarEvents = [...googleEvents, ...slots.map(slot => ({
     id: slot.id,
     title: slot.title + (slot.assigned_profile ? ` (${(slot.assigned_profile as any).full_name})` : ''),
     start: `${slot.date}T${slot.start_time}`,
@@ -218,7 +223,7 @@ export default function KalenderPage() {
     backgroundColor: statusColors[slot.status],
     borderColor: statusColors[slot.status],
     textColor: '#fff',
-  }))
+  }))]
 
   return (
     <div className="space-y-4">
@@ -241,7 +246,10 @@ export default function KalenderPage() {
 
       <div className="flex gap-3 text-sm flex-wrap">
         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-amber-400" /> Offen</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500" /> Besetzt</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500" /> Besetzt</div>
+        {googleEvents.length > 0 && (
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4285F4' }} /> Google Kalender</div>
+        )}
       </div>
 
       <Card>
