@@ -82,7 +82,15 @@ export default function KalenderPage() {
   const [icalDialogOpen, setIcalDialogOpen] = useState(false)
   const [icalResetting, setIcalResetting] = useState(false)
   const [googleEvents, setGoogleEvents] = useState<object[]>([])
+  const [isMobile, setIsMobile] = useState(false)
   const calendarRef = useRef<any>(null)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   useEffect(() => {
     init()
@@ -257,14 +265,18 @@ export default function KalenderPage() {
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-            initialView="dayGridMonth"
+            initialView={isMobile ? 'listWeek' : 'dayGridMonth'}
             locale="de"
             firstDay={1}
             selectable={profile?.role === 'admin'}
             select={handleDateSelect}
             eventClick={handleEventClick}
             events={calendarEvents}
-            headerToolbar={{
+            headerToolbar={isMobile ? {
+              left: 'prev,next',
+              center: 'title',
+              right: 'listWeek,dayGridMonth',
+            } : {
               left: 'prev,next today',
               center: 'title',
               right: 'dayGridMonth,timeGridWeek,listWeek',

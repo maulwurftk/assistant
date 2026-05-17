@@ -17,10 +17,10 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   if (!profile || !profile.active) redirect('/login')
 
   return (
-    <div className="flex min-h-screen bg-gray-50/60">
+    <div className="min-h-screen bg-gray-50/60 md:flex">
       <Navigation profile={profile} />
       <div className="flex-1 flex flex-col min-w-0">
-        <main className="flex-1 p-5 md:p-8 overflow-auto">
+        <main className="flex-1 p-4 md:p-8 overflow-auto">
           {children}
         </main>
       </div>
