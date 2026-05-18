@@ -196,8 +196,7 @@ export default function KalenderPage() {
     if (!icalUrl) {
       const res = await fetch('/api/ical-token')
       const data = await res.json()
-      const base = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin
-      setIcalUrl(`${base}/api/calendar.ics?token=${data.token}`)
+      setIcalUrl(`${window.location.origin}/api/calendar.ics?token=${data.token}`)
     }
     setIcalDialogOpen(true)
   }
@@ -206,8 +205,7 @@ export default function KalenderPage() {
     setIcalResetting(true)
     const res = await fetch('/api/ical-token', { method: 'POST' })
     const data = await res.json()
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin
-    setIcalUrl(`${base}/api/calendar.ics?token=${data.token}`)
+    setIcalUrl(`${window.location.origin}/api/calendar.ics?token=${data.token}`)
     setIcalResetting(false)
     toast.success('Link zurückgesetzt – bitte in Google Kalender neu eintragen')
   }
