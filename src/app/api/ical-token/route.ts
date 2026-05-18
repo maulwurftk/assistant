@@ -14,7 +14,11 @@ export async function GET() {
 
   if (!profile) return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
 
-  return NextResponse.json({ token: profile.ical_token })
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://karas.pro'
+  return NextResponse.json({
+    token: profile.ical_token,
+    url: `${base}/api/calendar.ics?token=${profile.ical_token}`,
+  })
 }
 
 // Token zurücksetzen (neuen generieren)
@@ -30,5 +34,9 @@ export async function POST() {
     .select('ical_token')
     .single()
 
-  return NextResponse.json({ token: data?.ical_token })
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://karas.pro'
+  return NextResponse.json({
+    token: data?.ical_token,
+    url: `${base}/api/calendar.ics?token=${data?.ical_token}`,
+  })
 }
