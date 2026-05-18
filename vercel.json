@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/remind-open-slots",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/send-monthly-reminders",

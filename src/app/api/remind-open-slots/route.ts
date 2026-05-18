@@ -18,10 +18,10 @@ export async function POST(request: Request) {
   )
 
   const now = new Date()
-  // Fenster: Slots die zwischen jetzt+42h und jetzt+50h beginnen
-  // (bei 6h-Cron-Intervall stellt das sicher dass jeder Slot genau einmal erwischt wird)
-  const windowStart = addHours(now, 42)
-  const windowEnd = addHours(now, 50)
+  // Fenster: Slots die zwischen jetzt+24h und jetzt+48h beginnen
+  // (täglicher Cron um 08:00 — reminder_sent_at verhindert Duplikate)
+  const windowStart = addHours(now, 24)
+  const windowEnd = addHours(now, 48)
 
   // Alle offenen, nicht-erinnerten Slots der nächsten Tage holen
   const { data: slots } = await db
