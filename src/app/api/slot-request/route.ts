@@ -15,10 +15,10 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { slot_id, action, notification_id } = body
+  const { slot_id, action, notification_id, reason } = body
 
   if (action === 'approve' || action === 'deny') {
-    return handleAdminAction(user.id, slot_id, action, notification_id)
+    return handleAdminAction(user.id, slot_id, action, notification_id, reason ?? null)
   }
   return handleRequest(user.id, slot_id)
 }
@@ -68,7 +68,8 @@ async function handleAdminAction(
   adminId: string,
   slotId: string,
   action: 'approve' | 'deny',
-  notificationId: string
+  notificationId: string,
+  reason: string | null
 ) {
   const db = adminDb()
 
@@ -96,7 +97,7 @@ async function handleAdminAction(
     await db.from('notifications').insert({
       user_id: requesterId,
       title: 'Slot bestätigt',
-      message: `Ihre Anfrage für „${slot.title}" am ${dateStr} wurde genehmigt.`,
+      message: `Ihre Anfrage für „${slot.title}" am ${dateStr} wurde genehmigt.${reason ? ` Hinweis: ${reason}` : ''}`,
       type: 'success',
       related_type: 'slot_confirmed',
       related_id: slotId,
@@ -111,7 +112,7 @@ async function handleAdminAction(
     await db.from('notifications').insert({
       user_id: requesterId,
       title: 'Slot abgelehnt',
-      message: `Ihre Anfrage für „${slot.title}" am ${dateStr} wurde leider abgelehnt.`,
+      message: `Ihre Anfrage für „${slot.title}" am ${dateStr} wurde leider abgelehnt.${reason ? ` Grund: ${reason}` : ''}`,
       type: 'error',
       related_type: 'slot_denied',
       related_id: slotId,

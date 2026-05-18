@@ -6,6 +6,7 @@ import { Notification } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import { CheckCheck, Bell, Check, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -18,11 +19,18 @@ const typeStyles: Record<string, string> = {
   error: 'bg-red-50 border-red-200',
 }
 
+interface ActionState {
+  notificationId: string
+  action: 'approve' | 'deny'
+  reason: string
+}
+
 export default function BenachrichtigungenPage() {
   const supabase = createClient()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [userId, setUserId] = useState<string | null>(null)
-  const [actionPending, setActionPending] = useState<Set<string>>(new Set())
+  const [submitting, setSubmitting] = useState<string | null>(null)
+  const [activeAction, setActiveAction] = useState<ActionState | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -52,26 +60,44 @@ export default function BenachrichtigungenPage() {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
   }
 
-  async function handleSlotAction(n: Notification, action: 'approve' | 'deny') {
-    if (!n.related_id) return
-    setActionPending(prev => new Set([...prev, n.id]))
+  function startAction(n: Notification, action: 'approve' | 'deny') {
+    setActiveAction({ notificationId: n.id, action, reason: '' })
+  }
+
+  function cancelAction() {
+    setActiveAction(null)
+  }
+
+  async function submitAction(n: Notification) {
+    if (!activeAction || !n.related_id) return
+    setSubmitting(n.id)
     try {
       const res = await fetch('/api/slot-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slot_id: n.related_id, action, notification_id: n.id }),
+        body: JSON.stringify({
+          slot_id: n.related_id,
+          action: activeAction.action,
+          notification_id: n.id,
+          reason: activeAction.reason.trim() || null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
         toast.error(data.error ?? 'Fehler')
       } else {
-        toast.success(action === 'approve' ? 'Slot genehmigt' : 'Slot abgelehnt')
-        setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true, related_type: action === 'approve' ? 'slot_approved' : 'slot_rejected' } : x))
+        toast.success(activeAction.action === 'approve' ? 'Slot genehmigt' : 'Slot abgelehnt')
+        setNotifications(prev => prev.map(x =>
+          x.id === n.id
+            ? { ...x, read: true, related_type: activeAction.action === 'approve' ? 'slot_approved' : 'slot_rejected' }
+            : x
+        ))
+        setActiveAction(null)
       }
     } catch {
       toast.error('Verbindungsfehler')
     }
-    setActionPending(prev => { const s = new Set(prev); s.delete(n.id); return s })
+    setSubmitting(null)
   }
 
   const unreadCount = notifications.filter(n => !n.read).length
@@ -103,12 +129,12 @@ export default function BenachrichtigungenPage() {
         <div className="space-y-3">
           {notifications.map(n => {
             const isSlotRequest = n.related_type === 'slot_request' && !n.read
-            const isActioned = n.related_type === 'slot_approved' || n.related_type === 'slot_rejected'
+            const isThisActive = activeAction?.notificationId === n.id
 
             return (
               <Card
                 key={n.id}
-                className={`border transition-opacity ${typeStyles[n.type]} ${n.read && !isActioned ? 'opacity-60' : ''}`}
+                className={`border transition-opacity ${typeStyles[n.type]} ${n.read && !isThisActive ? 'opacity-60' : ''}`}
                 onClick={() => !n.read && !isSlotRequest && markRead(n.id)}
               >
                 <CardContent className="py-3 px-4">
@@ -125,13 +151,13 @@ export default function BenachrichtigungenPage() {
                     </div>
                   </div>
 
-                  {isSlotRequest && (
+                  {/* Aktionsbereich für Slot-Anfragen */}
+                  {isSlotRequest && !isThisActive && (
                     <div className="flex gap-2 mt-3 pt-3 border-t border-amber-200">
                       <Button
                         size="sm"
                         className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                        disabled={actionPending.has(n.id)}
-                        onClick={() => handleSlotAction(n, 'approve')}
+                        onClick={() => startAction(n, 'approve')}
                       >
                         <Check className="h-3.5 w-3.5" /> Genehmigen
                       </Button>
@@ -139,11 +165,64 @@ export default function BenachrichtigungenPage() {
                         size="sm"
                         variant="outline"
                         className="text-red-600 border-red-200 hover:bg-red-50 gap-1.5"
-                        disabled={actionPending.has(n.id)}
-                        onClick={() => handleSlotAction(n, 'deny')}
+                        onClick={() => startAction(n, 'deny')}
                       >
                         <X className="h-3.5 w-3.5" /> Ablehnen
                       </Button>
+                    </div>
+                  )}
+
+                  {/* Begründungsfeld */}
+                  {isThisActive && (
+                    <div className="mt-3 pt-3 border-t border-amber-200 space-y-2">
+                      <p className="text-xs font-medium text-gray-600">
+                        {activeAction.action === 'approve' ? 'Begründung (optional)' : 'Begründung (optional)'}
+                      </p>
+                      <Textarea
+                        placeholder={
+                          activeAction.action === 'approve'
+                            ? 'z.B. Bitte pünktlich um 9 Uhr erscheinen.'
+                            : 'z.B. Dieser Slot ist bereits anderweitig vergeben.'
+                        }
+                        value={activeAction.reason}
+                        onChange={e => setActiveAction(prev => prev ? { ...prev, reason: e.target.value } : null)}
+                        rows={2}
+                        className="text-sm bg-white"
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        {activeAction.action === 'approve' ? (
+                          <Button
+                            size="sm"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                            disabled={submitting === n.id}
+                            onClick={() => submitAction(n)}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            {submitting === n.id ? 'Sende…' : 'Bestätigen & Genehmigen'}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 border-red-200 hover:bg-red-50 gap-1.5"
+                            disabled={submitting === n.id}
+                            onClick={() => submitAction(n)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            {submitting === n.id ? 'Sende…' : 'Bestätigen & Ablehnen'}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-gray-500"
+                          disabled={submitting === n.id}
+                          onClick={cancelAction}
+                        >
+                          Abbrechen
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>
