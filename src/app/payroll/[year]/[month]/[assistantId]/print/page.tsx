@@ -4,9 +4,11 @@ import {
   entryDurationMinutes,
   formatMinutes,
   calculatePay,
+  calculateMinijob,
   formatCurrency,
   formatDate,
   monthName,
+  MINIJOB_RATES,
 } from '@/lib/payroll'
 import PrintButton from './_components/PrintButton'
 
@@ -24,7 +26,7 @@ export default async function PrintPage({ params }: Props) {
   const [assistantRes, settingsRes, entriesRes, activitiesRes] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email')
+      .select('id, full_name, email, rv_pflicht')
       .eq('id', assistantId)
       .eq('role', 'assistant')
       .single(),
@@ -47,8 +49,16 @@ export default async function PrintPage({ params }: Props) {
 
   if (!assistantRes.data) notFound()
 
-  const assistant = assistantRes.data
-  const settings = settingsRes.data
+  const assistant = assistantRes.data as { id: string; full_name: string; email: string; rv_pflicht?: boolean }
+  const settings = settingsRes.data as {
+    hourly_rate: number
+    currency: string
+    minijob_mode?: boolean
+    uv_rate?: number
+    employer_name?: string
+    employer_address?: string
+    employer_tax_number?: string
+  } | null
   const entries = entriesRes.data ?? []
   const activities = activitiesRes.data ?? []
 
@@ -56,17 +66,21 @@ export default async function PrintPage({ params }: Props) {
 
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
+  const minijobMode = settings?.minijob_mode ?? false
+  const uvRate = settings?.uv_rate ?? 1.6
+  const rvPflicht = assistant.rv_pflicht !== false // default true
+
   const totalMinutes = entries.reduce(
     (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
     0
   )
-  const totalPay = calculatePay(totalMinutes, hourlyRate)
+  const brutto = calculatePay(totalMinutes, hourlyRate)
+  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate) : null
 
   const today = new Date().toLocaleDateString('de-DE')
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Drucken-Button (wird beim Drucken ausgeblendet) */}
       <div className="no-print fixed top-4 right-4 flex gap-2">
         <PrintButton />
         <a
@@ -91,25 +105,46 @@ export default async function PrintPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Arbeitnehmer-Info */}
-        <div className="mb-8 p-5 bg-slate-50 rounded-xl print:bg-white print:border print:border-slate-200">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            Arbeitnehmer
-          </h2>
-          <p className="text-lg font-semibold text-slate-900">{assistant.full_name}</p>
-          <p className="text-sm text-slate-600">{assistant.email}</p>
+        {/* Arbeitgeber / Arbeitnehmer */}
+        <div className="grid grid-cols-2 gap-6 mb-8">
+          {settings?.employer_name && (
+            <div className="p-4 bg-slate-50 rounded-xl print:bg-white print:border print:border-slate-200">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                Arbeitgeber
+              </h2>
+              <p className="text-sm font-semibold text-slate-900">{settings.employer_name}</p>
+              {settings.employer_address && (
+                <p className="text-xs text-slate-600 mt-0.5">{settings.employer_address}</p>
+              )}
+              {settings.employer_tax_number && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Betriebsnr.: {settings.employer_tax_number}
+                </p>
+              )}
+            </div>
+          )}
+          <div className={`p-4 bg-slate-50 rounded-xl print:bg-white print:border print:border-slate-200 ${!settings?.employer_name ? 'col-span-2' : ''}`}>
+            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              Arbeitnehmer
+            </h2>
+            <p className="text-sm font-semibold text-slate-900">{assistant.full_name}</p>
+            <p className="text-xs text-slate-600">{assistant.email}</p>
+            {minijobMode && (
+              <p className="text-xs text-slate-500 mt-1">
+                Beschäftigungsart: Geringfügige Beschäftigung (Minijob)
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Stunden-Tabelle */}
+        {/* Arbeitsnachweise */}
         <div className="mb-8">
           <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
             Arbeitsnachweise
           </h2>
 
           {entries.length === 0 ? (
-            <p className="text-slate-400 text-sm py-4">
-              Keine Zeiteinträge für diesen Monat.
-            </p>
+            <p className="text-slate-400 text-sm py-4">Keine Zeiteinträge für diesen Monat.</p>
           ) : (
             <table className="w-full text-sm border-collapse">
               <thead>
@@ -154,32 +189,129 @@ export default async function PrintPage({ params }: Props) {
           )}
         </div>
 
-        {/* Vergütung */}
-        <div className="mb-10 border border-slate-200 rounded-xl overflow-hidden">
-          <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              Vergütung
-            </h2>
+        {/* Vergütung – Standard */}
+        {!minijob && (
+          <div className="mb-10 border border-slate-200 rounded-xl overflow-hidden">
+            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Vergütung
+              </h2>
+            </div>
+            <div className="px-5 py-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Gearbeitete Stunden</span>
+                <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Stundensatz</span>
+                <span className="font-medium text-slate-800">
+                  {formatCurrency(hourlyRate, currency)}/h
+                </span>
+              </div>
+              <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between">
+                <span className="font-semibold text-slate-900">Gesamtvergütung (brutto)</span>
+                <span className="font-bold text-lg text-slate-900">
+                  {formatCurrency(brutto, currency)}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="px-5 py-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-600">Gearbeitete Stunden</span>
-              <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
+        )}
+
+        {/* Vergütung – Minijob */}
+        {minijob && (
+          <div className="mb-6">
+            {/* Brutto → Netto */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
+              <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
+                <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Entgeltabrechnung (Arbeitnehmer)
+                </h2>
+              </div>
+              <div className="px-5 py-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Gearbeitete Stunden</span>
+                  <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Stundensatz</span>
+                  <span className="font-medium text-slate-800">
+                    {formatCurrency(hourlyRate, currency)}/h
+                  </span>
+                </div>
+                <div className="border-t border-slate-200 pt-2 flex justify-between font-semibold">
+                  <span className="text-slate-800">Bruttoentgelt</span>
+                  <span className="text-slate-900">{formatCurrency(minijob.brutto, currency)}</span>
+                </div>
+
+                {/* AN-Abzüge */}
+                <div className="border-t border-slate-100 pt-2 space-y-1">
+                  {minijob.rvAN > 0 ? (
+                    <div className="flex justify-between text-slate-600">
+                      <span>− RV-Aufstockungsbetrag AN ({MINIJOB_RATES.rvAN.toFixed(2)} %)</span>
+                      <span>−{formatCurrency(minijob.rvAN, currency)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-slate-400 text-xs italic">
+                      <span>RV-Aufstockungsbetrag (befreit)</span>
+                      <span>–</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t-2 border-slate-300 pt-3 flex justify-between items-baseline">
+                  <span className="text-lg font-bold text-slate-900">Auszahlungsbetrag (Netto)</span>
+                  <span className="text-2xl font-bold text-green-700">
+                    {formatCurrency(minijob.netto, currency)}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-600">Stundensatz</span>
-              <span className="font-medium text-slate-800">
-                {formatCurrency(hourlyRate, currency)}/h
-              </span>
-            </div>
-            <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between">
-              <span className="font-semibold text-slate-900">Gesamtvergütung (brutto)</span>
-              <span className="font-bold text-lg text-slate-900">
-                {formatCurrency(totalPay, currency)}
-              </span>
+
+            {/* AG-Abgaben (Info-Box) */}
+            <div className="border border-blue-200 rounded-xl overflow-hidden bg-blue-50">
+              <div className="bg-blue-100 px-5 py-3 border-b border-blue-200">
+                <h2 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                  Arbeitgeberabgaben (Minijob-Zentrale) – zur Information
+                </h2>
+              </div>
+              <div className="px-5 py-4 space-y-1.5 text-sm">
+                <div className="flex justify-between text-blue-900">
+                  <span>KV-Pauschalbeitrag ({MINIJOB_RATES.kvAG.toFixed(2)} %)</span>
+                  <span>{formatCurrency(minijob.kvAGAmount, currency)}</span>
+                </div>
+                <div className="flex justify-between text-blue-900">
+                  <span>RV-Pauschalbeitrag ({MINIJOB_RATES.rvAG.toFixed(2)} %)</span>
+                  <span>{formatCurrency(minijob.rvAGAmount, currency)}</span>
+                </div>
+                <div className="flex justify-between text-blue-900">
+                  <span>Lohnsteuerpauschale ({MINIJOB_RATES.pauschsteuer.toFixed(2)} %)</span>
+                  <span>{formatCurrency(minijob.pauschsteuerAmount, currency)}</span>
+                </div>
+                <div className="flex justify-between text-blue-900">
+                  <span>Umlage 2 Mutterschaft ({MINIJOB_RATES.u2.toFixed(2)} %)</span>
+                  <span>{formatCurrency(minijob.u2Amount, currency)}</span>
+                </div>
+                <div className="flex justify-between text-blue-900">
+                  <span>Insolvenzgeldumlage ({MINIJOB_RATES.insolvenzgeld.toFixed(2)} %)</span>
+                  <span>{formatCurrency(minijob.insolvenzgeldAmount, currency)}</span>
+                </div>
+                <div className="flex justify-between text-blue-900">
+                  <span>Unfallversicherung ({uvRate.toFixed(2)} %)</span>
+                  <span>{formatCurrency(minijob.uvAmount, currency)}</span>
+                </div>
+                <div className="border-t border-blue-200 pt-2 flex justify-between font-semibold text-blue-900">
+                  <span>Summe AG-Abgaben</span>
+                  <span>{formatCurrency(minijob.totalAGAbgaben, currency)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-blue-900 text-base">
+                  <span>Gesamtkosten Arbeitgeber</span>
+                  <span>{formatCurrency(minijob.totalKosten, currency)}</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Unterschriften */}
         <div className="grid grid-cols-2 gap-12 mt-16">
@@ -192,6 +324,12 @@ export default async function PrintPage({ params }: Props) {
             <p className="text-xs text-slate-500">Datum, Unterschrift Arbeitgeber</p>
           </div>
         </div>
+
+        {minijobMode && (
+          <p className="text-xs text-slate-400 mt-8 text-center">
+            Beitragssätze gem. § 249b SGB V, § 168 Abs. 1 Nr. 1b SGB VI (Stand 2025)
+          </p>
+        )}
       </div>
     </div>
   )

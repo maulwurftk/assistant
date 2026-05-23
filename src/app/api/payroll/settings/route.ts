@@ -10,7 +10,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const { hourly_rate, currency } = body
+  const {
+    hourly_rate,
+    currency,
+    minijob_mode,
+    uv_rate,
+    employer_name,
+    employer_address,
+    employer_tax_number,
+  } = body
 
   if (typeof hourly_rate !== 'number' || hourly_rate <= 0) {
     return NextResponse.json({ error: 'Ungültiger Stundensatz' }, { status: 400 })
@@ -22,23 +30,29 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 })
 
-  // Prüfen ob Zeile existiert
+  const payload = {
+    hourly_rate,
+    currency: currency ?? 'EUR',
+    updated_by: user.id,
+    minijob_mode: minijob_mode ?? false,
+    uv_rate: typeof uv_rate === 'number' ? uv_rate : 1.6,
+    employer_name: employer_name ?? '',
+    employer_address: employer_address ?? '',
+    employer_tax_number: employer_tax_number ?? '',
+  }
+
   const { data: existing } = await supabase.from('payroll_settings').select('id').limit(1).single()
 
   let result
   if (existing?.id) {
     result = await supabase
       .from('payroll_settings')
-      .update({ hourly_rate, currency: currency ?? 'EUR', updated_by: user.id })
+      .update(payload)
       .eq('id', existing.id)
       .select()
       .single()
   } else {
-    result = await supabase
-      .from('payroll_settings')
-      .insert({ hourly_rate, currency: currency ?? 'EUR', updated_by: user.id })
-      .select()
-      .single()
+    result = await supabase.from('payroll_settings').insert(payload).select().single()
   }
 
   if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })

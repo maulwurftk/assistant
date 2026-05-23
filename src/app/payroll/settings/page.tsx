@@ -14,14 +14,19 @@ export default async function SettingsPage() {
         <SettingsForm
           currentRate={settings?.hourly_rate ?? 15}
           currentCurrency={settings?.currency ?? 'EUR'}
+          currentMinijobMode={settings?.minijob_mode ?? false}
+          currentUvRate={settings?.uv_rate ?? 1.6}
+          currentEmployerName={settings?.employer_name ?? ''}
+          currentEmployerAddress={settings?.employer_address ?? ''}
+          currentEmployerTaxNumber={settings?.employer_tax_number ?? ''}
           hasSettings={!!settings}
         />
       </div>
 
       <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-        <strong>Hinweis:</strong> Der Stundensatz gilt einheitlich für alle Assistenten und alle
-        Monate. Änderungen wirken sich auf alle zukünftigen Abrechnungen aus. Bereits versendete
-        Lohnzettel behalten ihren damaligen Satz.
+        <strong>Hinweis:</strong> Der Stundensatz gilt einheitlich für alle Assistenten. Änderungen
+        wirken sich auf zukünftige Abrechnungen aus. Bereits versendete Lohnzettel behalten ihren
+        damaligen Satz.
       </div>
     </div>
   )

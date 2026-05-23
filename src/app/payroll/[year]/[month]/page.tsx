@@ -5,12 +5,14 @@ import {
   entryDurationMinutes,
   formatMinutes,
   calculatePay,
+  calculateMinijob,
   formatCurrency,
   monthName,
   prevMonth,
   nextMonth,
 } from '@/lib/payroll'
 import PayrollActions from './_components/PayrollActions'
+import RvPflichtToggle from './_components/RvPflichtToggle'
 
 type Props = {
   params: Promise<{ year: string; month: string }>
@@ -27,10 +29,14 @@ export default async function MonthlyPayrollPage({ params }: Props) {
 
   const supabase = await createClient()
 
-  // Alle Daten parallel laden
   const [settingsRes, assistantsRes, entriesRes, reportsRes, runsRes] = await Promise.all([
     supabase.from('payroll_settings').select('*').limit(1).single(),
-    supabase.from('profiles').select('id, full_name, email').eq('role', 'assistant').eq('active', true).order('full_name'),
+    supabase
+      .from('profiles')
+      .select('id, full_name, email, rv_pflicht')
+      .eq('role', 'assistant')
+      .eq('active', true)
+      .order('full_name'),
     supabase
       .from('time_entries')
       .select('id, assistant_id, date, start_time, end_time, activity_id, month_status')
@@ -53,38 +59,56 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .eq('month', month),
   ])
 
-  const settings = settingsRes.data
-  const assistants = assistantsRes.data ?? []
+  const settings = settingsRes.data as {
+    hourly_rate: number
+    currency: string
+    minijob_mode?: boolean
+    uv_rate?: number
+  } | null
+  const assistants = (assistantsRes.data ?? []) as Array<{
+    id: string
+    full_name: string
+    email: string
+    rv_pflicht?: boolean
+  }>
   const entries = entriesRes.data ?? []
   const reports = reportsRes.data ?? []
   const runs = runsRes.data ?? []
 
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
+  const minijobMode = settings?.minijob_mode ?? false
+  const uvRate = settings?.uv_rate ?? 1.6
 
-  // Pro Assistent aggregieren
   const assistantData = assistants.map((a) => {
     const myEntries = entries.filter((e) => e.assistant_id === a.id)
     const totalMinutes = myEntries.reduce(
       (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
       0
     )
-    const totalPay = calculatePay(totalMinutes, hourlyRate)
+    const brutto = calculatePay(totalMinutes, hourlyRate)
+    const rvPflicht = a.rv_pflicht !== false
+    const minijob = minijobMode && totalMinutes > 0 ? calculateMinijob(brutto, rvPflicht, uvRate) : null
+    const netto = minijob ? minijob.netto : brutto
     const report = reports.find((r) => r.assistant_id === a.id)
     const run = runs.find((r) => r.assistant_id === a.id)
 
     return {
       ...a,
+      rvPflicht,
       entryCount: myEntries.length,
       totalMinutes,
-      totalPay,
+      brutto,
+      netto,
+      minijob,
       reportStatus: report?.status ?? null,
       emailSentAt: run?.email_sent_at ?? null,
     }
   })
 
   const totalAllMinutes = assistantData.reduce((s, a) => s + a.totalMinutes, 0)
-  const totalAllPay = assistantData.reduce((s, a) => s + a.totalPay, 0)
+  const totalAllBrutto = assistantData.reduce((s, a) => s + a.brutto, 0)
+  const totalAllNetto = assistantData.reduce((s, a) => s + a.netto, 0)
 
   const prev = prevMonth(year, month)
   const next = nextMonth(year, month)
@@ -95,7 +119,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
 
   return (
     <div>
-      {/* Header mit Monatsnavigation */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
@@ -104,6 +128,11 @@ export default async function MonthlyPayrollPage({ params }: Props) {
           {settings ? (
             <p className="text-sm text-slate-500 mt-0.5">
               Stundensatz: {formatCurrency(hourlyRate, currency)}/h
+              {minijobMode && (
+                <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">
+                  Minijob-Modus
+                </span>
+              )}
             </p>
           ) : (
             <p className="text-sm text-amber-600 mt-0.5">
@@ -140,7 +169,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       </div>
 
       {/* Zusammenfassung */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className={`grid gap-4 mb-6 ${minijobMode ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Assistenten</p>
           <p className="text-2xl font-bold text-slate-900 mt-1">{assistants.length}</p>
@@ -150,11 +179,21 @@ export default async function MonthlyPayrollPage({ params }: Props) {
           <p className="text-2xl font-bold text-slate-900 mt-1">{formatMinutes(totalAllMinutes)}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Gesamtlohn</p>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            {minijobMode ? 'Brutto gesamt' : 'Gesamtlohn'}
+          </p>
           <p className="text-2xl font-bold text-slate-900 mt-1">
-            {formatCurrency(totalAllPay, currency)}
+            {formatCurrency(totalAllBrutto, currency)}
           </p>
         </div>
+        {minijobMode && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <p className="text-xs font-medium text-green-600 uppercase tracking-wide">Netto gesamt</p>
+            <p className="text-2xl font-bold text-green-700 mt-1">
+              {formatCurrency(totalAllNetto, currency)}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Assistenten-Tabelle */}
@@ -170,7 +209,17 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                 <th className="text-left px-5 py-3 font-medium text-slate-600">Assistent</th>
                 <th className="text-right px-5 py-3 font-medium text-slate-600">Einträge</th>
                 <th className="text-right px-5 py-3 font-medium text-slate-600">Stunden</th>
-                <th className="text-right px-5 py-3 font-medium text-slate-600">Lohn (brutto)</th>
+                <th className="text-right px-5 py-3 font-medium text-slate-600">
+                  {minijobMode ? 'Brutto' : 'Lohn (brutto)'}
+                </th>
+                {minijobMode && (
+                  <>
+                    <th className="text-center px-3 py-3 font-medium text-slate-600 whitespace-nowrap">
+                      RV-Pflicht
+                    </th>
+                    <th className="text-right px-5 py-3 font-medium text-slate-600">Netto</th>
+                  </>
+                )}
                 <th className="text-center px-5 py-3 font-medium text-slate-600">Status</th>
                 <th className="text-right px-5 py-3 font-medium text-slate-600">Aktionen</th>
               </tr>
@@ -187,8 +236,18 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                     {a.totalMinutes > 0 ? formatMinutes(a.totalMinutes) : '–'}
                   </td>
                   <td className="px-5 py-4 text-right font-semibold text-slate-900">
-                    {a.totalMinutes > 0 ? formatCurrency(a.totalPay, currency) : '–'}
+                    {a.totalMinutes > 0 ? formatCurrency(a.brutto, currency) : '–'}
                   </td>
+                  {minijobMode && (
+                    <>
+                      <td className="px-3 py-4 text-center">
+                        <RvPflichtToggle assistantId={a.id} rvPflicht={a.rvPflicht} />
+                      </td>
+                      <td className="px-5 py-4 text-right font-semibold text-green-700">
+                        {a.totalMinutes > 0 ? formatCurrency(a.netto, currency) : '–'}
+                      </td>
+                    </>
+                  )}
                   <td className="px-5 py-4 text-center">
                     <ReportBadge status={a.reportStatus} />
                   </td>
@@ -200,7 +259,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                       year={year}
                       month={month}
                       totalMinutes={a.totalMinutes}
-                      totalPay={a.totalPay}
+                      totalPay={a.brutto}
                       hourlyRate={hourlyRate}
                       currency={currency}
                       emailSentAt={a.emailSentAt}

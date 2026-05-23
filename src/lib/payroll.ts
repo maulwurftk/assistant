@@ -50,3 +50,65 @@ export function nextMonth(year: number, month: number): { year: number; month: n
   if (month === 12) return { year: year + 1, month: 1 }
   return { year, month: month + 1 }
 }
+
+// ── Minijob-Berechnung ────────────────────────────────────────────────────────
+// Pauschalbeitragssätze 2025 (Arbeitgeber, via Minijob-Zentrale)
+export const MINIJOB_RATES = {
+  kvAG: 13.00,          // Krankenversicherung AG
+  rvAG: 15.00,          // Rentenversicherung AG
+  pauschsteuer: 2.00,   // Lohnsteuerpauschale
+  u2: 0.24,             // Umlage 2 (Mutterschaft)
+  insolvenzgeld: 0.06,  // Insolvenzgeldumlage
+  rvAN: 3.60,           // Aufstockungsbetrag AN (wenn RV-pflichtig)
+} as const
+
+export interface MinijobBreakdown {
+  brutto: number
+  rvAN: number              // AN-Anteil RV (0 wenn befreit)
+  netto: number             // brutto − rvAN
+  kvAGAmount: number
+  rvAGAmount: number
+  pauschsteuerAmount: number
+  u2Amount: number
+  insolvenzgeldAmount: number
+  uvAmount: number          // Unfallversicherung (konfigurierbar)
+  totalAGAbgaben: number    // Summe aller AG-Beiträge
+  totalKosten: number       // Gesamtkosten AG = brutto + AG-Abgaben
+}
+
+export function calculateMinijob(
+  brutto: number,
+  rvPflicht: boolean,
+  uvRate: number = 1.60
+): MinijobBreakdown {
+  const pct = (p: number) => Math.round(brutto * p) / 100
+
+  const kvAGAmount = pct(MINIJOB_RATES.kvAG)
+  const rvAGAmount = pct(MINIJOB_RATES.rvAG)
+  const pauschsteuerAmount = pct(MINIJOB_RATES.pauschsteuer)
+  const u2Amount = pct(MINIJOB_RATES.u2)
+  const insolvenzgeldAmount = pct(MINIJOB_RATES.insolvenzgeld)
+  const uvAmount = pct(uvRate)
+
+  const rvAN = rvPflicht ? pct(MINIJOB_RATES.rvAN) : 0
+  const netto = Math.round((brutto - rvAN) * 100) / 100
+
+  const totalAGAbgaben = Math.round(
+    (kvAGAmount + rvAGAmount + pauschsteuerAmount + u2Amount + insolvenzgeldAmount + uvAmount) * 100
+  ) / 100
+  const totalKosten = Math.round((brutto + totalAGAbgaben) * 100) / 100
+
+  return {
+    brutto,
+    rvAN,
+    netto,
+    kvAGAmount,
+    rvAGAmount,
+    pauschsteuerAmount,
+    u2Amount,
+    insolvenzgeldAmount,
+    uvAmount,
+    totalAGAbgaben,
+    totalKosten,
+  }
+}
