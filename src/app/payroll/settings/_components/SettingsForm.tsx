@@ -11,6 +11,9 @@ type Props = {
   currentEmployerName: string
   currentEmployerAddress: string
   currentEmployerTaxNumber: string
+  currentMonthlyBudget: number
+  currentAccountFee: number
+  currentWeeklyHoursTarget: number
   hasSettings: boolean
 }
 
@@ -22,6 +25,9 @@ export default function SettingsForm({
   currentEmployerName,
   currentEmployerAddress,
   currentEmployerTaxNumber,
+  currentMonthlyBudget,
+  currentAccountFee,
+  currentWeeklyHoursTarget,
   hasSettings,
 }: Props) {
   const [rate, setRate] = useState(currentRate.toString())
@@ -31,6 +37,9 @@ export default function SettingsForm({
   const [employerName, setEmployerName] = useState(currentEmployerName)
   const [employerAddress, setEmployerAddress] = useState(currentEmployerAddress)
   const [employerTaxNumber, setEmployerTaxNumber] = useState(currentEmployerTaxNumber)
+  const [monthlyBudget, setMonthlyBudget] = useState(currentMonthlyBudget.toString())
+  const [accountFee, setAccountFee] = useState(currentAccountFee.toString())
+  const [weeklyHoursTarget, setWeeklyHoursTarget] = useState(currentWeeklyHoursTarget.toString())
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -60,6 +69,9 @@ export default function SettingsForm({
           employer_name: employerName,
           employer_address: employerAddress,
           employer_tax_number: employerTaxNumber,
+          monthly_budget: parseFloat(monthlyBudget.replace(',', '.')) || 0,
+          account_fee: parseFloat(accountFee.replace(',', '.')) || 0,
+          weekly_hours_target: parseFloat(weeklyHoursTarget.replace(',', '.')) || 15,
         }),
       })
       if (!res.ok) throw new Error('Fehler beim Speichern')
@@ -99,6 +111,52 @@ export default function SettingsForm({
           </select>
         </div>
         <p className="text-xs text-slate-400 mt-1.5">Gilt für alle Assistenten gleichmäßig</p>
+      </div>
+
+      {/* Persönliches Budget */}
+      <div className="border-t border-slate-200 pt-6">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4">Persönliches Budget (Zielvereinbarung)</h3>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Monatsbudget (€)</label>
+            <input
+              type="number"
+              value={monthlyBudget}
+              onChange={(e) => setMonthlyBudget(e.target.value)}
+              step="0.01"
+              min="0"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="1310.00"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Kontogebühren (€/Monat)</label>
+            <input
+              type="number"
+              value={accountFee}
+              onChange={(e) => setAccountFee(e.target.value)}
+              step="0.01"
+              min="0"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="10.00"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Stunden-Ziel/Woche</label>
+            <input
+              type="number"
+              value={weeklyHoursTarget}
+              onChange={(e) => setWeeklyHoursTarget(e.target.value)}
+              step="0.5"
+              min="0"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="15"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-slate-400 mt-1.5">
+          Aus der Zielvereinbarung: 1.310 €/Monat · 10 € Kontogebühren · 15 h/Woche (9h Elternass. + 6h Pers. Ass.)
+        </p>
       </div>
 
       {/* Minijob-Modus */}

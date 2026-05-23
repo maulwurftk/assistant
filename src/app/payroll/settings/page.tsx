@@ -12,13 +12,16 @@ export default async function SettingsPage() {
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">
         <SettingsForm
-          currentRate={settings?.hourly_rate ?? 15}
+          currentRate={settings?.hourly_rate ?? 20}
           currentCurrency={settings?.currency ?? 'EUR'}
           currentMinijobMode={settings?.minijob_mode ?? false}
           currentUvRate={settings?.uv_rate ?? 1.6}
           currentEmployerName={settings?.employer_name ?? ''}
           currentEmployerAddress={settings?.employer_address ?? ''}
           currentEmployerTaxNumber={settings?.employer_tax_number ?? ''}
+          currentMonthlyBudget={settings?.monthly_budget ?? 1310}
+          currentAccountFee={settings?.account_fee ?? 10}
+          currentWeeklyHoursTarget={settings?.weekly_hours_target ?? 15}
           hasSettings={!!settings}
         />
       </div>

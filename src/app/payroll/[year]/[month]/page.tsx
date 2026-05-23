@@ -64,6 +64,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     currency: string
     minijob_mode?: boolean
     uv_rate?: number
+    monthly_budget?: number
+    account_fee?: number
+    weekly_hours_target?: number
   } | null
   const assistants = (assistantsRes.data ?? []) as Array<{
     id: string
@@ -79,6 +82,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const currency = settings?.currency ?? 'EUR'
   const minijobMode = settings?.minijob_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
+  const monthlyBudget = settings?.monthly_budget ?? 0
+  const accountFee = settings?.account_fee ?? 0
+  const weeklyHoursTarget = settings?.weekly_hours_target ?? 15
 
   const assistantData = assistants.map((a) => {
     const myEntries = entries.filter((e) => e.assistant_id === a.id)
@@ -196,6 +202,20 @@ export default async function MonthlyPayrollPage({ params }: Props) {
         )}
       </div>
 
+      {/* Budget-Übersicht */}
+      {monthlyBudget > 0 && (
+        <BudgetCard
+          monthlyBudget={monthlyBudget}
+          accountFee={accountFee}
+          weeklyHoursTarget={weeklyHoursTarget}
+          totalAllMinutes={totalAllMinutes}
+          totalAllBrutto={totalAllBrutto}
+          currency={currency}
+          year={year}
+          month={month}
+        />
+      )}
+
       {/* Assistenten-Tabelle */}
       {assistants.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
@@ -271,6 +291,114 @@ export default async function MonthlyPayrollPage({ params }: Props) {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+function BudgetCard({
+  monthlyBudget,
+  accountFee,
+  weeklyHoursTarget,
+  totalAllMinutes,
+  totalAllBrutto,
+  currency,
+  year,
+  month,
+}: {
+  monthlyBudget: number
+  accountFee: number
+  weeklyHoursTarget: number
+  totalAllMinutes: number
+  totalAllBrutto: number
+  currency: string
+  year: number
+  month: number
+}) {
+  const totalSpent = totalAllBrutto + accountFee
+  const remaining = monthlyBudget - totalSpent
+  const usedPct = Math.min(100, Math.round((totalSpent / monthlyBudget) * 100))
+
+  // Wochen im Monat (exakt: Tage / 7)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const weeksInMonth = daysInMonth / 7
+  const monthlyHoursTarget = Math.round(weeklyHoursTarget * weeksInMonth * 10) / 10
+  const actualHours = Math.round((totalAllMinutes / 60) * 10) / 10
+  const hoursPct = monthlyHoursTarget > 0
+    ? Math.min(100, Math.round((actualHours / monthlyHoursTarget) * 100))
+    : 0
+
+  const isOver = remaining < 0
+  const isWarning = !isOver && usedPct >= 85
+
+  function fmt(n: number) {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency }).format(n)
+  }
+
+  return (
+    <div className={`mb-6 border rounded-xl overflow-hidden ${isOver ? 'border-red-300' : isWarning ? 'border-amber-300' : 'border-emerald-200'}`}>
+      <div className={`px-5 py-3 flex items-center justify-between ${isOver ? 'bg-red-50' : isWarning ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+        <h2 className={`text-xs font-semibold uppercase tracking-wide ${isOver ? 'text-red-700' : isWarning ? 'text-amber-700' : 'text-emerald-700'}`}>
+          Persönliches Budget
+        </h2>
+        <span className={`text-xs font-medium ${isOver ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+          {isOver ? 'Budget überschritten' : `${usedPct} % verbraucht`}
+        </span>
+      </div>
+
+      <div className="bg-white px-5 py-4">
+        <div className="grid grid-cols-2 gap-6">
+          {/* Budget-Rechnung */}
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between text-slate-600">
+              <span>Bewilligtes Budget</span>
+              <span className="font-medium text-slate-900">{fmt(monthlyBudget)}</span>
+            </div>
+            <div className="flex justify-between text-slate-500">
+              <span>Lohnkosten</span>
+              <span>−{fmt(totalAllBrutto)}</span>
+            </div>
+            {accountFee > 0 && (
+              <div className="flex justify-between text-slate-500">
+                <span>Kontogebühren</span>
+                <span>−{fmt(accountFee)}</span>
+              </div>
+            )}
+            <div className={`border-t pt-2 flex justify-between font-semibold ${isOver ? 'text-red-600' : 'text-slate-900'}`}>
+              <span>Verbleibendes Budget</span>
+              <span>{fmt(remaining)}</span>
+            </div>
+          </div>
+
+          {/* Stunden-Tracking */}
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm text-slate-600">
+              <span>Stunden diesen Monat</span>
+              <span className="font-medium text-slate-900">
+                {actualHours.toLocaleString('de-DE')} / {monthlyHoursTarget.toLocaleString('de-DE')} h
+              </span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all ${hoursPct >= 100 ? 'bg-emerald-500' : 'bg-blue-400'}`}
+                style={{ width: `${hoursPct}%` }}
+              />
+            </div>
+            <p className="text-xs text-slate-400">
+              Ziel: {weeklyHoursTarget} h/Woche (9h Elternass. + 6h Pers. Ass.)
+            </p>
+          </div>
+        </div>
+
+        {/* Fortschrittsbalken Budget */}
+        <div className="mt-4">
+          <div className="w-full bg-slate-100 rounded-full h-2.5">
+            <div
+              className={`h-2.5 rounded-full transition-all ${isOver ? 'bg-red-500' : isWarning ? 'bg-amber-400' : 'bg-emerald-500'}`}
+              style={{ width: `${usedPct}%` }}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

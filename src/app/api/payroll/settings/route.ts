@@ -18,6 +18,9 @@ export async function POST(request: Request) {
     employer_name,
     employer_address,
     employer_tax_number,
+    monthly_budget,
+    account_fee,
+    weekly_hours_target,
   } = body
 
   if (typeof hourly_rate !== 'number' || hourly_rate <= 0) {
@@ -39,6 +42,9 @@ export async function POST(request: Request) {
     employer_name: employer_name ?? '',
     employer_address: employer_address ?? '',
     employer_tax_number: employer_tax_number ?? '',
+    monthly_budget: typeof monthly_budget === 'number' ? monthly_budget : 0,
+    account_fee: typeof account_fee === 'number' ? account_fee : 10,
+    weekly_hours_target: typeof weekly_hours_target === 'number' ? weekly_hours_target : 15,
   }
 
   const { data: existing } = await supabase.from('payroll_settings').select('id').limit(1).single()

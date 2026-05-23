@@ -139,6 +139,9 @@ export type Database = {
           employer_name: string
           employer_address: string
           employer_tax_number: string
+          monthly_budget: number
+          account_fee: number
+          weekly_hours_target: number
         }
         Insert: {
           id?: string
@@ -150,6 +153,9 @@ export type Database = {
           employer_name?: string
           employer_address?: string
           employer_tax_number?: string
+          monthly_budget?: number
+          account_fee?: number
+          weekly_hours_target?: number
         }
         Update: {
           hourly_rate?: number
@@ -160,6 +166,9 @@ export type Database = {
           employer_name?: string
           employer_address?: string
           employer_tax_number?: string
+          monthly_budget?: number
+          account_fee?: number
+          weekly_hours_target?: number
         }
         Relationships: Rel[]
       }
