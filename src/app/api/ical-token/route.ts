@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
@@ -14,29 +14,30 @@ export async function GET() {
 
   if (!profile) return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://karas.pro'
+  const origin = new URL(request.url).origin
+  const token = (profile as any).ical_token
   return NextResponse.json({
-    token: profile.ical_token,
-    url: `${base}/api/calendar.ics?token=${profile.ical_token}`,
+    token,
+    url: `${origin}/api/calendar.ics?token=${token}`,
   })
 }
 
-// Token zurücksetzen (neuen generieren)
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
 
   const { data } = await supabase
     .from('profiles')
-    .update({ ical_token: crypto.randomUUID() })
+    .update({ ical_token: crypto.randomUUID() } as any)
     .eq('id', user.id)
     .select('ical_token')
     .single()
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://karas.pro'
+  const origin = new URL(request.url).origin
+  const token = (data as any)?.ical_token
   return NextResponse.json({
-    token: data?.ical_token,
-    url: `${base}/api/calendar.ics?token=${data?.ical_token}`,
+    token,
+    url: `${origin}/api/calendar.ics?token=${token}`,
   })
 }

@@ -6,6 +6,8 @@ export interface Profile {
   full_name: string
   role: Role
   active: boolean
+  color?: string
+  ical_token?: string
   created_at: string
 }
 

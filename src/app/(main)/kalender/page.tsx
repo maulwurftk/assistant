@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
@@ -102,29 +102,34 @@ export default function KalenderPage() {
     if (!user) return
 
     const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-    setProfile(p)
+    setProfile(p as unknown as Profile)
+
+    // Assistenten für alle laden (für Farben im Kalender)
+    const { data: asst } = await supabase
+      .from('profiles')
+      .select('id, full_name, color')
+      .eq('role', 'assistant')
+      .eq('active', true)
+    setAssistants((asst ?? []) as unknown as Profile[])
 
     loadSlots()
 
-    if (p?.role === 'admin') {
-      const { data: asst } = await supabase.from('profiles').select('*').eq('role', 'assistant').eq('active', true)
-      setAssistants(asst ?? [])
+    if ((p as any)?.role === 'admin') {
       fetch('/api/google-calendar').then(r => r.json()).then(data => {
         if (Array.isArray(data)) setGoogleEvents(data)
       }).catch(() => {})
     }
 
-    // Realtime
     supabase.channel('calendar').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_slots' }, loadSlots).subscribe()
   }
 
   async function loadSlots() {
     const { data } = await supabase
       .from('calendar_slots')
-      .select('*, assigned_profile:profiles!assigned_to(full_name)')
+      .select('*, assigned_profile:profiles!assigned_to(full_name, color)')
       .neq('status', 'cancelled')
       .order('date')
-    setSlots(data ?? [])
+    setSlots((data ?? []) as unknown as CalendarSlot[])
   }
 
   function handleDateSelect(info: DateSelectArg) {
@@ -173,10 +178,10 @@ export default function KalenderPage() {
 
     let error
     if (editSlot) {
-      const r = await supabase.from('calendar_slots').update(payload).eq('id', editSlot.id)
+      const r = await supabase.from('calendar_slots').update(payload as any).eq('id', editSlot.id)
       error = r.error
     } else {
-      const r = await supabase.from('calendar_slots').insert({ ...payload, created_by: profile.id })
+      const r = await supabase.from('calendar_slots').insert({ ...payload, created_by: profile.id } as any)
       error = r.error
     }
 
@@ -187,7 +192,7 @@ export default function KalenderPage() {
 
   async function handleDelete() {
     if (!editSlot) return
-    const { error } = await supabase.from('calendar_slots').update({ status: 'cancelled' }).eq('id', editSlot.id)
+    const { error } = await supabase.from('calendar_slots').update({ status: 'cancelled' } as any).eq('id', editSlot.id)
     if (error) { toast.error('Fehler beim Löschen') }
     else { toast.success('Slot entfernt'); setDeleteDialogOpen(false); setDialogOpen(false); loadSlots() }
   }
@@ -222,15 +227,25 @@ export default function KalenderPage() {
     window.open(`https://calendar.google.com/calendar/r?cid=${encoded}`, '_blank')
   }
 
-  const calendarEvents = [...googleEvents, ...slots.map(slot => ({
-    id: slot.id,
-    title: slot.title + (slot.assigned_profile ? ` (${(slot.assigned_profile as any).full_name})` : ''),
-    start: `${slot.date}T${slot.start_time}`,
-    end: `${slot.date}T${slot.end_time}`,
-    backgroundColor: statusColors[slot.status],
-    borderColor: statusColors[slot.status],
-    textColor: '#fff',
-  }))]
+  // Farb-Map: Assistent-ID → Farbe
+  const assistantColorMap: Record<string, string> = {}
+  assistants.forEach(a => { assistantColorMap[a.id] = (a as any).color ?? statusColors.assigned })
+
+  const calendarEvents = [...googleEvents, ...slots.map(slot => {
+    const assignedColor = (slot.assigned_profile as any)?.color
+    const bgColor = slot.assigned_to
+      ? (assignedColor ?? assistantColorMap[slot.assigned_to] ?? statusColors.assigned)
+      : statusColors[slot.status]
+    return {
+      id: slot.id,
+      title: slot.title + (slot.assigned_profile ? ` (${(slot.assigned_profile as any).full_name})` : ''),
+      start: `${slot.date}T${slot.start_time}`,
+      end: `${slot.date}T${slot.end_time}`,
+      backgroundColor: bgColor,
+      borderColor: bgColor,
+      textColor: '#fff',
+    }
+  })]
 
   return (
     <div className="space-y-4">
@@ -251,10 +266,20 @@ export default function KalenderPage() {
         </div>
       </div>
 
-      <div className="flex gap-3 text-sm flex-wrap">
+      {/* Legende */}
+      <div className="flex gap-3 text-sm flex-wrap items-center">
         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-amber-400" /> Offen</div>
         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-violet-500" /> Angefragt</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500" /> Besetzt</div>
+        {profile?.role === 'admin' && assistants.length > 0 ? (
+          assistants.map(a => (
+            <div key={a.id} className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: (a as any).color ?? '#3b82f6' }} />
+              {a.full_name}
+            </div>
+          ))
+        ) : (
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500" /> Besetzt</div>
+        )}
         {googleEvents.length > 0 && (
           <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4285F4' }} /> Google Kalender</div>
         )}
@@ -328,7 +353,14 @@ export default function KalenderPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">— Noch offen —</SelectItem>
-                    {assistants.map(a => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+                    {assistants.map(a => (
+                      <SelectItem key={a.id} value={a.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: (a as any).color ?? '#6366f1' }} />
+                          {a.full_name}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -349,7 +381,6 @@ export default function KalenderPage() {
               </div>
             </div>
           ) : (
-            // Assistant: read-only view
             editSlot && (
               <div className="space-y-3 pt-2">
                 <div>
@@ -367,7 +398,7 @@ export default function KalenderPage() {
                   </div>
                 )}
                 <div>
-                  <Badge style={{ backgroundColor: statusColors[editSlot.status] }} className="text-white">
+                  <Badge style={{ backgroundColor: (editSlot.assigned_profile as any)?.color ?? statusColors[editSlot.status] }} className="text-white">
                     {editSlot.status === 'open' ? 'Offen' : 'Besetzt'}
                   </Badge>
                 </div>

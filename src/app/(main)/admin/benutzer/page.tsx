@@ -6,14 +6,13 @@ import { Profile } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -65,7 +64,7 @@ export default function BenutzerPage() {
 
   async function loadProfiles() {
     const { data } = await supabase.from('profiles').select('*').order('full_name')
-    setProfiles(data ?? [])
+    setProfiles((data ?? []) as unknown as Profile[])
   }
 
   async function handleCreate() {
@@ -98,7 +97,7 @@ export default function BenutzerPage() {
   }
 
   async function toggleActive(profile: Profile, active: boolean) {
-    const { error } = await supabase.from('profiles').update({ active }).eq('id', profile.id)
+    const { error } = await supabase.from('profiles').update({ active } as any).eq('id', profile.id)
     if (error) {
       toast.error('Fehler beim Aktualisieren')
     } else {
@@ -106,6 +105,11 @@ export default function BenutzerPage() {
       loadProfiles()
     }
     setDeactivateTarget(null)
+  }
+
+  async function updateColor(profileId: string, color: string) {
+    await supabase.from('profiles').update({ color } as any).eq('id', profileId)
+    setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, color } : p))
   }
 
   return (
@@ -166,6 +170,7 @@ export default function BenutzerPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>E-Mail</TableHead>
                 <TableHead>Rolle</TableHead>
+                <TableHead>Farbe</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Erstellt</TableHead>
                 <TableHead className="text-right">Aktionen</TableHead>
@@ -180,6 +185,22 @@ export default function BenutzerPage() {
                     <Badge variant={p.role === 'admin' ? 'default' : 'secondary'} className="text-xs">
                       {p.role === 'admin' ? 'Admin' : 'Assistent'}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {p.role === 'assistant' ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={p.color ?? '#6366f1'}
+                          onChange={e => updateColor(p.id, e.target.value)}
+                          className="w-8 h-8 rounded cursor-pointer border border-gray-200 p-0.5 bg-white"
+                          title="Kalenderfarbe ändern"
+                        />
+                        <span className="text-xs text-gray-400 font-mono">{p.color ?? '#6366f1'}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={p.active ? 'outline' : 'secondary'} className={p.active ? 'text-green-700 border-green-300 bg-green-50' : 'text-gray-500'}>
