@@ -30,6 +30,7 @@ import {
   Tag,
   Bell,
   ChevronUp,
+  Banknote,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -46,6 +47,7 @@ const navItems = (role: string) => [
     { href: '/admin/berichte', label: 'Berichte', icon: FileText, section: 'Admin' },
     { href: '/admin/benutzer', label: 'Benutzer', icon: Users },
     { href: '/admin/taetigkeiten', label: 'Tätigkeiten', icon: Tag },
+    { href: '/payroll', label: 'Abrechnung', icon: Banknote },
   ] : []),
 ]
 
