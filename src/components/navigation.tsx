@@ -31,6 +31,7 @@ import {
   Bell,
   ChevronUp,
   Banknote,
+  CalendarOff,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -43,10 +44,12 @@ const navItems = (role: string) => [
   { href: '/dashboard', label: 'Übersicht', icon: LayoutDashboard },
   { href: '/zeiterfassung', label: 'Zeiterfassung', icon: Clock },
   { href: '/kalender', label: 'Kalender', icon: CalendarDays },
+  { href: '/verfuegbarkeit', label: 'Sperrzeiten', icon: CalendarOff },
   ...(role === 'admin' ? [
     { href: '/admin/berichte', label: 'Berichte', icon: FileText, section: 'Admin' },
     { href: '/admin/benutzer', label: 'Benutzer', icon: Users },
     { href: '/admin/taetigkeiten', label: 'Tätigkeiten', icon: Tag },
+    { href: '/admin/verfuegbarkeit', label: 'Sperrzeiten', icon: CalendarOff },
     { href: '/payroll', label: 'Abrechnung', icon: Banknote },
   ] : []),
 ]
