@@ -29,7 +29,10 @@ export default async function MonthlyPayrollPage({ params }: Props) {
 
   const supabase = await createClient()
 
-  const [settingsRes, assistantsRes, entriesRes, reportsRes, runsRes] = await Promise.all([
+  const dateFrom = `${year}-${month.toString().padStart(2, '0')}-01`
+  const dateTo = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
+
+  const [settingsRes, assistantsRes, entriesRes, reportsRes, runsRes, slotsRes] = await Promise.all([
     supabase.from('payroll_settings').select('*').limit(1).single(),
     supabase
       .from('profiles')
@@ -40,13 +43,8 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     supabase
       .from('time_entries')
       .select('id, assistant_id, date, start_time, end_time, activity_id, month_status')
-      .gte('date', `${year}-${month.toString().padStart(2, '0')}-01`)
-      .lt(
-        'date',
-        month === 12
-          ? `${year + 1}-01-01`
-          : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
-      ),
+      .gte('date', dateFrom)
+      .lt('date', dateTo),
     supabase
       .from('monthly_reports')
       .select('assistant_id, status')
@@ -57,6 +55,12 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .select('assistant_id, email_sent_at, total_pay, total_minutes')
       .eq('year', year)
       .eq('month', month),
+    supabase
+      .from('calendar_slots')
+      .select('id, assigned_to, date, start_time, end_time, title')
+      .eq('status', 'assigned')
+      .gte('date', dateFrom)
+      .lt('date', dateTo),
   ])
 
   const settings = settingsRes.data as {
@@ -77,6 +81,14 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const entries = entriesRes.data ?? []
   const reports = reportsRes.data ?? []
   const runs = runsRes.data ?? []
+  const slots = (slotsRes.data ?? []) as Array<{
+    id: string
+    assigned_to: string | null
+    date: string
+    start_time: string
+    end_time: string
+    title: string
+  }>
 
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
@@ -88,10 +100,16 @@ export default async function MonthlyPayrollPage({ params }: Props) {
 
   const assistantData = assistants.map((a) => {
     const myEntries = entries.filter((e) => e.assistant_id === a.id)
-    const totalMinutes = myEntries.reduce(
+    const mySlots = slots.filter((s) => s.assigned_to === a.id)
+    const entryMinutes = myEntries.reduce(
       (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
       0
     )
+    const slotMinutes = mySlots.reduce(
+      (sum, s) => sum + entryDurationMinutes(s.start_time, s.end_time),
+      0
+    )
+    const totalMinutes = entryMinutes + slotMinutes
     const brutto = calculatePay(totalMinutes, hourlyRate)
     const rvPflicht = a.rv_pflicht !== false
     const minijob = minijobMode && totalMinutes > 0 ? calculateMinijob(brutto, rvPflicht, uvRate) : null
@@ -102,6 +120,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     return {
       ...a,
       rvPflicht,
+      slotCount: mySlots.length,
       entryCount: myEntries.length,
       totalMinutes,
       brutto,
@@ -227,7 +246,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="text-left px-5 py-3 font-medium text-slate-600">Assistent</th>
-                <th className="text-right px-5 py-3 font-medium text-slate-600">Einträge</th>
+                <th className="text-right px-5 py-3 font-medium text-slate-600">Einsätze</th>
                 <th className="text-right px-5 py-3 font-medium text-slate-600">Stunden</th>
                 <th className="text-right px-5 py-3 font-medium text-slate-600">
                   {minijobMode ? 'Brutto' : 'Lohn (brutto)'}
@@ -251,7 +270,15 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                     <p className="font-medium text-slate-900">{a.full_name}</p>
                     <p className="text-xs text-slate-400">{a.email}</p>
                   </td>
-                  <td className="px-5 py-4 text-right text-slate-600">{a.entryCount}</td>
+                  <td className="px-5 py-4 text-right text-slate-500 text-xs leading-snug">
+                    {a.slotCount > 0 && (
+                      <span className="block text-blue-600 font-medium">{a.slotCount} Slot{a.slotCount !== 1 ? 's' : ''}</span>
+                    )}
+                    {a.entryCount > 0 && (
+                      <span className="block">{a.entryCount} Eintr.</span>
+                    )}
+                    {a.slotCount === 0 && a.entryCount === 0 && '–'}
+                  </td>
                   <td className="px-5 py-4 text-right font-medium text-slate-800">
                     {a.totalMinutes > 0 ? formatMinutes(a.totalMinutes) : '–'}
                   </td>

@@ -23,7 +23,10 @@ export default async function PrintPage({ params }: Props) {
 
   const supabase = await createClient()
 
-  const [assistantRes, settingsRes, entriesRes, activitiesRes] = await Promise.all([
+  const dateFrom = `${year}-${month.toString().padStart(2, '0')}-01`
+  const dateTo = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
+
+  const [assistantRes, settingsRes, entriesRes, slotsRes, activitiesRes] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, email, rv_pflicht')
@@ -35,13 +38,17 @@ export default async function PrintPage({ params }: Props) {
       .from('time_entries')
       .select('id, date, start_time, end_time, activity_id, description, month_status')
       .eq('assistant_id', assistantId)
-      .gte('date', `${year}-${month.toString().padStart(2, '0')}-01`)
-      .lt(
-        'date',
-        month === 12
-          ? `${year + 1}-01-01`
-          : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
-      )
+      .gte('date', dateFrom)
+      .lt('date', dateTo)
+      .order('date')
+      .order('start_time'),
+    supabase
+      .from('calendar_slots')
+      .select('id, date, start_time, end_time, title')
+      .eq('assigned_to', assistantId)
+      .eq('status', 'assigned')
+      .gte('date', dateFrom)
+      .lt('date', dateTo)
       .order('date')
       .order('start_time'),
     supabase.from('activities').select('id, name'),
@@ -60,9 +67,32 @@ export default async function PrintPage({ params }: Props) {
     employer_tax_number?: string
   } | null
   const entries = entriesRes.data ?? []
+  const calendarSlots = (slotsRes.data ?? []) as Array<{ id: string; date: string; start_time: string; end_time: string; title: string }>
   const activities = activitiesRes.data ?? []
 
   const activityMap = Object.fromEntries(activities.map((a) => [a.id, a.name]))
+
+  // Kombinierte und sortierte Liste aller Arbeitsnachweise
+  type WorkRow = { id: string; date: string; start_time: string; end_time: string; label: string }
+  const allRows: WorkRow[] = [
+    ...entries.map((e) => ({
+      id: `e-${e.id}`,
+      date: e.date,
+      start_time: e.start_time,
+      end_time: e.end_time,
+      label: e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–',
+    })),
+    ...calendarSlots.map((s) => ({
+      id: `s-${s.id}`,
+      date: s.date,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      label: s.title,
+    })),
+  ].sort((a, b) => {
+    const d = a.date.localeCompare(b.date)
+    return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
+  })
 
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
@@ -70,7 +100,7 @@ export default async function PrintPage({ params }: Props) {
   const uvRate = settings?.uv_rate ?? 1.6
   const rvPflicht = assistant.rv_pflicht !== false // default true
 
-  const totalMinutes = entries.reduce(
+  const totalMinutes = allRows.reduce(
     (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
     0
   )
@@ -143,27 +173,26 @@ export default async function PrintPage({ params }: Props) {
             Arbeitsnachweise
           </h2>
 
-          {entries.length === 0 ? (
-            <p className="text-slate-400 text-sm py-4">Keine Zeiteinträge für diesen Monat.</p>
+          {allRows.length === 0 ? (
+            <p className="text-slate-400 text-sm py-4">Keine Einsätze für diesen Monat.</p>
           ) : (
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b-2 border-slate-200">
                   <th className="text-left py-2 pr-4 font-semibold text-slate-700">Datum</th>
-                  <th className="text-left py-2 pr-4 font-semibold text-slate-700">Tätigkeit</th>
+                  <th className="text-left py-2 pr-4 font-semibold text-slate-700">Tätigkeit / Slot</th>
                   <th className="text-left py-2 pr-4 font-semibold text-slate-700">Von</th>
                   <th className="text-left py-2 pr-4 font-semibold text-slate-700">Bis</th>
                   <th className="text-right py-2 font-semibold text-slate-700">Dauer</th>
                 </tr>
               </thead>
               <tbody>
-                {entries.map((e) => {
+                {allRows.map((e) => {
                   const minutes = entryDurationMinutes(e.start_time, e.end_time)
-                  const activity = e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–'
                   return (
                     <tr key={e.id} className="border-b border-slate-100">
                       <td className="py-2 pr-4 text-slate-800">{formatDate(e.date)}</td>
-                      <td className="py-2 pr-4 text-slate-700">{activity}</td>
+                      <td className="py-2 pr-4 text-slate-700">{e.label}</td>
                       <td className="py-2 pr-4 text-slate-600 font-mono text-xs">
                         {e.start_time.slice(0, 5)}
                       </td>

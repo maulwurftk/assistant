@@ -36,19 +36,26 @@ export async function POST(request: Request) {
   const body: Body = await request.json()
   const { assistantId, assistantName, assistantEmail, year, month, hourlyRate, currency } = body
 
-  // Einträge, Tätigkeiten, Settings und Assistent-Profil parallel laden
-  const [entriesRes, activitiesRes, settingsRes, assistantRes] = await Promise.all([
+  const dateFrom = `${year}-${month.toString().padStart(2, '0')}-01`
+  const dateTo = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
+
+  // Einträge, Slots, Tätigkeiten, Settings und Assistent-Profil parallel laden
+  const [entriesRes, slotsRes, activitiesRes, settingsRes, assistantRes] = await Promise.all([
     supabase
       .from('time_entries')
       .select('date, start_time, end_time, activity_id, description')
       .eq('assistant_id', assistantId)
-      .gte('date', `${year}-${month.toString().padStart(2, '0')}-01`)
-      .lt(
-        'date',
-        month === 12
-          ? `${year + 1}-01-01`
-          : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
-      )
+      .gte('date', dateFrom)
+      .lt('date', dateTo)
+      .order('date')
+      .order('start_time'),
+    supabase
+      .from('calendar_slots')
+      .select('date, start_time, end_time, title')
+      .eq('assigned_to', assistantId)
+      .eq('status', 'assigned')
+      .gte('date', dateFrom)
+      .lt('date', dateTo)
       .order('date')
       .order('start_time'),
     supabase.from('activities').select('id, name'),
@@ -57,7 +64,28 @@ export async function POST(request: Request) {
   ])
 
   const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.name]))
-  const allEntries = entriesRes.data ?? []
+  const timeEntries = entriesRes.data ?? []
+  const calendarSlots = (slotsRes.data ?? []) as Array<{ date: string; start_time: string; end_time: string; title: string }>
+
+  // Kombinierte und nach Datum sortierte Eintrags-Liste
+  type WorkRow = { date: string; start_time: string; end_time: string; label: string }
+  const allEntries: WorkRow[] = [
+    ...timeEntries.map((e) => ({
+      date: e.date,
+      start_time: e.start_time,
+      end_time: e.end_time,
+      label: e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–',
+    })),
+    ...calendarSlots.map((s) => ({
+      date: s.date,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      label: s.title,
+    })),
+  ].sort((a, b) => {
+    const d = a.date.localeCompare(b.date)
+    return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
+  })
   const settings = settingsRes.data as {
     minijob_mode?: boolean
     uv_rate?: number
@@ -84,11 +112,10 @@ export async function POST(request: Request) {
   const rowsHtml = allEntries
     .map((e) => {
       const minutes = entryDurationMinutes(e.start_time, e.end_time)
-      const activity = e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–'
       return `
         <tr style="border-bottom:1px solid #e2e8f0">
           <td style="padding:8px 12px;color:#334155">${formatDate(e.date)}</td>
-          <td style="padding:8px 12px;color:#334155">${activity}</td>
+          <td style="padding:8px 12px;color:#334155">${e.label}</td>
           <td style="padding:8px 12px;color:#64748b;font-family:monospace">${e.start_time.slice(0, 5)}</td>
           <td style="padding:8px 12px;color:#64748b;font-family:monospace">${e.end_time.slice(0, 5)}</td>
           <td style="padding:8px 12px;text-align:right;color:#0f172a;font-weight:500">${formatMinutes(minutes)}</td>
