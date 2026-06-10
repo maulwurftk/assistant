@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Activity, TimeEntry } from '@/lib/types'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -304,53 +305,53 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
           <div className="space-y-2">
             {editingTemplate.map((row, i) => (
-              <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
-                {/* Row 1: Wochentag + Zeiten */}
+              <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2.5 bg-white">
+                {/* Wochentag-Auswahl als Schaltflächen */}
+                <div className="flex gap-1">
+                  {[{v:1,l:'Mo'},{v:2,l:'Di'},{v:3,l:'Mi'},{v:4,l:'Do'},{v:5,l:'Fr'},{v:6,l:'Sa'},{v:0,l:'So'}].map((d) => (
+                    <button
+                      key={d.v}
+                      type="button"
+                      onClick={() => updateRow(i, { jsDay: d.v })}
+                      className={cn(
+                        'flex-1 h-7 rounded text-xs font-medium transition-colors',
+                        row.jsDay === d.v
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      )}
+                    >
+                      {d.l}
+                    </button>
+                  ))}
+                </div>
+                {/* Zeit + Tätigkeit + Löschen */}
                 <div className="flex items-center gap-2">
-                  <Select
-                    value={String(row.jsDay)}
-                    onValueChange={(v) => updateRow(i, { jsDay: Number(v) })}
-                  >
-                    <SelectTrigger className="h-8 w-32 text-sm">
-                      <SelectValue placeholder="Tag…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEEKDAY_OPTIONS.map((d) => (
-                        <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-xs text-gray-400 shrink-0">von</span>
                   <Input
-                    type="time" className="h-8 w-28 text-sm"
+                    type="time" className="h-8 w-24 text-sm shrink-0"
                     value={row.start}
                     onChange={(e) => updateRow(i, { start: e.target.value })}
                   />
-                  <span className="text-xs text-gray-400 shrink-0">bis</span>
+                  <span className="text-gray-400 text-xs shrink-0">–</span>
                   <Input
-                    type="time" className="h-8 w-28 text-sm"
+                    type="time" className="h-8 w-24 text-sm shrink-0"
                     value={row.end}
                     onChange={(e) => updateRow(i, { end: e.target.value })}
                   />
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-100 ml-auto"
+                  <Select value={row.activityName} onValueChange={(v) => updateRow(i, { activityName: v })}>
+                    <SelectTrigger className="h-8 flex-1 text-sm min-w-0">
+                      <SelectValue placeholder="Tätigkeit…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activities.map((a) => (
+                        <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-50"
                     onClick={() => removeRow(i)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                {/* Row 2: Tätigkeit */}
-                <Select
-                  value={row.activityName}
-                  onValueChange={(v) => updateRow(i, { activityName: v })}
-                >
-                  <SelectTrigger className="h-8 w-full text-sm">
-                    <SelectValue placeholder="Tätigkeit wählen…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activities.map((a) => (
-                      <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             ))}
 
