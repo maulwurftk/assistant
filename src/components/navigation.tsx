@@ -49,6 +49,7 @@ const navItems = (role: string) => [
     { href: '/admin/berichte', label: 'Berichte', icon: FileText, section: 'Admin' },
     { href: '/admin/benutzer', label: 'Benutzer', icon: Users },
     { href: '/admin/taetigkeiten', label: 'Tätigkeiten', icon: Tag },
+    { href: '/admin/zeiterfassung', label: 'Zeiterfassung', icon: Clock },
     { href: '/admin/verfuegbarkeit', label: 'Sperrzeiten', icon: CalendarOff },
     { href: '/payroll', label: 'Abrechnung', icon: Banknote },
   ] : []),
