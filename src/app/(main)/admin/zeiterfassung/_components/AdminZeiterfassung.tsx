@@ -36,8 +36,8 @@ import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
-import type { TemplateRow } from '@/app/api/admin/time-entries/template-config/route'
-import { DEFAULT_TEMPLATE } from '@/app/api/admin/time-entries/template-config/route'
+import type { TemplateRow } from '@/lib/time-entry-template'
+import { DEFAULT_TEMPLATE } from '@/lib/time-entry-template'
 
 const WEEKDAY_OPTIONS = [
   { value: 1, label: 'Montag' },

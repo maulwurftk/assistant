@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { DEFAULT_TEMPLATE } from '../template-config/route'
+import { DEFAULT_TEMPLATE } from '@/lib/time-entry-template'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
