@@ -294,7 +294,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
       {/* Template Config Dialog */}
       <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Wöchentliche Vorlage anpassen</DialogTitle>
             <DialogDescription>
@@ -303,57 +303,58 @@ export default function AdminZeiterfassung({ assistants }: Props) {
           </DialogHeader>
 
           <div className="space-y-2">
-            {/* Column headers */}
-            <div className="grid grid-cols-[90px_80px_80px_1fr_36px] gap-2 px-1">
-              <span className="text-xs font-medium text-gray-500">Tag</span>
-              <span className="text-xs font-medium text-gray-500">Von</span>
-              <span className="text-xs font-medium text-gray-500">Bis</span>
-              <span className="text-xs font-medium text-gray-500">Tätigkeit</span>
-              <span />
-            </div>
-
             {editingTemplate.map((row, i) => (
-              <div key={i} className="grid grid-cols-[90px_80px_80px_1fr_36px] gap-2 items-center">
-                <Select
-                  value={String(row.jsDay)}
-                  onValueChange={(v) => updateRow(i, { jsDay: Number(v) })}
-                >
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {WEEKDAY_OPTIONS.map((d) => (
-                      <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="time" className="h-8 text-xs"
-                  value={row.start}
-                  onChange={(e) => updateRow(i, { start: e.target.value })}
-                />
-                <Input
-                  type="time" className="h-8 text-xs"
-                  value={row.end}
-                  onChange={(e) => updateRow(i, { end: e.target.value })}
-                />
+              <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
+                {/* Row 1: Wochentag + Zeiten */}
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={String(row.jsDay)}
+                    onValueChange={(v) => updateRow(i, { jsDay: Number(v) })}
+                  >
+                    <SelectTrigger className="h-8 w-32 text-sm">
+                      <SelectValue placeholder="Tag…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WEEKDAY_OPTIONS.map((d) => (
+                        <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-gray-400 shrink-0">von</span>
+                  <Input
+                    type="time" className="h-8 w-28 text-sm"
+                    value={row.start}
+                    onChange={(e) => updateRow(i, { start: e.target.value })}
+                  />
+                  <span className="text-xs text-gray-400 shrink-0">bis</span>
+                  <Input
+                    type="time" className="h-8 w-28 text-sm"
+                    value={row.end}
+                    onChange={(e) => updateRow(i, { end: e.target.value })}
+                  />
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-100 ml-auto"
+                    onClick={() => removeRow(i)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                {/* Row 2: Tätigkeit */}
                 <Select
                   value={row.activityName}
                   onValueChange={(v) => updateRow(i, { activityName: v })}
                 >
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tätigkeit..." /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-full text-sm">
+                    <SelectValue placeholder="Tätigkeit wählen…" />
+                  </SelectTrigger>
                   <SelectContent>
                     {activities.map((a) => (
                       <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
-                  onClick={() => removeRow(i)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
               </div>
             ))}
 
-            <Button variant="outline" size="sm" className="w-full mt-2 border-dashed" onClick={addRow}>
+            <Button variant="outline" size="sm" className="w-full border-dashed" onClick={addRow}>
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               Zeile hinzufügen
             </Button>
