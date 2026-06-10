@@ -1,16 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-
-// Wöchentliche Vorlage aus Zielvereinbarung Bezirk Oberpfalz (01.03.2026–29.02.2028)
-// Mo/Mi/Fr Elternassistenz (9h), Di/Do Persönliche Assistenz (6h)
-const TEMPLATE = [
-  { jsDay: 1, start_time: '08:00', end_time: '11:00', activityName: 'Elternassistenz – Betreuung Tochter' },
-  { jsDay: 2, start_time: '10:00', end_time: '13:00', activityName: 'Pers. Assistenz – Freizeitbegleitung' },
-  { jsDay: 3, start_time: '08:00', end_time: '11:00', activityName: 'Elternassistenz – Betreuung Tochter' },
-  { jsDay: 4, start_time: '09:00', end_time: '10:00', activityName: 'Pers. Assistenz – Einkauf' },
-  { jsDay: 4, start_time: '10:00', end_time: '12:00', activityName: 'Pers. Assistenz – Arzttermin' },
-  { jsDay: 5, start_time: '08:00', end_time: '11:00', activityName: 'Elternassistenz – Aufräumen / Einkauf' },
-]
+import { DEFAULT_TEMPLATE } from '../template-config/route'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -26,6 +16,10 @@ export async function POST(request: Request) {
   }
 
   const service = await createServiceClient()
+
+  // Aktuelle Vorlage aus DB laden (Fallback: Default)
+  const { data: settings } = await service.from('payroll_settings').select('*').limit(1).single()
+  const template: typeof DEFAULT_TEMPLATE = (settings as any)?.weekly_template ?? DEFAULT_TEMPLATE
 
   // Tätigkeits-IDs per Name nachschlagen
   const { data: activities } = await service.from('activities').select('id, name')
@@ -43,23 +37,22 @@ export async function POST(request: Request) {
 
   const existingKeys = new Set((existing ?? []).map((e) => `${e.date}|${e.start_time.slice(0, 5)}`))
 
-  // Alle Tage des Monats durchlaufen, Template anwenden
   const toInsert: object[] = []
   const daysInMonth = new Date(year, month, 0).getDate()
   let skipped = 0
 
   for (let day = 1; day <= daysInMonth; day++) {
     const jsDay = new Date(year, month - 1, day).getDay()
-    for (const slot of TEMPLATE) {
+    for (const slot of template) {
       if (slot.jsDay !== jsDay) continue
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      const key = `${dateStr}|${slot.start_time}`
+      const key = `${dateStr}|${slot.start}`
       if (existingKeys.has(key)) { skipped++; continue }
       toInsert.push({
         assistant_id,
         date: dateStr,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
+        start_time: slot.start,
+        end_time: slot.end,
         activity_id: activityByName[slot.activityName] ?? null,
         month_status: 'draft',
         updated_at: new Date().toISOString(),

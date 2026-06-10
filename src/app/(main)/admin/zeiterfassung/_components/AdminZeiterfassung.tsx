@@ -33,19 +33,23 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
+import type { TemplateRow } from '@/app/api/admin/time-entries/template-config/route'
+import { DEFAULT_TEMPLATE } from '@/app/api/admin/time-entries/template-config/route'
 
-// Wöchentliche Vorlage aus Zielvereinbarung Bezirk Oberpfalz
-const WEEKLY_TEMPLATE = [
-  { jsDay: 1, label: 'Mo', start: '08:00', end: '11:00', activityName: 'Elternassistenz – Betreuung Tochter' },
-  { jsDay: 2, label: 'Di', start: '10:00', end: '13:00', activityName: 'Pers. Assistenz – Freizeitbegleitung' },
-  { jsDay: 3, label: 'Mi', start: '08:00', end: '11:00', activityName: 'Elternassistenz – Betreuung Tochter' },
-  { jsDay: 4, label: 'Do', start: '09:00', end: '10:00', activityName: 'Pers. Assistenz – Einkauf' },
-  { jsDay: 4, label: 'Do', start: '10:00', end: '12:00', activityName: 'Pers. Assistenz – Arzttermin' },
-  { jsDay: 5, label: 'Fr', start: '08:00', end: '11:00', activityName: 'Elternassistenz – Aufräumen / Einkauf' },
+const WEEKDAY_OPTIONS = [
+  { value: 1, label: 'Montag' },
+  { value: 2, label: 'Dienstag' },
+  { value: 3, label: 'Mittwoch' },
+  { value: 4, label: 'Donnerstag' },
+  { value: 5, label: 'Freitag' },
+  { value: 6, label: 'Samstag' },
+  { value: 0, label: 'Sonntag' },
 ]
+
+const WEEKDAY_SHORT: Record<number, string> = { 0: 'So', 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa' }
 
 interface Assistant { id: string; full_name: string; email: string }
 interface MonthlyReport { status: string; sent_at: string | null }
@@ -61,22 +65,17 @@ const emptyForm: EntryForm = {
   activity_id: '', description: '',
 }
 
-type PreviewEntry = { date: string; start: string; end: string; activityName: string; existing: boolean }
-
-function generatePreview(year: number, month: number, entries: TimeEntry[]): { toCreate: PreviewEntry[]; toSkip: number } {
+function generatePreview(year: number, month: number, entries: TimeEntry[], template: TemplateRow[]) {
   const existingKeys = new Set(entries.map((e) => `${e.date}|${e.start_time.slice(0, 5)}`))
   const daysInMonth = new Date(year, month, 0).getDate()
-  const toCreate: PreviewEntry[] = []
+  let toCreate = 0
   let toSkip = 0
-
   for (let day = 1; day <= daysInMonth; day++) {
     const jsDay = new Date(year, month - 1, day).getDay()
-    for (const slot of WEEKLY_TEMPLATE) {
+    for (const slot of template) {
       if (slot.jsDay !== jsDay) continue
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      const key = `${dateStr}|${slot.start}`
-      if (existingKeys.has(key)) { toSkip++; continue }
-      toCreate.push({ date: dateStr, start: slot.start, end: slot.end, activityName: slot.activityName, existing: false })
+      existingKeys.has(`${dateStr}|${slot.start}`) ? toSkip++ : toCreate++
     }
   }
   return { toCreate, toSkip }
@@ -94,13 +93,21 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [configDialogOpen, setConfigDialogOpen] = useState(false)
+  const [template, setTemplate] = useState<TemplateRow[]>(DEFAULT_TEMPLATE)
+  const [editingTemplate, setEditingTemplate] = useState<TemplateRow[]>(DEFAULT_TEMPLATE)
   const [saving, setSaving] = useState(false)
   const [creatingTemplate, setCreatingTemplate] = useState(false)
+  const [savingConfig, setSavingConfig] = useState(false)
 
   useEffect(() => {
-    supabase
-      .from('activities').select('*').eq('active', true).order('sort_order')
+    supabase.from('activities').select('*').eq('active', true).order('sort_order')
       .then(({ data }) => setActivities(data ?? []))
+    // Vorlage aus DB laden
+    fetch('/api/admin/time-entries/template-config')
+      .then((r) => r.json())
+      .then(({ template: t }) => { if (t) { setTemplate(t); setEditingTemplate(t) } })
+      .catch(() => {})
   }, [])
 
   const loadEntries = useCallback(async () => {
@@ -176,17 +183,44 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       body: JSON.stringify({ assistant_id: selectedId, year: currentMonth.getFullYear(), month: currentMonth.getMonth() + 1 }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      toast.error(data.error ?? 'Fehler beim Erstellen der Vorlage')
-    } else {
-      const msg = data.skipped > 0
-        ? `${data.created} Einträge angelegt, ${data.skipped} bereits vorhanden`
-        : `${data.created} Einträge angelegt`
-      toast.success(msg)
+    if (!res.ok) toast.error(data.error ?? 'Fehler')
+    else {
+      toast.success(data.skipped > 0
+        ? `${data.created} Einträge angelegt, ${data.skipped} übersprungen`
+        : `${data.created} Einträge angelegt`)
       setTemplateDialogOpen(false)
       loadEntries()
     }
     setCreatingTemplate(false)
+  }
+
+  async function handleSaveConfig() {
+    setSavingConfig(true)
+    const res = await fetch('/api/admin/time-entries/template-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template: editingTemplate }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) toast.error(data.error ?? 'Fehler beim Speichern')
+    else {
+      setTemplate(editingTemplate)
+      toast.success('Vorlage gespeichert')
+      setConfigDialogOpen(false)
+    }
+    setSavingConfig(false)
+  }
+
+  function updateRow(i: number, patch: Partial<TemplateRow>) {
+    setEditingTemplate((prev) => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r))
+  }
+
+  function removeRow(i: number) {
+    setEditingTemplate((prev) => prev.filter((_, idx) => idx !== i))
+  }
+
+  function addRow() {
+    setEditingTemplate((prev) => [...prev, { jsDay: 1, start: '08:00', end: '10:00', activityName: activities[0]?.name ?? '' }])
   }
 
   const totalHours = entries.reduce((acc, e) => {
@@ -198,26 +232,23 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   const selectedAssistant = assistants.find((a) => a.id === selectedId)
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth() + 1
-  const preview = selectedId ? generatePreview(year, month, entries) : { toCreate: [], toSkip: 0 }
+  const preview = selectedId ? generatePreview(year, month, entries, template) : { toCreate: 0, toSkip: 0 }
 
   return (
     <div className="max-w-2xl space-y-5">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Zeiterfassung verwalten</h1>
         <p className="text-sm text-gray-500 mt-0.5">Einträge von Assistentinnen einsehen, bearbeiten und ergänzen</p>
       </div>
 
-      {/* Controls row */}
+      {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <Select value={selectedId} onValueChange={setSelectedId}>
           <SelectTrigger className="w-full sm:w-56">
             <SelectValue placeholder="Assistentin wählen..." />
           </SelectTrigger>
           <SelectContent>
-            {assistants.map((a) => (
-              <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
-            ))}
+            {assistants.map((a) => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2 ml-auto">
@@ -233,7 +264,6 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         </div>
       </div>
 
-      {/* Submitted banner */}
       {report?.status === 'sent' && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center justify-between">
           <span className="text-blue-800 text-sm font-medium">
@@ -244,19 +274,14 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         </div>
       )}
 
-      {/* Stats + Action buttons */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-gray-500">
-          {totalHours.toFixed(1)} Std. · {entries.length} Einträge
-        </p>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-sm text-gray-500">{totalHours.toFixed(1)} Std. · {entries.length} Einträge</p>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setTemplateDialogOpen(true)}
-            disabled={!selectedId}
-            title="Monatliche Vorlage aus Zielvereinbarung anlegen"
-          >
+          <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(template); setConfigDialogOpen(true) }}>
+            <Settings2 className="h-4 w-4 mr-1.5" />
+            Vorlage anpassen
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setTemplateDialogOpen(true)} disabled={!selectedId}>
             <CalendarPlus className="h-4 w-4 mr-1.5" />
             Vorlage erstellen
           </Button>
@@ -267,27 +292,100 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         </div>
       </div>
 
-      {/* Template Preview Dialog */}
+      {/* Template Config Dialog */}
+      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Wöchentliche Vorlage anpassen</DialogTitle>
+            <DialogDescription>
+              Legt fest, welche Einträge beim Klick auf „Vorlage erstellen" angelegt werden.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            {/* Column headers */}
+            <div className="grid grid-cols-[90px_80px_80px_1fr_36px] gap-2 px-1">
+              <span className="text-xs font-medium text-gray-500">Tag</span>
+              <span className="text-xs font-medium text-gray-500">Von</span>
+              <span className="text-xs font-medium text-gray-500">Bis</span>
+              <span className="text-xs font-medium text-gray-500">Tätigkeit</span>
+              <span />
+            </div>
+
+            {editingTemplate.map((row, i) => (
+              <div key={i} className="grid grid-cols-[90px_80px_80px_1fr_36px] gap-2 items-center">
+                <Select
+                  value={String(row.jsDay)}
+                  onValueChange={(v) => updateRow(i, { jsDay: Number(v) })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {WEEKDAY_OPTIONS.map((d) => (
+                      <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="time" className="h-8 text-xs"
+                  value={row.start}
+                  onChange={(e) => updateRow(i, { start: e.target.value })}
+                />
+                <Input
+                  type="time" className="h-8 text-xs"
+                  value={row.end}
+                  onChange={(e) => updateRow(i, { end: e.target.value })}
+                />
+                <Select
+                  value={row.activityName}
+                  onValueChange={(v) => updateRow(i, { activityName: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tätigkeit..." /></SelectTrigger>
+                  <SelectContent>
+                    {activities.map((a) => (
+                      <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                  onClick={() => removeRow(i)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+
+            <Button variant="outline" size="sm" className="w-full mt-2 border-dashed" onClick={addRow}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Zeile hinzufügen
+            </Button>
+          </div>
+
+          <div className="flex gap-2 pt-2 border-t mt-2">
+            <Button variant="outline" onClick={() => setConfigDialogOpen(false)} className="flex-1">Abbrechen</Button>
+            <Button onClick={handleSaveConfig} disabled={savingConfig} className="flex-1">
+              {savingConfig ? 'Speichern…' : 'Vorlage speichern'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Preview & Create Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Monatsvorlage erstellen</DialogTitle>
             <DialogDescription>
-              Wöchentliches Muster aus Zielvereinbarung Bezirk Oberpfalz für{' '}
-              <strong>{format(currentMonth, 'MMMM yyyy', { locale: de })}</strong>
+              Wöchentliches Muster für <strong>{format(currentMonth, 'MMMM yyyy', { locale: de })}</strong>
             </DialogDescription>
           </DialogHeader>
-
-          {/* Wochenmuster */}
           <div className="rounded-lg border border-gray-200 overflow-hidden text-sm">
             <div className="bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Wöchentliches Muster (15h/Woche)
+              Aktuelles Muster
             </div>
             <table className="w-full">
               <tbody>
-                {WEEKLY_TEMPLATE.map((slot, i) => (
+                {template.map((slot, i) => (
                   <tr key={i} className="border-t border-gray-100">
-                    <td className="px-3 py-2 font-medium text-gray-700 w-8">{slot.label}</td>
+                    <td className="px-3 py-2 font-medium text-gray-700 w-8">{WEEKDAY_SHORT[slot.jsDay]}</td>
                     <td className="px-3 py-2 text-gray-600">{slot.activityName}</td>
                     <td className="px-3 py-2 text-gray-500 text-right whitespace-nowrap font-mono text-xs">
                       {slot.start}–{slot.end}
@@ -297,33 +395,21 @@ export default function AdminZeiterfassung({ assistants }: Props) {
               </tbody>
             </table>
           </div>
-
-          {/* Zusammenfassung */}
-          <div className={`rounded-lg px-4 py-3 text-sm ${preview.toCreate.length > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
-            {preview.toCreate.length > 0 ? (
+          <div className={`rounded-lg px-4 py-3 text-sm ${preview.toCreate > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
+            {preview.toCreate > 0 ? (
               <p className="text-emerald-800">
-                <strong>{preview.toCreate.length} Einträge</strong> werden angelegt
-                {preview.toSkip > 0 && (
-                  <span className="text-emerald-600"> · {preview.toSkip} bereits vorhanden (werden übersprungen)</span>
-                )}
+                <strong>{preview.toCreate} Einträge</strong> werden angelegt
+                {preview.toSkip > 0 && <span className="text-emerald-600"> · {preview.toSkip} bereits vorhanden (werden übersprungen)</span>}
               </p>
             ) : (
-              <p className="text-gray-500">
-                Alle Einträge für diesen Monat sind bereits vorhanden ({preview.toSkip} gesamt).
-              </p>
+              <p className="text-gray-500">Alle Einträge für diesen Monat sind bereits vorhanden.</p>
             )}
           </div>
-
           <div className="flex gap-2 pt-1">
-            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} className="flex-1">
-              Abbrechen
-            </Button>
-            <Button
-              onClick={handleCreateTemplate}
-              disabled={creatingTemplate || preview.toCreate.length === 0}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-            >
-              {creatingTemplate ? 'Wird erstellt…' : `${preview.toCreate.length} Einträge anlegen`}
+            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} className="flex-1">Abbrechen</Button>
+            <Button onClick={handleCreateTemplate} disabled={creatingTemplate || preview.toCreate === 0}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+              {creatingTemplate ? 'Wird erstellt…' : `${preview.toCreate} Einträge anlegen`}
             </Button>
           </div>
         </DialogContent>
@@ -333,9 +419,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {editId ? 'Eintrag bearbeiten' : `Neuer Eintrag für ${selectedAssistant?.full_name ?? ''}`}
-            </DialogTitle>
+            <DialogTitle>{editId ? 'Eintrag bearbeiten' : `Neuer Eintrag für ${selectedAssistant?.full_name ?? ''}`}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
