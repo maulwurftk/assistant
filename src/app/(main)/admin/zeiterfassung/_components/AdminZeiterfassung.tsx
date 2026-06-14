@@ -34,11 +34,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2, FileText } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { TemplateRow } from '@/lib/time-entry-template'
 import { DEFAULT_TEMPLATE } from '@/lib/time-entry-template'
+
+const TIME_PRESETS = ['07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','16:00','17:00']
 
 const WEEKDAY_OPTIONS = [
   { value: 1, label: 'Montag' },
@@ -244,7 +246,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <Select value={selectedId} onValueChange={setSelectedId}>
+        <Select value={selectedId} onValueChange={(v) => setSelectedId(v ?? '')}>
           <SelectTrigger className="w-full sm:w-56">
             <SelectValue placeholder="Assistentin wählen..." />
           </SelectTrigger>
@@ -277,7 +279,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-gray-500">{totalHours.toFixed(1)} Std. · {entries.length} Einträge</p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(template); setConfigDialogOpen(true) }}>
             <Settings2 className="h-4 w-4 mr-1.5" />
             Vorlage anpassen
@@ -285,6 +287,11 @@ export default function AdminZeiterfassung({ assistants }: Props) {
           <Button variant="outline" size="sm" onClick={() => setTemplateDialogOpen(true)} disabled={!selectedId}>
             <CalendarPlus className="h-4 w-4 mr-1.5" />
             Vorlage erstellen
+          </Button>
+          <Button variant="outline" size="sm" disabled={!selectedId}
+            onClick={() => selectedId && window.open(`/admin/zeiterfassung/bericht/${selectedId}/${year}/${month}`, '_blank')}>
+            <FileText className="h-4 w-4 mr-1.5" />
+            Bericht drucken
           </Button>
           <Button onClick={openNew} size="sm" disabled={!selectedId}>
             <Plus className="h-4 w-4 mr-1.5" />
@@ -337,7 +344,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                     value={row.end}
                     onChange={(e) => updateRow(i, { end: e.target.value })}
                   />
-                  <Select value={row.activityName} onValueChange={(v) => updateRow(i, { activityName: v })}>
+                  <Select value={row.activityName} onValueChange={(v) => updateRow(i, { activityName: v ?? '' })}>
                     <SelectTrigger className="h-8 flex-1 text-sm min-w-0">
                       <SelectValue placeholder="Tätigkeit…" />
                     </SelectTrigger>
@@ -419,7 +426,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
       {/* Entry Edit/Add Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editId ? 'Eintrag bearbeiten' : `Neuer Eintrag für ${selectedAssistant?.full_name ?? ''}`}</DialogTitle>
           </DialogHeader>
@@ -428,20 +435,44 @@ export default function AdminZeiterfassung({ assistants }: Props) {
               <Label>Datum</Label>
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Startzeit</Label>
-                <Input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
+            <div className="space-y-2">
+              <Label>Startzeit</Label>
+              <Input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
+              <div className="flex flex-wrap gap-1">
+                {TIME_PRESETS.map((t) => (
+                  <button key={t} type="button"
+                    onClick={() => setForm((f) => ({ ...f, start_time: t }))}
+                    className={cn('px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
+                      form.start_time === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    )}>
+                    {t}
+                  </button>
+                ))}
               </div>
-              <div className="space-y-2">
-                <Label>Endzeit</Label>
-                <Input type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Endzeit</Label>
+              <Input type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} />
+              <div className="flex flex-wrap gap-1">
+                {TIME_PRESETS.map((t) => (
+                  <button key={t} type="button"
+                    onClick={() => setForm((f) => ({ ...f, end_time: t }))}
+                    className={cn('px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
+                      form.end_time === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    )}>
+                    {t}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="space-y-2">
               <Label>Tätigkeit</Label>
               <Select value={form.activity_id || undefined} onValueChange={(v) => setForm({ ...form, activity_id: v ?? '' })}>
-                <SelectTrigger><SelectValue placeholder="Tätigkeit wählen..." /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tätigkeit wählen...">
+                    {activities.find((a) => a.id === form.activity_id)?.name}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {activities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                 </SelectContent>
