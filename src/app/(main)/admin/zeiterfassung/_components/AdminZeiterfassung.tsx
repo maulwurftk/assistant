@@ -469,9 +469,11 @@ export default function AdminZeiterfassung({ assistants }: Props) {
               <Label>Tätigkeit</Label>
               <Select value={form.activity_id || undefined} onValueChange={(v) => setForm({ ...form, activity_id: v ?? '' })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Tätigkeit wählen...">
-                    {activities.find((a) => a.id === form.activity_id)?.name}
-                  </SelectValue>
+                  <span className={cn('flex-1 text-left text-sm truncate', !form.activity_id && 'text-muted-foreground')}>
+                    {form.activity_id
+                      ? (activities.find((a) => a.id === form.activity_id)?.name ?? '–')
+                      : 'Tätigkeit wählen...'}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   {activities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}

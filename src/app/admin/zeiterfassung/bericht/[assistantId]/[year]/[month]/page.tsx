@@ -82,20 +82,16 @@ export default async function BerichtPage({ params }: Props) {
       </div>
 
       <div className="max-w-3xl mx-auto p-12 print:p-8">
-        {/* Titel */}
         <div className="flex justify-between items-start mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Anwesenheitsnachweis</h1>
-            <p className="text-xl text-slate-600 mt-1">
-              {monthName(month)} {year}
-            </p>
+            <p className="text-xl text-slate-600 mt-1">{monthName(month)} {year}</p>
           </div>
           <div className="text-right text-sm text-slate-400">
             <p>Erstellt am {today}</p>
           </div>
         </div>
 
-        {/* Arbeitgeber / Arbeitnehmer */}
         <div className="grid grid-cols-2 gap-6 mb-8">
           {settings?.employer_name && (
             <div className="p-4 border border-slate-200 rounded-xl">
@@ -113,12 +109,8 @@ export default async function BerichtPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Einsätze */}
         <div className="mb-8">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
-            Einsätze
-          </h2>
-
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Einsätze</h2>
           {allRows.length === 0 ? (
             <p className="text-slate-400 text-sm py-6">Keine Einsätze für diesen Monat.</p>
           ) : (
@@ -156,15 +148,13 @@ export default async function BerichtPage({ params }: Props) {
           )}
         </div>
 
-        {/* Bestätigung */}
-        <div className="border border-slate-200 rounded-xl p-5 mb-10 bg-slate-50 print:bg-white">
+        <div className="border border-slate-200 rounded-xl p-5 mb-10 bg-slate-50 print:bg-white print:border-slate-300">
           <p className="text-sm text-slate-700 leading-relaxed">
             Hiermit bestätigen beide Parteien, dass die oben aufgeführten Einsatzzeiten für{' '}
             <strong>{monthName(month)} {year}</strong> korrekt und vollständig erfasst wurden.
           </p>
         </div>
 
-        {/* Unterschriften */}
         <div className="grid grid-cols-2 gap-16 mt-8">
           <div>
             <div className="border-b-2 border-slate-300 mb-3" style={{ height: '48px' }} />
