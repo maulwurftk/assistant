@@ -14,7 +14,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import {
   Dialog,
@@ -41,25 +40,19 @@ import type { TemplateRow } from '@/lib/time-entry-template'
 import { DEFAULT_TEMPLATE } from '@/lib/time-entry-template'
 
 const TIME_PRESETS = ['07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','16:00','17:00']
-
-const WEEKDAY_OPTIONS = [
-  { value: 1, label: 'Montag' },
-  { value: 2, label: 'Dienstag' },
-  { value: 3, label: 'Mittwoch' },
-  { value: 4, label: 'Donnerstag' },
-  { value: 5, label: 'Freitag' },
-  { value: 6, label: 'Samstag' },
-  { value: 0, label: 'Sonntag' },
-]
-
 const WEEKDAY_SHORT: Record<number, string> = { 0: 'So', 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa' }
 
 interface Assistant { id: string; full_name: string; email: string }
 interface MonthlyReport { status: string; sent_at: string | null }
+interface CalendarSlot { id: string; date: string; start_time: string; end_time: string; title: string; status: string }
 interface Props { assistants: Assistant[] }
+
 interface EntryForm {
   date: string; start_time: string; end_time: string
   activity_id: string; description: string
+}
+interface SlotForm {
+  title: string; date: string; start_time: string; end_time: string
 }
 
 const emptyForm: EntryForm = {
@@ -67,12 +60,12 @@ const emptyForm: EntryForm = {
   start_time: '08:00', end_time: '12:00',
   activity_id: '', description: '',
 }
+const emptySlotForm: SlotForm = { title: '', date: format(new Date(), 'yyyy-MM-dd'), start_time: '08:00', end_time: '10:00' }
 
 function generatePreview(year: number, month: number, entries: TimeEntry[], template: TemplateRow[]) {
   const existingKeys = new Set(entries.map((e) => `${e.date}|${e.start_time.slice(0, 5)}`))
   const daysInMonth = new Date(year, month, 0).getDate()
-  let toCreate = 0
-  let toSkip = 0
+  let toCreate = 0, toSkip = 0
   for (let day = 1; day <= daysInMonth; day++) {
     const jsDay = new Date(year, month - 1, day).getDay()
     for (const slot of template) {
@@ -84,29 +77,45 @@ function generatePreview(year: number, month: number, entries: TimeEntry[], temp
   return { toCreate, toSkip }
 }
 
+function durationHours(start: string, end: string) {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  return (eh * 60 + em - sh * 60 - sm) / 60
+}
+
 export default function AdminZeiterfassung({ assistants }: Props) {
   const supabase = createClient()
   const [selectedId, setSelectedId] = useState(assistants[0]?.id ?? '')
   const [entries, setEntries] = useState<TimeEntry[]>([])
+  const [slots, setSlots] = useState<CalendarSlot[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [report, setReport] = useState<MonthlyReport | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
+
+  // Entry form state
   const [form, setForm] = useState<EntryForm>(emptyForm)
   const [editId, setEditId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+
+  // Slot edit state
+  const [slotForm, setSlotForm] = useState<SlotForm>(emptySlotForm)
+  const [editSlotId, setEditSlotId] = useState<string | null>(null)
+  const [slotDialogOpen, setSlotDialogOpen] = useState(false)
+
+  // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [configDialogOpen, setConfigDialogOpen] = useState(false)
   const [template, setTemplate] = useState<TemplateRow[]>(DEFAULT_TEMPLATE)
   const [editingTemplate, setEditingTemplate] = useState<TemplateRow[]>(DEFAULT_TEMPLATE)
   const [saving, setSaving] = useState(false)
+  const [savingSlot, setSavingSlot] = useState(false)
   const [creatingTemplate, setCreatingTemplate] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
 
   useEffect(() => {
     supabase.from('activities').select('*').eq('active', true).order('sort_order')
       .then(({ data }) => setActivities(data ?? []))
-    // Vorlage aus DB laden
     fetch('/api/admin/time-entries/template-config')
       .then((r) => r.json())
       .then(({ template: t }) => { if (t) { setTemplate(t); setEditingTemplate(t) } })
@@ -115,14 +124,25 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
   const loadEntries = useCallback(async () => {
     if (!selectedId) return
-    const { data } = await supabase
-      .from('time_entries')
-      .select('*, activity:activities(name)')
-      .eq('assistant_id', selectedId)
-      .gte('date', format(startOfMonth(currentMonth), 'yyyy-MM-dd'))
-      .lte('date', format(endOfMonth(currentMonth), 'yyyy-MM-dd'))
-      .order('date').order('start_time')
-    setEntries(data ?? [])
+    const dateFrom = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
+    const dateTo = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
+
+    const [entriesRes, slotsRes] = await Promise.all([
+      supabase
+        .from('time_entries')
+        .select('*, activity:activities(name)')
+        .eq('assistant_id', selectedId)
+        .gte('date', dateFrom).lte('date', dateTo)
+        .order('date').order('start_time'),
+      supabase
+        .from('calendar_slots')
+        .select('id, date, start_time, end_time, title, status')
+        .eq('assigned_to', selectedId)
+        .gte('date', dateFrom).lte('date', dateTo)
+        .order('date').order('start_time'),
+    ])
+    setEntries(entriesRes.data ?? [])
+    setSlots(slotsRes.data ?? [])
   }, [selectedId, currentMonth])
 
   const loadReport = useCallback(async () => {
@@ -156,6 +176,17 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     setDialogOpen(true)
   }
 
+  function openEditSlot(slot: CalendarSlot) {
+    setEditSlotId(slot.id)
+    setSlotForm({
+      title: slot.title,
+      date: slot.date,
+      start_time: slot.start_time.slice(0, 5),
+      end_time: slot.end_time.slice(0, 5),
+    })
+    setSlotDialogOpen(true)
+  }
+
   async function handleSave() {
     if (form.start_time >= form.end_time) { toast.error('Endzeit muss nach der Startzeit liegen'); return }
     setSaving(true)
@@ -168,6 +199,21 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     if (!res.ok) toast.error(data.error ?? 'Fehler beim Speichern')
     else { toast.success(editId ? 'Eintrag aktualisiert' : 'Eintrag hinzugefügt'); setDialogOpen(false); loadEntries() }
     setSaving(false)
+  }
+
+  async function handleSaveSlot() {
+    if (!editSlotId) return
+    if (slotForm.start_time >= slotForm.end_time) { toast.error('Endzeit muss nach der Startzeit liegen'); return }
+    setSavingSlot(true)
+    const res = await fetch(`/api/admin/calendar-slots/${editSlotId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(slotForm),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) toast.error(data.error ?? 'Fehler beim Speichern')
+    else { toast.success('Slot aktualisiert'); setSlotDialogOpen(false); loadEntries() }
+    setSavingSlot(false)
   }
 
   async function handleDelete() {
@@ -188,11 +234,8 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) toast.error(data.error ?? 'Fehler')
     else {
-      toast.success(data.skipped > 0
-        ? `${data.created} Einträge angelegt, ${data.skipped} übersprungen`
-        : `${data.created} Einträge angelegt`)
-      setTemplateDialogOpen(false)
-      loadEntries()
+      toast.success(data.skipped > 0 ? `${data.created} Einträge angelegt, ${data.skipped} übersprungen` : `${data.created} Einträge angelegt`)
+      setTemplateDialogOpen(false); loadEntries()
     }
     setCreatingTemplate(false)
   }
@@ -206,49 +249,49 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) toast.error(data.error ?? 'Fehler beim Speichern')
-    else {
-      setTemplate(editingTemplate)
-      toast.success('Vorlage gespeichert')
-      setConfigDialogOpen(false)
-    }
+    else { setTemplate(editingTemplate); toast.success('Vorlage gespeichert'); setConfigDialogOpen(false) }
     setSavingConfig(false)
   }
 
   function updateRow(i: number, patch: Partial<TemplateRow>) {
     setEditingTemplate((prev) => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r))
   }
+  function removeRow(i: number) { setEditingTemplate((prev) => prev.filter((_, idx) => idx !== i)) }
+  function addRow() { setEditingTemplate((prev) => [...prev, { jsDay: 1, start: '08:00', end: '10:00', activityName: activities[0]?.name ?? '' }]) }
 
-  function removeRow(i: number) {
-    setEditingTemplate((prev) => prev.filter((_, idx) => idx !== i))
-  }
-
-  function addRow() {
-    setEditingTemplate((prev) => [...prev, { jsDay: 1, start: '08:00', end: '10:00', activityName: activities[0]?.name ?? '' }])
-  }
-
-  const totalHours = entries.reduce((acc, e) => {
-    const [sh, sm] = e.start_time.split(':').map(Number)
-    const [eh, em] = e.end_time.split(':').map(Number)
-    return acc + (eh * 60 + em - sh * 60 - sm) / 60
-  }, 0)
+  const totalEntryHours = entries.reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0)
+  const totalSlotHours = slots.reduce((acc, s) => acc + durationHours(s.start_time, s.end_time), 0)
+  const totalHours = totalEntryHours + totalSlotHours
 
   const selectedAssistant = assistants.find((a) => a.id === selectedId)
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth() + 1
   const preview = selectedId ? generatePreview(year, month, entries, template) : { toCreate: 0, toSkip: 0 }
 
+  // Combine and sort all items by date+start_time
+  type ListItem = { kind: 'entry'; data: TimeEntry } | { kind: 'slot'; data: CalendarSlot }
+  const allItems: ListItem[] = [
+    ...entries.map((e): ListItem => ({ kind: 'entry', data: e })),
+    ...slots.map((s): ListItem => ({ kind: 'slot', data: s })),
+  ].sort((a, b) => {
+    const d = a.data.date.localeCompare(b.data.date)
+    return d !== 0 ? d : a.data.start_time.localeCompare(b.data.start_time)
+  })
+
   return (
     <div className="max-w-2xl space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Zeiterfassung verwalten</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Einträge von Assistentinnen einsehen, bearbeiten und ergänzen</p>
+        <p className="text-sm text-gray-500 mt-0.5">Einträge und Kalender-Slots von Assistentinnen einsehen und bearbeiten</p>
       </div>
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <Select value={selectedId} onValueChange={(v) => setSelectedId(v ?? '')}>
           <SelectTrigger className="w-full sm:w-56">
-            <SelectValue placeholder="Assistentin wählen..." />
+            <span className={cn('flex-1 text-left text-sm truncate', !selectedId && 'text-muted-foreground')}>
+              {assistants.find((a) => a.id === selectedId)?.full_name ?? 'Assistentin wählen...'}
+            </span>
           </SelectTrigger>
           <SelectContent>
             {assistants.map((a) => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
@@ -278,7 +321,9 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       )}
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-sm text-gray-500">{totalHours.toFixed(1)} Std. · {entries.length} Einträge</p>
+        <p className="text-sm text-gray-500">
+          {totalHours.toFixed(1)} Std. · {entries.length} Einträge · {slots.length} Slots
+        </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(template); setConfigDialogOpen(true) }}>
             <Settings2 className="h-4 w-4 mr-1.5" />
@@ -305,100 +350,66 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Wöchentliche Vorlage anpassen</DialogTitle>
-            <DialogDescription>
-              Legt fest, welche Einträge beim Klick auf „Vorlage erstellen" angelegt werden.
-            </DialogDescription>
+            <DialogDescription>Legt fest, welche Einträge beim Klick auf „Vorlage erstellen" angelegt werden.</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-2">
             {editingTemplate.map((row, i) => (
               <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2.5 bg-white">
-                {/* Wochentag-Auswahl als Schaltflächen */}
                 <div className="flex gap-1">
                   {[{v:1,l:'Mo'},{v:2,l:'Di'},{v:3,l:'Mi'},{v:4,l:'Do'},{v:5,l:'Fr'},{v:6,l:'Sa'},{v:0,l:'So'}].map((d) => (
-                    <button
-                      key={d.v}
-                      type="button"
-                      onClick={() => updateRow(i, { jsDay: d.v })}
-                      className={cn(
-                        'flex-1 h-7 rounded text-xs font-medium transition-colors',
-                        row.jsDay === d.v
-                          ? 'bg-emerald-600 text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      )}
-                    >
-                      {d.l}
-                    </button>
+                    <button key={d.v} type="button" onClick={() => updateRow(i, { jsDay: d.v })}
+                      className={cn('flex-1 h-7 rounded text-xs font-medium transition-colors',
+                        row.jsDay === d.v ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      )}>{d.l}</button>
                   ))}
                 </div>
-                {/* Zeit + Tätigkeit + Löschen */}
                 <div className="flex items-center gap-2">
-                  <Input
-                    type="time" className="h-8 w-24 text-sm shrink-0"
-                    value={row.start}
-                    onChange={(e) => updateRow(i, { start: e.target.value })}
-                  />
+                  <Input type="time" className="h-8 w-24 text-sm shrink-0" value={row.start} onChange={(e) => updateRow(i, { start: e.target.value })} />
                   <span className="text-gray-400 text-xs shrink-0">–</span>
-                  <Input
-                    type="time" className="h-8 w-24 text-sm shrink-0"
-                    value={row.end}
-                    onChange={(e) => updateRow(i, { end: e.target.value })}
-                  />
+                  <Input type="time" className="h-8 w-24 text-sm shrink-0" value={row.end} onChange={(e) => updateRow(i, { end: e.target.value })} />
                   <Select value={row.activityName} onValueChange={(v) => updateRow(i, { activityName: v ?? '' })}>
                     <SelectTrigger className="h-8 flex-1 text-sm min-w-0">
-                      <SelectValue placeholder="Tätigkeit…" />
+                      <span className={cn('flex-1 text-left text-sm truncate', !row.activityName && 'text-muted-foreground')}>
+                        {row.activityName || 'Tätigkeit…'}
+                      </span>
                     </SelectTrigger>
                     <SelectContent>
-                      {activities.map((a) => (
-                        <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
-                      ))}
+                      {activities.map((a) => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-50"
-                    onClick={() => removeRow(i)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeRow(i)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             ))}
-
             <Button variant="outline" size="sm" className="w-full border-dashed" onClick={addRow}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Zeile hinzufügen
+              <Plus className="h-3.5 w-3.5 mr-1.5" />Zeile hinzufügen
             </Button>
           </div>
-
           <div className="flex gap-2 pt-2 border-t mt-2">
             <Button variant="outline" onClick={() => setConfigDialogOpen(false)} className="flex-1">Abbrechen</Button>
-            <Button onClick={handleSaveConfig} disabled={savingConfig} className="flex-1">
-              {savingConfig ? 'Speichern…' : 'Vorlage speichern'}
-            </Button>
+            <Button onClick={handleSaveConfig} disabled={savingConfig} className="flex-1">{savingConfig ? 'Speichern…' : 'Vorlage speichern'}</Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Template Preview & Create Dialog */}
+      {/* Template Preview Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Monatsvorlage erstellen</DialogTitle>
-            <DialogDescription>
-              Wöchentliches Muster für <strong>{format(currentMonth, 'MMMM yyyy', { locale: de })}</strong>
-            </DialogDescription>
+            <DialogDescription>Wöchentliches Muster für <strong>{format(currentMonth, 'MMMM yyyy', { locale: de })}</strong></DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-gray-200 overflow-hidden text-sm">
-            <div className="bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Aktuelles Muster
-            </div>
+            <div className="bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Aktuelles Muster</div>
             <table className="w-full">
               <tbody>
                 {template.map((slot, i) => (
                   <tr key={i} className="border-t border-gray-100">
                     <td className="px-3 py-2 font-medium text-gray-700 w-8">{WEEKDAY_SHORT[slot.jsDay]}</td>
                     <td className="px-3 py-2 text-gray-600">{slot.activityName}</td>
-                    <td className="px-3 py-2 text-gray-500 text-right whitespace-nowrap font-mono text-xs">
-                      {slot.start}–{slot.end}
-                    </td>
+                    <td className="px-3 py-2 text-gray-500 text-right whitespace-nowrap font-mono text-xs">{slot.start}–{slot.end}</td>
                   </tr>
                 ))}
               </tbody>
@@ -406,18 +417,14 @@ export default function AdminZeiterfassung({ assistants }: Props) {
           </div>
           <div className={`rounded-lg px-4 py-3 text-sm ${preview.toCreate > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
             {preview.toCreate > 0 ? (
-              <p className="text-emerald-800">
-                <strong>{preview.toCreate} Einträge</strong> werden angelegt
-                {preview.toSkip > 0 && <span className="text-emerald-600"> · {preview.toSkip} bereits vorhanden (werden übersprungen)</span>}
-              </p>
+              <p className="text-emerald-800"><strong>{preview.toCreate} Einträge</strong> werden angelegt{preview.toSkip > 0 && <span className="text-emerald-600"> · {preview.toSkip} bereits vorhanden</span>}</p>
             ) : (
               <p className="text-gray-500">Alle Einträge für diesen Monat sind bereits vorhanden.</p>
             )}
           </div>
           <div className="flex gap-2 pt-1">
             <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} className="flex-1">Abbrechen</Button>
-            <Button onClick={handleCreateTemplate} disabled={creatingTemplate || preview.toCreate === 0}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={handleCreateTemplate} disabled={creatingTemplate || preview.toCreate === 0} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
               {creatingTemplate ? 'Wird erstellt…' : `${preview.toCreate} Einträge anlegen`}
             </Button>
           </div>
@@ -440,13 +447,10 @@ export default function AdminZeiterfassung({ assistants }: Props) {
               <Input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
               <div className="flex flex-wrap gap-1">
                 {TIME_PRESETS.map((t) => (
-                  <button key={t} type="button"
-                    onClick={() => setForm((f) => ({ ...f, start_time: t }))}
+                  <button key={t} type="button" onClick={() => setForm((f) => ({ ...f, start_time: t }))}
                     className={cn('px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
                       form.start_time === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    )}>
-                    {t}
-                  </button>
+                    )}>{t}</button>
                 ))}
               </div>
             </div>
@@ -455,13 +459,10 @@ export default function AdminZeiterfassung({ assistants }: Props) {
               <Input type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} />
               <div className="flex flex-wrap gap-1">
                 {TIME_PRESETS.map((t) => (
-                  <button key={t} type="button"
-                    onClick={() => setForm((f) => ({ ...f, end_time: t }))}
+                  <button key={t} type="button" onClick={() => setForm((f) => ({ ...f, end_time: t }))}
                     className={cn('px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
                       form.end_time === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    )}>
-                    {t}
-                  </button>
+                    )}>{t}</button>
                 ))}
               </div>
             </div>
@@ -470,9 +471,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
               <Select value={form.activity_id || undefined} onValueChange={(v) => setForm({ ...form, activity_id: v ?? '' })}>
                 <SelectTrigger>
                   <span className={cn('flex-1 text-left text-sm truncate', !form.activity_id && 'text-muted-foreground')}>
-                    {form.activity_id
-                      ? (activities.find((a) => a.id === form.activity_id)?.name ?? '–')
-                      : 'Tätigkeit wählen...'}
+                    {form.activity_id ? (activities.find((a) => a.id === form.activity_id)?.name ?? '–') : 'Tätigkeit wählen...'}
                   </span>
                 </SelectTrigger>
                 <SelectContent>
@@ -492,6 +491,54 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* Slot Edit Dialog */}
+      <Dialog open={slotDialogOpen} onOpenChange={setSlotDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Kalender-Slot bearbeiten</DialogTitle>
+            <DialogDescription>Änderungen betreffen nur Datum, Zeit und Bezeichnung — der Slot bleibt der Assistentin zugewiesen.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Bezeichnung</Label>
+              <Input value={slotForm.title} onChange={(e) => setSlotForm({ ...slotForm, title: e.target.value })} placeholder="Slot-Bezeichnung..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Datum</Label>
+              <Input type="date" value={slotForm.date} onChange={(e) => setSlotForm({ ...slotForm, date: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Startzeit</Label>
+              <Input type="time" value={slotForm.start_time} onChange={(e) => setSlotForm({ ...slotForm, start_time: e.target.value })} />
+              <div className="flex flex-wrap gap-1">
+                {TIME_PRESETS.map((t) => (
+                  <button key={t} type="button" onClick={() => setSlotForm((f) => ({ ...f, start_time: t }))}
+                    className={cn('px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
+                      slotForm.start_time === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    )}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Endzeit</Label>
+              <Input type="time" value={slotForm.end_time} onChange={(e) => setSlotForm({ ...slotForm, end_time: e.target.value })} />
+              <div className="flex flex-wrap gap-1">
+                {TIME_PRESETS.map((t) => (
+                  <button key={t} type="button" onClick={() => setSlotForm((f) => ({ ...f, end_time: t }))}
+                    className={cn('px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
+                      slotForm.end_time === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    )}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={() => setSlotDialogOpen(false)} className="flex-1">Abbrechen</Button>
+              <Button onClick={handleSaveSlot} disabled={savingSlot} className="flex-1">{savingSlot ? 'Speichern…' : 'Speichern'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTargetId} onOpenChange={(o) => !o && setDeleteTargetId(null)}>
         <AlertDialogContent>
@@ -506,40 +553,63 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Entries List */}
+      {/* Combined List */}
       <div className="space-y-2">
-        {entries.length === 0 ? (
+        {allItems.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl py-10 text-center text-gray-400 text-sm">
             {selectedId ? `Keine Einträge für ${format(currentMonth, 'MMMM yyyy', { locale: de })}` : 'Bitte Assistentin wählen'}
           </div>
         ) : (
-          entries.map((entry) => {
-            const [sh, sm] = entry.start_time.split(':').map(Number)
-            const [eh, em] = entry.end_time.split(':').map(Number)
-            const hours = (eh * 60 + em - sh * 60 - sm) / 60
-            return (
-              <div key={entry.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-sm text-gray-900">{format(new Date(entry.date), 'dd.MM.yyyy')}</span>
-                    <span className="text-gray-500 text-sm">{entry.start_time.slice(0, 5)} – {entry.end_time.slice(0, 5)} Uhr</span>
-                    <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
+          allItems.map((item) => {
+            if (item.kind === 'entry') {
+              const entry = item.data
+              const hours = durationHours(entry.start_time, entry.end_time)
+              return (
+                <div key={`e-${entry.id}`} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm text-gray-900">{format(new Date(entry.date), 'dd.MM.yyyy')}</span>
+                      <span className="text-gray-500 text-sm">{entry.start_time.slice(0, 5)} – {entry.end_time.slice(0, 5)} Uhr</span>
+                      <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
+                      <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500">Eintrag</Badge>
+                    </div>
+                    <div className="mt-0.5 text-xs text-gray-500">
+                      {(entry.activity as any)?.name ?? <span className="italic">Keine Tätigkeit</span>}
+                      {entry.description && <span> · {entry.description}</span>}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-xs text-gray-500">
-                    {(entry.activity as any)?.name ?? <span className="italic">Keine Tätigkeit</span>}
-                    {entry.description && <span> · {entry.description}</span>}
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(entry)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteTargetId(entry.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(entry)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteTargetId(entry.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+              )
+            } else {
+              const slot = item.data
+              const hours = durationHours(slot.start_time, slot.end_time)
+              return (
+                <div key={`s-${slot.id}`} className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm text-gray-900">{format(new Date(slot.date), 'dd.MM.yyyy')}</span>
+                      <span className="text-gray-500 text-sm">{slot.start_time.slice(0, 5)} – {slot.end_time.slice(0, 5)} Uhr</span>
+                      <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
+                      <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">Kalender-Slot</Badge>
+                    </div>
+                    <div className="mt-0.5 text-xs text-blue-700 font-medium">{slot.title}</div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-100" onClick={() => openEditSlot(slot)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )
+              )
+            }
           })
         )}
       </div>
