@@ -126,7 +126,7 @@ export default function KalenderPage() {
   async function loadSlots() {
     const { data } = await supabase
       .from('calendar_slots')
-      .select('*, assigned_profile:profiles!assigned_to(full_name, color)')
+      .select('*')
       .neq('status', 'cancelled')
       .order('date')
     setSlots((data ?? []) as unknown as CalendarSlot[])
@@ -227,18 +227,22 @@ export default function KalenderPage() {
     window.open(`https://calendar.google.com/calendar/r?cid=${encoded}`, '_blank')
   }
 
-  // Farb-Map: Assistent-ID → Farbe
+  // Farb- und Namens-Map: Assistent-ID → Farbe/Name (aus bereits geladener Liste)
   const assistantColorMap: Record<string, string> = {}
-  assistants.forEach(a => { assistantColorMap[a.id] = (a as any).color ?? statusColors.assigned })
+  const assistantNameMap: Record<string, string> = {}
+  assistants.forEach(a => {
+    assistantColorMap[a.id] = (a as any).color ?? statusColors.assigned
+    assistantNameMap[a.id] = a.full_name
+  })
 
   const calendarEvents = [...googleEvents, ...slots.map(slot => {
-    const assignedColor = (slot.assigned_profile as any)?.color
     const bgColor = slot.assigned_to
-      ? (assignedColor ?? assistantColorMap[slot.assigned_to] ?? statusColors.assigned)
+      ? (assistantColorMap[slot.assigned_to] ?? statusColors.assigned)
       : statusColors[slot.status]
+    const assignedName = slot.assigned_to ? (assistantNameMap[slot.assigned_to] ?? null) : null
     return {
       id: slot.id,
-      title: slot.title + (slot.assigned_profile ? ` (${(slot.assigned_profile as any).full_name})` : ''),
+      title: slot.title + (assignedName ? ` (${assignedName})` : ''),
       start: `${slot.date}T${slot.start_time}`,
       end: `${slot.date}T${slot.end_time}`,
       backgroundColor: bgColor,
