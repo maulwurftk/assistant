@@ -321,7 +321,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                       month={month}
                       totalMinutes={a.totalMinutes}
                       totalPay={a.brutto}
-                      hourlyRate={effectiveBruttoRate}
+                      hourlyRate={hourlyRate}
                       currency={currency}
                       emailSentAt={a.emailSentAt}
                     />
