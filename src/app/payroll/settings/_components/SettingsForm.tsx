@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { MINIJOB_RATES } from '@/lib/payroll'
+import { MINIJOB_RATES, agTotalPercent, grossFromBezirkRate, formatCurrency } from '@/lib/payroll'
 
 type Props = {
   currentRate: number
   currentCurrency: string
   currentMinijobMode: boolean
+  currentBezirkMode: boolean
   currentUvRate: number
   currentEmployerName: string
   currentEmployerAddress: string
@@ -21,6 +22,7 @@ export default function SettingsForm({
   currentRate,
   currentCurrency,
   currentMinijobMode,
+  currentBezirkMode,
   currentUvRate,
   currentEmployerName,
   currentEmployerAddress,
@@ -33,6 +35,7 @@ export default function SettingsForm({
   const [rate, setRate] = useState(currentRate.toString())
   const [currency, setCurrency] = useState(currentCurrency)
   const [minijobMode, setMinijobMode] = useState(currentMinijobMode)
+  const [bezirkMode, setBezirkMode] = useState(currentBezirkMode)
   const [uvRate, setUvRate] = useState(currentUvRate.toString())
   const [employerName, setEmployerName] = useState(currentEmployerName)
   const [employerAddress, setEmployerAddress] = useState(currentEmployerAddress)
@@ -42,6 +45,15 @@ export default function SettingsForm({
   const [weeklyHoursTarget, setWeeklyHoursTarget] = useState(currentWeeklyHoursTarget.toString())
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Bezirk live preview
+  const bezirkRateNum = parseFloat(rate.replace(',', '.'))
+  const uvRateNum = parseFloat(uvRate.replace(',', '.'))
+  const effectiveUvRate = isNaN(uvRateNum) ? 1.6 : uvRateNum
+  const derivedBrutto = bezirkMode && !isNaN(bezirkRateNum) && bezirkRateNum > 0
+    ? grossFromBezirkRate(bezirkRateNum, effectiveUvRate)
+    : 0
+  const agTotal = agTotalPercent(effectiveUvRate)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -65,6 +77,7 @@ export default function SettingsForm({
           hourly_rate: parsedRate,
           currency,
           minijob_mode: minijobMode,
+          bezirk_mode: bezirkMode,
           uv_rate: isNaN(parsedUvRate) ? 1.6 : parsedUvRate,
           employer_name: employerName,
           employer_address: employerAddress,
@@ -88,7 +101,7 @@ export default function SettingsForm({
       {/* Stundensatz */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1.5">
-          Stundensatz (€/h)
+          {bezirkMode ? 'Bezirkssatz (€/h, inkl. AG-Kosten)' : 'Stundensatz (€/h)'}
         </label>
         <div className="flex gap-2">
           <input
@@ -99,7 +112,7 @@ export default function SettingsForm({
             min="0.01"
             required
             className="w-36 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="z.B. 15.50"
+            placeholder={bezirkMode ? 'z.B. 20.00' : 'z.B. 15.50'}
           />
           <select
             value={currency}
@@ -111,6 +124,52 @@ export default function SettingsForm({
           </select>
         </div>
         <p className="text-xs text-slate-400 mt-1.5">Gilt für alle Assistenten gleichmäßig</p>
+      </div>
+
+      {/* Bezirk-Modus */}
+      <div className="border-t border-slate-200 pt-6">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={bezirkMode}
+            onChange={(e) => setBezirkMode(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+          />
+          <div>
+            <span className="text-sm font-medium text-slate-700">Bezirk-Modus aktivieren</span>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Der Bezirk zahlt eine Pauschale inkl. aller AG-Kosten. Der tatsächliche
+              Bruttolohn wird automatisch zurückgerechnet.
+            </p>
+          </div>
+        </label>
+
+        {bezirkMode && bezirkRateNum > 0 && (
+          <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-emerald-800 mb-3">
+              Bezirk-Rückrechnung (live)
+            </h3>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between text-emerald-900">
+                <span>Bezirkssatz (Pauschale inkl. AG-Kosten)</span>
+                <span className="font-mono font-medium">{formatCurrency(bezirkRateNum)}/h</span>
+              </div>
+              <div className="flex justify-between text-emerald-700 text-xs">
+                <span>AG-Gesamtkosten ({agTotal.toFixed(2)} %)</span>
+                <span className="font-mono">÷ {(1 + agTotal / 100).toFixed(4)}</span>
+              </div>
+              <div className="border-t border-emerald-200 pt-2 flex justify-between font-semibold text-emerald-900">
+                <span>Tatsächlicher Bruttolohn (AN)</span>
+                <span className="font-mono text-emerald-700 font-bold text-base">
+                  {formatCurrency(derivedBrutto)}/h
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-emerald-600 mt-2">
+              Lohnzettel und E-Mails verwenden {formatCurrency(derivedBrutto)}/h als Bruttolohn.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Persönliches Budget */}

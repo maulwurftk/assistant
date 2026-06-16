@@ -9,6 +9,7 @@ import {
   formatDate,
   monthName,
   MINIJOB_RATES,
+  grossFromBezirkRate,
 } from '@/lib/payroll'
 import PrintButton from './_components/PrintButton'
 
@@ -61,6 +62,7 @@ export default async function PrintPage({ params }: Props) {
     hourly_rate: number
     currency: string
     minijob_mode?: boolean
+    bezirk_mode?: boolean
     uv_rate?: number
     employer_name?: string
     employer_address?: string
@@ -97,14 +99,18 @@ export default async function PrintPage({ params }: Props) {
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
   const minijobMode = settings?.minijob_mode ?? false
+  const bezirkMode = settings?.bezirk_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
   const rvPflicht = assistant.rv_pflicht !== false // default true
+
+  // When bezirk_mode: hourly_rate is the Bezirk flat rate; back-calculate employee brutto
+  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate) : hourlyRate
 
   const totalMinutes = allRows.reduce(
     (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
     0
   )
-  const brutto = calculatePay(totalMinutes, hourlyRate)
+  const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
   const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate) : null
 
   const today = new Date().toLocaleDateString('de-DE')
@@ -231,12 +237,29 @@ export default async function PrintPage({ params }: Props) {
                 <span className="text-slate-600">Gearbeitete Stunden</span>
                 <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Stundensatz</span>
-                <span className="font-medium text-slate-800">
-                  {formatCurrency(hourlyRate, currency)}/h
-                </span>
-              </div>
+              {bezirkMode ? (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Bezirkssatz (inkl. AG-Kosten)</span>
+                    <span className="font-medium text-slate-800">
+                      {formatCurrency(hourlyRate, currency)}/h
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Stundensatz (Brutto AN)</span>
+                    <span className="font-medium text-slate-800">
+                      {formatCurrency(effectiveBruttoRate, currency)}/h
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Stundensatz</span>
+                  <span className="font-medium text-slate-800">
+                    {formatCurrency(hourlyRate, currency)}/h
+                  </span>
+                </div>
+              )}
               <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between">
                 <span className="font-semibold text-slate-900">Gesamtvergütung (brutto)</span>
                 <span className="font-bold text-lg text-slate-900">
@@ -262,10 +285,20 @@ export default async function PrintPage({ params }: Props) {
                   <span className="text-slate-600">Gearbeitete Stunden</span>
                   <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
                 </div>
+                {bezirkMode && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Bezirkssatz (inkl. AG-Kosten)</span>
+                    <span className="font-medium text-slate-800">
+                      {formatCurrency(hourlyRate, currency)}/h
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Stundensatz</span>
+                  <span className="text-slate-600">
+                    {bezirkMode ? 'Stundensatz (Brutto AN)' : 'Stundensatz'}
+                  </span>
                   <span className="font-medium text-slate-800">
-                    {formatCurrency(hourlyRate, currency)}/h
+                    {formatCurrency(effectiveBruttoRate, currency)}/h
                   </span>
                 </div>
                 <div className="border-t border-slate-200 pt-2 flex justify-between font-semibold">

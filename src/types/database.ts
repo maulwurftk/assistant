@@ -135,6 +135,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           minijob_mode: boolean
+          bezirk_mode: boolean
           uv_rate: number
           employer_name: string
           employer_address: string
@@ -149,6 +150,7 @@ export type Database = {
           currency?: string
           updated_by?: string | null
           minijob_mode?: boolean
+          bezirk_mode?: boolean
           uv_rate?: number
           employer_name?: string
           employer_address?: string
@@ -162,6 +164,7 @@ export type Database = {
           currency?: string
           updated_by?: string | null
           minijob_mode?: boolean
+          bezirk_mode?: boolean
           uv_rate?: number
           employer_name?: string
           employer_address?: string

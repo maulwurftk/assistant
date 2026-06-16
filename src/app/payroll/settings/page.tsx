@@ -15,6 +15,7 @@ export default async function SettingsPage() {
           currentRate={settings?.hourly_rate ?? 20}
           currentCurrency={settings?.currency ?? 'EUR'}
           currentMinijobMode={settings?.minijob_mode ?? false}
+          currentBezirkMode={settings?.bezirk_mode ?? false}
           currentUvRate={settings?.uv_rate ?? 1.6}
           currentEmployerName={settings?.employer_name ?? ''}
           currentEmployerAddress={settings?.employer_address ?? ''}

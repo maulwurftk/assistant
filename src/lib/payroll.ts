@@ -112,3 +112,15 @@ export function calculateMinijob(
     totalKosten,
   }
 }
+
+// ── Bezirk-Rückrechnung ──────────────────────────────────────────────────────
+// Der Bezirk zahlt einen Pauschalpreis inkl. aller AG-Abgaben (z.B. 20 €/h).
+// Daraus wird der tatsächliche Bruttolohn zurückgerechnet.
+export function agTotalPercent(uvRate: number): number {
+  return MINIJOB_RATES.kvAG + MINIJOB_RATES.rvAG + MINIJOB_RATES.pauschsteuer +
+    MINIJOB_RATES.u2 + MINIJOB_RATES.insolvenzgeld + uvRate
+}
+
+export function grossFromBezirkRate(bezirkRate: number, uvRate: number = 1.60): number {
+  return Math.round((bezirkRate / (1 + agTotalPercent(uvRate) / 100)) * 10000) / 10000
+}
