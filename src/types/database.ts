@@ -20,6 +20,7 @@ export type Database = {
           color: string
           ical_token: string | null
           rv_pflicht: boolean
+          kv_pflicht: boolean
         }
         Insert: {
           id: string
@@ -30,6 +31,7 @@ export type Database = {
           color?: string
           ical_token?: string | null
           rv_pflicht?: boolean
+          kv_pflicht?: boolean
         }
         Update: {
           email?: string
@@ -39,6 +41,7 @@ export type Database = {
           color?: string
           ical_token?: string | null
           rv_pflicht?: boolean
+          kv_pflicht?: boolean
         }
         Relationships: Rel[]
       }

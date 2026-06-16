@@ -79,11 +79,12 @@ export interface MinijobBreakdown {
 export function calculateMinijob(
   brutto: number,
   rvPflicht: boolean,
-  uvRate: number = 1.60
+  uvRate: number = 1.60,
+  kvPflicht: boolean = true
 ): MinijobBreakdown {
   const pct = (p: number) => Math.round(brutto * p) / 100
 
-  const kvAGAmount = pct(MINIJOB_RATES.kvAG)
+  const kvAGAmount = kvPflicht ? pct(MINIJOB_RATES.kvAG) : 0
   const rvAGAmount = pct(MINIJOB_RATES.rvAG)
   const pauschsteuerAmount = pct(MINIJOB_RATES.pauschsteuer)
   const u2Amount = pct(MINIJOB_RATES.u2)
@@ -116,11 +117,12 @@ export function calculateMinijob(
 // ── Bezirk-Rückrechnung ──────────────────────────────────────────────────────
 // Der Bezirk zahlt einen Pauschalpreis inkl. aller AG-Abgaben (z.B. 20 €/h).
 // Daraus wird der tatsächliche Bruttolohn zurückgerechnet.
-export function agTotalPercent(uvRate: number): number {
-  return MINIJOB_RATES.kvAG + MINIJOB_RATES.rvAG + MINIJOB_RATES.pauschsteuer +
+export function agTotalPercent(uvRate: number, kvPflicht: boolean = true): number {
+  const kv = kvPflicht ? MINIJOB_RATES.kvAG : 0
+  return kv + MINIJOB_RATES.rvAG + MINIJOB_RATES.pauschsteuer +
     MINIJOB_RATES.u2 + MINIJOB_RATES.insolvenzgeld + uvRate
 }
 
-export function grossFromBezirkRate(bezirkRate: number, uvRate: number = 1.60): number {
-  return Math.round((bezirkRate / (1 + agTotalPercent(uvRate) / 100)) * 10000) / 10000
+export function grossFromBezirkRate(bezirkRate: number, uvRate: number = 1.60, kvPflicht: boolean = true): number {
+  return Math.round((bezirkRate / (1 + agTotalPercent(uvRate, kvPflicht) / 100)) * 10000) / 10000
 }
