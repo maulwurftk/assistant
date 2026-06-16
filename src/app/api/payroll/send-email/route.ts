@@ -10,6 +10,7 @@ import {
   formatDate,
   monthName,
   MINIJOB_RATES,
+  grossFromBezirkRate,
 } from '@/lib/payroll'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
       .order('start_time'),
     supabase.from('activities').select('id, name'),
     supabase.from('payroll_settings').select('*').limit(1).single(),
-    supabase.from('profiles').select('rv_pflicht').eq('id', assistantId).single(),
+    supabase.from('profiles').select('rv_pflicht, kv_pflicht').eq('id', assistantId).single(),
   ])
 
   const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.name]))
@@ -88,20 +89,27 @@ export async function POST(request: Request) {
   })
   const settings = settingsRes.data as {
     minijob_mode?: boolean
+    bezirk_mode?: boolean
     uv_rate?: number
     employer_name?: string
   } | null
-  const rvPflicht = (assistantRes.data as { rv_pflicht?: boolean } | null)?.rv_pflicht !== false
+  const assistantProfile = assistantRes.data as { rv_pflicht?: boolean; kv_pflicht?: boolean } | null
+  const rvPflicht = assistantProfile?.rv_pflicht !== false
+  const kvPflicht = assistantProfile?.kv_pflicht !== false
 
   const minijobMode = settings?.minijob_mode ?? false
+  const bezirkMode = settings?.bezirk_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
+
+  // When bezirk_mode: hourlyRate is the Bezirk flat rate; derive actual employee brutto
+  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht) : hourlyRate
 
   const totalMinutes = allEntries.reduce(
     (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
     0
   )
-  const brutto = calculatePay(totalMinutes, hourlyRate)
-  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate) : null
+  const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
+  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht) : null
 
   if (totalMinutes === 0) {
     return NextResponse.json({ error: 'Keine Stunden für diesen Monat erfasst' }, { status: 400 })
@@ -135,10 +143,19 @@ export async function POST(request: Request) {
           <td style="color:#334155;padding:4px 0">Gearbeitete Stunden</td>
           <td style="text-align:right;color:#0f172a;font-weight:500">${formatMinutes(totalMinutes)}</td>
         </tr>
+        ${bezirkMode ? `
         <tr>
-          <td style="color:#334155;padding:4px 0">Stundensatz</td>
+          <td style="color:#334155;padding:4px 0">Bezirkssatz (inkl. AG-Kosten)</td>
           <td style="text-align:right;color:#0f172a;font-weight:500">${formatCurrency(hourlyRate, currency)}/h</td>
         </tr>
+        <tr>
+          <td style="color:#334155;padding:4px 0">Stundensatz (Brutto AN)</td>
+          <td style="text-align:right;color:#0f172a;font-weight:500">${formatCurrency(effectiveBruttoRate, currency)}/h</td>
+        </tr>` : `
+        <tr>
+          <td style="color:#334155;padding:4px 0">Stundensatz</td>
+          <td style="text-align:right;color:#0f172a;font-weight:500">${formatCurrency(effectiveBruttoRate, currency)}/h</td>
+        </tr>`}
         <tr style="border-top:1px solid #bbf7d0">
           <td style="color:#334155;padding:8px 0 4px;font-weight:600">Bruttoentgelt</td>
           <td style="text-align:right;color:#0f172a;font-weight:600;padding:8px 0 4px">${formatCurrency(minijob.brutto, currency)}</td>
@@ -163,7 +180,9 @@ export async function POST(request: Request) {
     <div style="margin:0 32px 24px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px">
       <p style="margin:0 0 10px;font-size:12px;color:#1d4ed8;text-transform:uppercase;font-weight:600;letter-spacing:.05em">Arbeitgeberabgaben (Info)</p>
       <table style="width:100%;font-size:13px;border-collapse:collapse">
-        <tr><td style="color:#1e40af;padding:2px 0">KV-Pauschalbeitrag (${MINIJOB_RATES.kvAG.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.kvAGAmount, currency)}</td></tr>
+        ${kvPflicht
+          ? `<tr><td style="color:#1e40af;padding:2px 0">KV-Pauschalbeitrag (${MINIJOB_RATES.kvAG.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.kvAGAmount, currency)}</td></tr>`
+          : `<tr><td style="color:#94a3b8;padding:2px 0;font-style:italic">Krankenversicherung (KV)</td><td style="text-align:right;color:#94a3b8;font-style:italic">entfällt (PKV)</td></tr>`}
         <tr><td style="color:#1e40af;padding:2px 0">RV-Pauschalbeitrag (${MINIJOB_RATES.rvAG.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.rvAGAmount, currency)}</td></tr>
         <tr><td style="color:#1e40af;padding:2px 0">Lohnsteuerpauschale (${MINIJOB_RATES.pauschsteuer.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.pauschsteuerAmount, currency)}</td></tr>
         <tr><td style="color:#1e40af;padding:2px 0">Umlage 2 / Insolvenzgeldumlage</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.u2Amount + minijob.insolvenzgeldAmount, currency)}</td></tr>
@@ -180,10 +199,19 @@ export async function POST(request: Request) {
           <td style="color:#334155;padding:4px 0">Gearbeitete Stunden</td>
           <td style="text-align:right;color:#0f172a;font-weight:500">${formatMinutes(totalMinutes)}</td>
         </tr>
+        ${bezirkMode ? `
         <tr>
-          <td style="color:#334155;padding:4px 0">Stundensatz</td>
+          <td style="color:#334155;padding:4px 0">Bezirkssatz (inkl. AG-Kosten)</td>
           <td style="text-align:right;color:#0f172a;font-weight:500">${formatCurrency(hourlyRate, currency)}/h</td>
         </tr>
+        <tr>
+          <td style="color:#334155;padding:4px 0">Stundensatz (Brutto AN)</td>
+          <td style="text-align:right;color:#0f172a;font-weight:500">${formatCurrency(effectiveBruttoRate, currency)}/h</td>
+        </tr>` : `
+        <tr>
+          <td style="color:#334155;padding:4px 0">Stundensatz</td>
+          <td style="text-align:right;color:#0f172a;font-weight:500">${formatCurrency(effectiveBruttoRate, currency)}/h</td>
+        </tr>`}
         <tr style="border-top:1px solid #bae6fd;margin-top:8px">
           <td style="color:#0f172a;font-weight:700;padding:10px 0 4px;font-size:16px">Gesamtvergütung (brutto)</td>
           <td style="text-align:right;font-weight:700;font-size:20px;color:#1e40af;padding:10px 0 4px">${formatCurrency(brutto, currency)}</td>

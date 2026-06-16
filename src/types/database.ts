@@ -20,6 +20,7 @@ export type Database = {
           color: string
           ical_token: string | null
           rv_pflicht: boolean
+          kv_pflicht: boolean
         }
         Insert: {
           id: string
@@ -30,6 +31,7 @@ export type Database = {
           color?: string
           ical_token?: string | null
           rv_pflicht?: boolean
+          kv_pflicht?: boolean
         }
         Update: {
           email?: string
@@ -39,6 +41,7 @@ export type Database = {
           color?: string
           ical_token?: string | null
           rv_pflicht?: boolean
+          kv_pflicht?: boolean
         }
         Relationships: Rel[]
       }
@@ -135,6 +138,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           minijob_mode: boolean
+          bezirk_mode: boolean
           uv_rate: number
           employer_name: string
           employer_address: string
@@ -149,6 +153,7 @@ export type Database = {
           currency?: string
           updated_by?: string | null
           minijob_mode?: boolean
+          bezirk_mode?: boolean
           uv_rate?: number
           employer_name?: string
           employer_address?: string
@@ -162,6 +167,7 @@ export type Database = {
           currency?: string
           updated_by?: string | null
           minijob_mode?: boolean
+          bezirk_mode?: boolean
           uv_rate?: number
           employer_name?: string
           employer_address?: string

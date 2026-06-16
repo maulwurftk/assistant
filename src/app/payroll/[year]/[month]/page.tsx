@@ -10,9 +10,11 @@ import {
   monthName,
   prevMonth,
   nextMonth,
+  grossFromBezirkRate,
 } from '@/lib/payroll'
 import PayrollActions from './_components/PayrollActions'
 import RvPflichtToggle from './_components/RvPflichtToggle'
+import KvPflichtToggle from './_components/KvPflichtToggle'
 
 type Props = {
   params: Promise<{ year: string; month: string }>
@@ -36,7 +38,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     supabase.from('payroll_settings').select('*').limit(1).single(),
     supabase
       .from('profiles')
-      .select('id, full_name, email, rv_pflicht')
+      .select('id, full_name, email, rv_pflicht, kv_pflicht')
       .eq('role', 'assistant')
       .eq('active', true)
       .order('full_name'),
@@ -67,6 +69,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     hourly_rate: number
     currency: string
     minijob_mode?: boolean
+    bezirk_mode?: boolean
     uv_rate?: number
     monthly_budget?: number
     account_fee?: number
@@ -77,6 +80,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     full_name: string
     email: string
     rv_pflicht?: boolean
+    kv_pflicht?: boolean
   }>
   const entries = entriesRes.data ?? []
   const reports = reportsRes.data ?? []
@@ -93,10 +97,15 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
   const minijobMode = settings?.minijob_mode ?? false
+  const bezirkMode = settings?.bezirk_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
   const monthlyBudget = settings?.monthly_budget ?? 0
   const accountFee = settings?.account_fee ?? 0
   const weeklyHoursTarget = settings?.weekly_hours_target ?? 15
+
+  // When bezirk_mode: hourly_rate is the Bezirk's flat rate (incl. AG costs).
+  // Derive the actual employee brutto from it (GKV default, shown in header).
+  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate) : hourlyRate
 
   const assistantData = assistants.map((a) => {
     const myEntries = entries.filter((e) => e.assistant_id === a.id)
@@ -110,9 +119,15 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       0
     )
     const totalMinutes = entryMinutes + slotMinutes
-    const brutto = calculatePay(totalMinutes, hourlyRate)
     const rvPflicht = a.rv_pflicht !== false
-    const minijob = minijobMode && totalMinutes > 0 ? calculateMinijob(brutto, rvPflicht, uvRate) : null
+    const kvPflicht = a.kv_pflicht !== false
+    const effectiveBruttoRateForAssistant = bezirkMode
+      ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht)
+      : hourlyRate
+    const brutto = calculatePay(totalMinutes, effectiveBruttoRateForAssistant)
+    const minijob = minijobMode && totalMinutes > 0
+      ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht)
+      : null
     const netto = minijob ? minijob.netto : brutto
     const report = reports.find((r) => r.assistant_id === a.id)
     const run = runs.find((r) => r.assistant_id === a.id)
@@ -120,6 +135,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     return {
       ...a,
       rvPflicht,
+      kvPflicht,
       slotCount: mySlots.length,
       entryCount: myEntries.length,
       totalMinutes,
@@ -152,7 +168,14 @@ export default async function MonthlyPayrollPage({ params }: Props) {
           </h1>
           {settings ? (
             <p className="text-sm text-slate-500 mt-0.5">
-              Stundensatz: {formatCurrency(hourlyRate, currency)}/h
+              {bezirkMode
+                ? `Bezirkssatz: ${formatCurrency(hourlyRate, currency)}/h → Bruttolohn: ${formatCurrency(effectiveBruttoRate, currency)}/h`
+                : `Stundensatz: ${formatCurrency(hourlyRate, currency)}/h`}
+              {bezirkMode && (
+                <span className="ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded font-medium">
+                  Bezirk-Modus
+                </span>
+              )}
               {minijobMode && (
                 <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">
                   Minijob-Modus
@@ -256,6 +279,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                     <th className="text-center px-3 py-3 font-medium text-slate-600 whitespace-nowrap">
                       RV-Pflicht
                     </th>
+                    <th className="text-center px-3 py-3 font-medium text-slate-600 whitespace-nowrap">
+                      KV-Status
+                    </th>
                     <th className="text-right px-5 py-3 font-medium text-slate-600">Netto</th>
                   </>
                 )}
@@ -289,6 +315,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                     <>
                       <td className="px-3 py-4 text-center">
                         <RvPflichtToggle assistantId={a.id} rvPflicht={a.rvPflicht} />
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <KvPflichtToggle assistantId={a.id} kvPflicht={a.kvPflicht} />
                       </td>
                       <td className="px-5 py-4 text-right font-semibold text-green-700">
                         {a.totalMinutes > 0 ? formatCurrency(a.netto, currency) : '–'}

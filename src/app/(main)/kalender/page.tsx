@@ -82,6 +82,8 @@ export default function KalenderPage() {
   const [icalUrl, setIcalUrl] = useState<string | null>(null)
   const [icalDialogOpen, setIcalDialogOpen] = useState(false)
   const [icalResetting, setIcalResetting] = useState(false)
+  const [ownTimeEntries, setOwnTimeEntries] = useState<any[]>([])
+  const [showOwnEntries, setShowOwnEntries] = useState(true)
   const [googleEvents, setGoogleEvents] = useState<object[]>([])
   const [isMobile, setIsMobile] = useState(false)
   const calendarRef = useRef<any>(null)
@@ -113,6 +115,15 @@ export default function KalenderPage() {
     setAssistants((asst ?? []) as unknown as Profile[])
 
     loadSlots()
+
+    // Load own time entries for assistants – shown in calendar to detect conflicts
+    if ((p as any)?.role === 'assistant') {
+      const { data: entries } = await supabase
+        .from('time_entries')
+        .select('id, date, start_time, end_time')
+        .eq('assistant_id', user.id)
+      setOwnTimeEntries(entries ?? [])
+    }
 
     if ((p as any)?.role === 'admin') {
       fetch('/api/google-calendar').then(r => r.json()).then(data => {
@@ -146,6 +157,7 @@ export default function KalenderPage() {
 
   function handleEventClick(info: EventClickArg) {
     if (info.event.extendedProps?.source === 'google') return
+    if (info.event.extendedProps?.source === 'own-entry') return
     const slot = slots.find(s => s.id === info.event.id)
     if (!slot) return
     setEditSlot(slot)
@@ -235,7 +247,20 @@ export default function KalenderPage() {
     assistantNameMap[a.id] = a.full_name
   })
 
-  const calendarEvents = [...googleEvents, ...slots.map(slot => {
+  const ownEntryEvents = (profile?.role === 'assistant' && showOwnEntries)
+    ? ownTimeEntries.map((e: any) => ({
+        id: `own-${e.id}`,
+        title: 'Eigener Eintrag',
+        start: `${e.date}T${e.start_time}`,
+        end: `${e.date}T${e.end_time}`,
+        backgroundColor: '#d1d5db',
+        borderColor: '#9ca3af',
+        textColor: '#4b5563',
+        extendedProps: { source: 'own-entry' },
+      }))
+    : []
+
+  const calendarEvents = [...googleEvents, ...ownEntryEvents, ...slots.map(slot => {
     const bgColor = slot.assigned_to
       ? (assistantColorMap[slot.assigned_to] ?? statusColors.assigned)
       : statusColors[slot.status]
@@ -286,6 +311,18 @@ export default function KalenderPage() {
         )}
         {googleEvents.length > 0 && (
           <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4285F4' }} /> Google Kalender</div>
+        )}
+        {profile?.role === 'assistant' && (
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showOwnEntries}
+              onChange={e => setShowOwnEntries(e.target.checked)}
+              className="rounded border-gray-300 text-gray-500 focus:ring-gray-400"
+            />
+            <div className="w-3 h-3 rounded-full bg-gray-400" />
+            Eigene Einträge
+          </label>
         )}
       </div>
 
