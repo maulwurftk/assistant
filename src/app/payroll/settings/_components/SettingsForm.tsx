@@ -168,6 +168,10 @@ export default function SettingsForm({
             <p className="text-xs text-emerald-600 mt-2">
               Lohnzettel und E-Mails verwenden {formatCurrency(derivedBrutto)}/h als Bruttolohn.
             </p>
+            <p className="text-xs text-emerald-600 mt-1">
+              Bei PKV-versicherten Assistentinnen: {formatCurrency(grossFromBezirkRate(bezirkRateNum, effectiveUvRate, false))}/h
+              (ohne KV-Beitrag, {agTotalPercent(effectiveUvRate, false).toFixed(2)} % AG-Kosten)
+            </p>
           </div>
         )}
       </div>

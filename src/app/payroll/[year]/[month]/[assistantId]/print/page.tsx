@@ -30,7 +30,7 @@ export default async function PrintPage({ params }: Props) {
   const [assistantRes, settingsRes, entriesRes, slotsRes, activitiesRes] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, rv_pflicht')
+      .select('id, full_name, email, rv_pflicht, kv_pflicht')
       .eq('id', assistantId)
       .eq('role', 'assistant')
       .single(),
@@ -57,7 +57,7 @@ export default async function PrintPage({ params }: Props) {
 
   if (!assistantRes.data) notFound()
 
-  const assistant = assistantRes.data as { id: string; full_name: string; email: string; rv_pflicht?: boolean }
+  const assistant = assistantRes.data as { id: string; full_name: string; email: string; rv_pflicht?: boolean; kv_pflicht?: boolean }
   const settings = settingsRes.data as {
     hourly_rate: number
     currency: string
@@ -102,16 +102,17 @@ export default async function PrintPage({ params }: Props) {
   const bezirkMode = settings?.bezirk_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
   const rvPflicht = assistant.rv_pflicht !== false // default true
+  const kvPflicht = assistant.kv_pflicht !== false // default true
 
   // When bezirk_mode: hourly_rate is the Bezirk flat rate; back-calculate employee brutto
-  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate) : hourlyRate
+  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht) : hourlyRate
 
   const totalMinutes = allRows.reduce(
     (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
     0
   )
   const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
-  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate) : null
+  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht) : null
 
   const today = new Date().toLocaleDateString('de-DE')
 
@@ -338,10 +339,17 @@ export default async function PrintPage({ params }: Props) {
                 </h2>
               </div>
               <div className="px-5 py-4 space-y-1.5 text-sm">
-                <div className="flex justify-between text-blue-900">
-                  <span>KV-Pauschalbeitrag ({MINIJOB_RATES.kvAG.toFixed(2)} %)</span>
-                  <span>{formatCurrency(minijob.kvAGAmount, currency)}</span>
-                </div>
+                {kvPflicht ? (
+                  <div className="flex justify-between text-blue-900">
+                    <span>KV-Pauschalbeitrag ({MINIJOB_RATES.kvAG.toFixed(2)} %)</span>
+                    <span>{formatCurrency(minijob.kvAGAmount, currency)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-slate-400 italic">
+                    <span>Krankenversicherung (KV)</span>
+                    <span>entfällt (PKV-versichert)</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-blue-900">
                   <span>RV-Pauschalbeitrag ({MINIJOB_RATES.rvAG.toFixed(2)} %)</span>
                   <span>{formatCurrency(minijob.rvAGAmount, currency)}</span>

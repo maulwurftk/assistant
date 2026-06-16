@@ -14,6 +14,7 @@ import {
 } from '@/lib/payroll'
 import PayrollActions from './_components/PayrollActions'
 import RvPflichtToggle from './_components/RvPflichtToggle'
+import KvPflichtToggle from './_components/KvPflichtToggle'
 
 type Props = {
   params: Promise<{ year: string; month: string }>
@@ -37,7 +38,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     supabase.from('payroll_settings').select('*').limit(1).single(),
     supabase
       .from('profiles')
-      .select('id, full_name, email, rv_pflicht')
+      .select('id, full_name, email, rv_pflicht, kv_pflicht')
       .eq('role', 'assistant')
       .eq('active', true)
       .order('full_name'),
@@ -79,6 +80,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     full_name: string
     email: string
     rv_pflicht?: boolean
+    kv_pflicht?: boolean
   }>
   const entries = entriesRes.data ?? []
   const reports = reportsRes.data ?? []
@@ -102,7 +104,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const weeklyHoursTarget = settings?.weekly_hours_target ?? 15
 
   // When bezirk_mode: hourly_rate is the Bezirk's flat rate (incl. AG costs).
-  // Derive the actual employee brutto from it.
+  // Derive the actual employee brutto from it (GKV default, shown in header).
   const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate) : hourlyRate
 
   const assistantData = assistants.map((a) => {
@@ -117,9 +119,15 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       0
     )
     const totalMinutes = entryMinutes + slotMinutes
-    const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
     const rvPflicht = a.rv_pflicht !== false
-    const minijob = minijobMode && totalMinutes > 0 ? calculateMinijob(brutto, rvPflicht, uvRate) : null
+    const kvPflicht = a.kv_pflicht !== false
+    const effectiveBruttoRateForAssistant = bezirkMode
+      ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht)
+      : hourlyRate
+    const brutto = calculatePay(totalMinutes, effectiveBruttoRateForAssistant)
+    const minijob = minijobMode && totalMinutes > 0
+      ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht)
+      : null
     const netto = minijob ? minijob.netto : brutto
     const report = reports.find((r) => r.assistant_id === a.id)
     const run = runs.find((r) => r.assistant_id === a.id)
@@ -127,6 +135,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     return {
       ...a,
       rvPflicht,
+      kvPflicht,
       slotCount: mySlots.length,
       entryCount: myEntries.length,
       totalMinutes,
@@ -270,6 +279,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                     <th className="text-center px-3 py-3 font-medium text-slate-600 whitespace-nowrap">
                       RV-Pflicht
                     </th>
+                    <th className="text-center px-3 py-3 font-medium text-slate-600 whitespace-nowrap">
+                      KV-Status
+                    </th>
                     <th className="text-right px-5 py-3 font-medium text-slate-600">Netto</th>
                   </>
                 )}
@@ -303,6 +315,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                     <>
                       <td className="px-3 py-4 text-center">
                         <RvPflichtToggle assistantId={a.id} rvPflicht={a.rvPflicht} />
+                      </td>
+                      <td className="px-3 py-4 text-center">
+                        <KvPflichtToggle assistantId={a.id} kvPflicht={a.kvPflicht} />
                       </td>
                       <td className="px-5 py-4 text-right font-semibold text-green-700">
                         {a.totalMinutes > 0 ? formatCurrency(a.netto, currency) : '–'}
