@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
+import { sendPushToUser, sendPushToUsers } from '@/lib/push'
 
 const adminDb = () => createAdminClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -80,6 +81,7 @@ async function handleRequest(assistantId: string, slotId: string) {
         related_id: slotId,
       }))
     )
+    await sendPushToUsers(admins.map(a => a.id), 'Neue Slot-Anfrage', msg)
 
     for (const admin of admins) {
       await sendEmail(
@@ -145,6 +147,7 @@ async function handleAdminAction(
       related_type: 'slot_confirmed',
       related_id: slotId,
     })
+    await sendPushToUser(requesterId, 'Slot bestätigt ✓', msg, '/kalender')
 
     if (requester?.email) {
       await sendEmail(
@@ -180,6 +183,7 @@ async function handleAdminAction(
       related_type: 'slot_denied',
       related_id: slotId,
     })
+    await sendPushToUser(requesterId, 'Slot abgelehnt', msg)
 
     if (requester?.email) {
       await sendEmail(

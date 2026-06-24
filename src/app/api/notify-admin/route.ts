@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
+import { sendPushToUsers } from '@/lib/push'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
       related_id: reportId,
     })
   }
+  await sendPushToUsers((admins ?? []).map(a => a.id), title, message)
 
   // Send email if Resend is configured
   if (process.env.RESEND_API_KEY && process.env.ADMIN_EMAIL) {

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Navigation } from '@/components/navigation'
+import { PushSubscriber } from '@/components/push-subscriber'
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -24,6 +25,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
           {children}
         </main>
       </div>
+      <PushSubscriber />
     </div>
   )
 }

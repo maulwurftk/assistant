@@ -2,6 +2,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
+import { sendPushToUser } from '@/lib/push'
 
 // Called by a cron job on the last day of each month
 // Set up in Vercel as: 0 8 28-31 * * (runs at 8:00 on days 28-31)
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
       related_type: 'monthly_reminder',
       related_id: null,
     })
+    await sendPushToUser(assistant.id, 'Monatsabschluss ausstehend', `Bitte den Monatsbericht für ${monthName} abschließen.`, '/zeiterfassung')
 
     if (process.env.RESEND_API_KEY) {
       try {

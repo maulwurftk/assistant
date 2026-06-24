@@ -2,6 +2,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { format, addHours } from 'date-fns'
 import { de } from 'date-fns/locale'
+import { sendPushToUsers } from '@/lib/push'
 
 // Vercel Cron: alle 6 Stunden
 // Prüft ob Slots in den nächsten 48h noch unbesetzt sind → erinnert alle Assistenten
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
         related_id: slot.id,
       }))
     )
+    await sendPushToUsers(assistants.map(a => a.id), title, message, '/dashboard')
 
     // E-Mail an alle Assistenten
     if (process.env.RESEND_API_KEY) {
