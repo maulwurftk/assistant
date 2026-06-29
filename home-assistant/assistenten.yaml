@@ -2,16 +2,15 @@
 #
 # Einbindung:
 # 1. Diese Datei nach <ha-config>/packages/assistenten.yaml kopieren
-# 2. In configuration.yaml hinzufügen:
+# 2. In configuration.yaml hinzufügen (falls noch nicht vorhanden):
 #      homeassistant:
 #        packages: !include_dir_named packages
-# 3. Secret in secrets.yaml hinzufügen:
-#      assistenten_token: DEIN_ICAL_TOKEN_DES_ADMIN_PROFILS
-#      assistenten_base_url: https://karas.pro
-# 4. Home Assistant neu starten
+# 3. In secrets.yaml hinzufügen:
+#      assistenten_url: "https://karas.pro/api/ha/status?token=DEIN-ICAL-TOKEN"
+# 4. Home Assistant neu starten (NICHT nur "YAML neu laden", das reicht für packages nicht)
 
 rest:
-  - resource_template: "{{ states('input_text.assistenten_base_url') }}/api/ha/status?token={{ states('input_text.assistenten_token') }}"
+  - resource: !secret assistenten_url
     scan_interval: 60
     timeout: 15
     sensor:
@@ -33,65 +32,77 @@ rest:
           - open
           - upcoming
 
-input_text:
-  assistenten_token:
-    name: Assistenten-App Token
-    mode: password
-    initial: !secret assistenten_token
-  assistenten_base_url:
-    name: Assistenten-App URL
-    initial: !secret assistenten_base_url
-
 template:
   - sensor:
       - name: "Aktuelle Assistentin"
         unique_id: assistenten_current
         state: >
-          {{ state_attr('sensor.assistenten_status', 'current').assistant
-             if state_attr('sensor.assistenten_status', 'current')
-             else 'niemand' }}
-        attributes:
-          title: "{{ state_attr('sensor.assistenten_status', 'current').title if state_attr('sensor.assistenten_status', 'current') else '' }}"
-          end_time: "{{ state_attr('sensor.assistenten_status', 'current').end_time if state_attr('sensor.assistenten_status', 'current') else '' }}"
-          minutes_left: "{{ state_attr('sensor.assistenten_status', 'current').minutes_left if state_attr('sensor.assistenten_status', 'current') else 0 }}"
+          {% set c = state_attr('sensor.assistenten_status', 'current') %}
+          {{ c.assistant if c else 'niemand' }}
         icon: >
-          {{ 'mdi:account-check' if state_attr('sensor.assistenten_status', 'current') else 'mdi:account-off' }}
+          {% set c = state_attr('sensor.assistenten_status', 'current') %}
+          {{ 'mdi:account-check' if c else 'mdi:account-off' }}
+        attributes:
+          title: >
+            {% set c = state_attr('sensor.assistenten_status', 'current') %}
+            {{ c.title if c else '' }}
+          end_time: >
+            {% set c = state_attr('sensor.assistenten_status', 'current') %}
+            {{ c.end_time if c else '' }}
+          minutes_left: >
+            {% set c = state_attr('sensor.assistenten_status', 'current') %}
+            {{ c.minutes_left if c else 0 }}
 
       - name: "Nächste Assistentin"
         unique_id: assistenten_next
         state: >
-          {{ state_attr('sensor.assistenten_status', 'next').assistant
-             if state_attr('sensor.assistenten_status', 'next')
-             else 'unbekannt' }}
-        attributes:
-          title: "{{ state_attr('sensor.assistenten_status', 'next').title if state_attr('sensor.assistenten_status', 'next') else '' }}"
-          date: "{{ state_attr('sensor.assistenten_status', 'next').date if state_attr('sensor.assistenten_status', 'next') else '' }}"
-          start_time: "{{ state_attr('sensor.assistenten_status', 'next').start_time if state_attr('sensor.assistenten_status', 'next') else '' }}"
-          end_time: "{{ state_attr('sensor.assistenten_status', 'next').end_time if state_attr('sensor.assistenten_status', 'next') else '' }}"
-          minutes_until: "{{ state_attr('sensor.assistenten_status', 'next').minutes_until if state_attr('sensor.assistenten_status', 'next') else 0 }}"
+          {% set n = state_attr('sensor.assistenten_status', 'next') %}
+          {{ n.assistant if n else 'unbekannt' }}
         icon: mdi:clock-outline
+        attributes:
+          title: >
+            {% set n = state_attr('sensor.assistenten_status', 'next') %}
+            {{ n.title if n else '' }}
+          date: >
+            {% set n = state_attr('sensor.assistenten_status', 'next') %}
+            {{ n.date if n else '' }}
+          start_time: >
+            {% set n = state_attr('sensor.assistenten_status', 'next') %}
+            {{ n.start_time if n else '' }}
+          end_time: >
+            {% set n = state_attr('sensor.assistenten_status', 'next') %}
+            {{ n.end_time if n else '' }}
+          minutes_until: >
+            {% set n = state_attr('sensor.assistenten_status', 'next') %}
+            {{ n.minutes_until if n else 0 }}
 
-      - sensor:
-          name: "Offene Slots"
-          unique_id: assistenten_open_count
-          state: "{{ state_attr('sensor.assistenten_status', 'open').count }}"
-          unit_of_measurement: "Slots"
-          icon: >
-            {{ 'mdi:calendar-alert' if state_attr('sensor.assistenten_status', 'open').count | int(0) > 0 else 'mdi:calendar-check' }}
+      - name: "Offene Slots"
+        unique_id: assistenten_open_count
+        state: >
+          {% set o = state_attr('sensor.assistenten_status', 'open') %}
+          {{ o.count if o else 0 }}
+        unit_of_measurement: "Slots"
+        icon: >
+          {% set o = state_attr('sensor.assistenten_status', 'open') %}
+          {{ 'mdi:calendar-alert' if (o and o.count | int(0) > 0) else 'mdi:calendar-check' }}
 
-      - sensor:
-          name: "Heute Assistentinnen"
-          unique_id: assistenten_today_count
-          state: "{{ state_attr('sensor.assistenten_status', 'today').slots_count | default(0) }}"
-          unit_of_measurement: "Slots"
-          attributes:
-            assistants: "{{ state_attr('sensor.assistenten_status', 'today').assistants | default([]) }}"
-          icon: mdi:calendar-today
+      - name: "Heute Assistentinnen"
+        unique_id: assistenten_today_count
+        state: >
+          {% set t = state_attr('sensor.assistenten_status', 'today') %}
+          {{ t.slots_count if t else 0 }}
+        unit_of_measurement: "Slots"
+        icon: mdi:calendar-today
+        attributes:
+          assistants: >
+            {% set t = state_attr('sensor.assistenten_status', 'today') %}
+            {{ t.assistants if t else [] }}
 
-  - binary_sensor:
+    binary_sensor:
       - name: "Assistentin anwesend"
         unique_id: assistenten_present
         state: "{{ state_attr('sensor.assistenten_status', 'current') is not none }}"
         device_class: occupancy
         icon: >
-          {{ 'mdi:home-account' if state_attr('sensor.assistenten_status', 'current') else 'mdi:home-outline' }}
+          {% set c = state_attr('sensor.assistenten_status', 'current') %}
+          {{ 'mdi:home-account' if c else 'mdi:home-outline' }}
