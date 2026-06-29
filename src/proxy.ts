@@ -31,6 +31,17 @@ export async function proxy(request: NextRequest) {
 
   if (pathname.startsWith('/api/auth')) return supabaseResponse
 
+  // Token-basierte oder Cron-API-Routes: Eigene Auth, kein Session-Cookie nötig
+  const publicTokenPaths = [
+    '/api/ha/',
+    '/api/calendar.ics',
+    '/api/send-monthly-reminders',
+    '/api/remind-open-slots',
+  ]
+  if (publicTokenPaths.some((p) => pathname.startsWith(p))) {
+    return supabaseResponse
+  }
+
   if (!user && !pathname.startsWith('/login')) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
