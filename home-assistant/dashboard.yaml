@@ -1,0 +1,80 @@
+# Lovelace Dashboard – Übersichtsseite Assistenten
+#
+# Einbindung:
+# 1. In Home Assistant: Einstellungen → Dashboards → "+ Dashboard hinzufügen"
+# 2. Wähle "Neues Dashboard von Grund auf"
+# 3. Öffne das Dashboard → 3-Punkte-Menü oben rechts → "Dashboard bearbeiten"
+# 4. Erneut 3-Punkte-Menü → "Steuerung in YAML-Modus"
+# 5. Inhalt unten einfügen, speichern
+
+title: Assistenten
+views:
+  - title: Übersicht
+    path: uebersicht
+    icon: mdi:account-group
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: markdown
+            content: |
+              ## 🏠 Wer ist da?
+              {% if state_attr('sensor.assistenten_status', 'current') %}
+              **{{ state_attr('sensor.assistenten_status', 'current').assistant }}** ist anwesend
+              _{{ state_attr('sensor.assistenten_status', 'current').title }}_
+              ⏱ Noch **{{ state_attr('sensor.assistenten_status', 'current').minutes_left }} min** (bis {{ state_attr('sensor.assistenten_status', 'current').end_time }})
+              {% else %}
+              _Aktuell ist niemand hier._
+              {% endif %}
+
+          - type: markdown
+            content: |
+              ## ⏭ Nächste Assistentin
+              {% set n = state_attr('sensor.assistenten_status', 'next') %}
+              {% if n %}
+              **{{ n.assistant }}** – {{ n.title }}
+              📅 {{ n.date }}, {{ n.start_time }}–{{ n.end_time }}
+              ⏳ in **{{ n.minutes_until }} min**
+              {% else %}
+              _Keine zukünftigen Termine geplant._
+              {% endif %}
+
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: binary_sensor.assistentin_anwesend
+            name: Anwesend
+          - type: entity
+            entity: sensor.offene_slots
+            name: Offene Slots
+          - type: entity
+            entity: sensor.heute_assistentinnen
+            name: Heute
+
+      - type: markdown
+        title: 📅 Nächste 10 Termine
+        content: |
+          {% set up = state_attr('sensor.assistenten_status', 'upcoming') %}
+          {% if up %}
+          | Datum | Zeit | Wer | Was |
+          |-------|------|-----|-----|
+          {% for s in up[:10] -%}
+          | {{ s.date }} | {{ s.start_time }}–{{ s.end_time }} | {{ s.assistant if s.assistant else '🔓 offen' }} | {{ s.title }} |
+          {% endfor %}
+          {% else %}
+          _Keine bevorstehenden Termine._
+          {% endif %}
+
+      - type: markdown
+        title: 🔓 Offene Slots
+        content: |
+          {% set up = state_attr('sensor.assistenten_status', 'upcoming') %}
+          {% set open_list = up | selectattr('status', 'equalto', 'open') | list if up else [] %}
+          {% if open_list %}
+          | Datum | Zeit | Was |
+          |-------|------|-----|
+          {% for s in open_list -%}
+          | {{ s.date }} | {{ s.start_time }}–{{ s.end_time }} | {{ s.title }} |
+          {% endfor %}
+          {% else %}
+          ✅ _Alle Slots sind besetzt._
+          {% endif %}
