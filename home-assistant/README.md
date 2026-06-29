@@ -11,7 +11,7 @@ Als Admin in der App: Profil → iCal-Token kopieren (`ical_token` aus der `prof
 ### 2. HA secrets.yaml
 
 ```yaml
-assistenten_url: "https://karas.pro/api/ha/status?token=dein-ical-token-hier"
+assistenten_url: "https://assistenz.karas.pro/api/ha/status?token=dein-ical-token-hier"
 ```
 
 ### 3. Package aktivieren
