@@ -49,6 +49,12 @@ export default async function PayrollLayout({ children }: { children: React.Reac
                 Übersicht
               </a>
               <a
+                href="/payroll/zeitraum"
+                className="text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                Zeitraum
+              </a>
+              <a
                 href="/payroll/settings"
                 className="text-slate-600 hover:text-slate-900 transition-colors"
               >
