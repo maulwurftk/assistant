@@ -10,6 +10,7 @@ import {
   grossFromBezirkRate,
 } from '@/lib/payroll'
 import { PeriodPicker } from './_components/PeriodPicker'
+import { RuecklagenRechner } from './_components/RuecklagenRechner'
 
 type Props = {
   searchParams: Promise<{ from?: string; to?: string }>
@@ -61,12 +62,13 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     minijob_mode?: boolean
     bezirk_mode?: boolean
     uv_rate?: number
+    monthly_budget?: number
     employer_name?: string
     employer_address?: string
     employer_tax_number?: string
   } | null
 
-  const assistants = (assistantsRes.data ?? []) as Array<{
+  const assistants = (assistantsRes.data ?? []) as unknown as Array<{
     id: string
     full_name: string
     email: string
@@ -81,6 +83,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
   const minijobMode = settings?.minijob_mode ?? false
   const bezirkMode = settings?.bezirk_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
+  const monthlyBudget = settings?.monthly_budget ?? 0
 
   const rows = assistants.map((a) => {
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
@@ -176,6 +179,14 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       <div className="mb-6">
         <PeriodPicker currentFrom={from} currentTo={to} />
       </div>
+
+      {minijobMode && (
+        <RuecklagenRechner
+          currency={currency}
+          monthlyBudget={monthlyBudget}
+          agAbgabenPeriod={round2(totals.agAbgaben)}
+        />
+      )}
 
       {/* Berichts-Kopf (auch beim Drucken sichtbar) */}
       <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
