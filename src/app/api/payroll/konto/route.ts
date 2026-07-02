@@ -7,6 +7,8 @@ import {
   calculateMinijob,
   grossFromBezirkRate,
   ratesFromSettings,
+  normalizeCountMode,
+  countedMinutes,
 } from '@/lib/payroll'
 
 function adminDb() {
@@ -63,10 +65,11 @@ export async function POST(req: Request) {
 async function generateSuggestions(userId: string) {
   const db = adminDb()
 
-  const [settingsRes, assistantsRes, slotsRes] = await Promise.all([
+  const [settingsRes, assistantsRes, slotsRes, entriesRes] = await Promise.all([
     db.from('payroll_settings').select('*').limit(1).single(),
     db.from('profiles').select('id, rv_pflicht, kv_pflicht').eq('role', 'assistant').eq('active', true),
     db.from('calendar_slots').select('assigned_to, date, start_time, end_time').eq('status', 'assigned'),
+    db.from('time_entries').select('assistant_id, date, start_time, end_time'),
   ])
 
   const settings = settingsRes.data as any
@@ -74,20 +77,36 @@ async function generateSuggestions(userId: string) {
 
   const assistants = assistantsRes.data ?? []
   const slots = slotsRes.data ?? []
+  const entries = (entriesRes.data ?? []) as Array<{
+    assistant_id: string
+    date: string
+    start_time: string
+    end_time: string
+  }>
 
   const monthlyBudget = settings.monthly_budget ?? 0
   const hourlyRate = settings.hourly_rate ?? 0
   const minijobMode = settings.minijob_mode ?? false
   const bezirkMode = settings.bezirk_mode ?? false
   const uvRate = settings.uv_rate ?? 1.6
+  const countMode = normalizeCountMode(settings.payroll_count_mode)
   const rates = ratesFromSettings(settings)
 
-  // Slots nach Monat gruppieren
-  const byMonth = new Map<string, typeof slots>()
+  // Slots + Einträge nach Monat gruppieren (alle Monate mit Aktivität)
+  const months = new Set<string>()
+  const slotsByMonth = new Map<string, typeof slots>()
   for (const s of slots) {
-    const key = s.date.slice(0, 7) // YYYY-MM
-    if (!byMonth.has(key)) byMonth.set(key, [])
-    byMonth.get(key)!.push(s)
+    const key = s.date.slice(0, 7)
+    months.add(key)
+    if (!slotsByMonth.has(key)) slotsByMonth.set(key, [])
+    slotsByMonth.get(key)!.push(s)
+  }
+  const entriesByMonth = new Map<string, typeof entries>()
+  for (const e of entries) {
+    const key = e.date.slice(0, 7)
+    months.add(key)
+    if (!entriesByMonth.has(key)) entriesByMonth.set(key, [])
+    entriesByMonth.get(key)!.push(e)
   }
 
   const suggestions: Array<{
@@ -99,9 +118,11 @@ async function generateSuggestions(userId: string) {
     dedup_key: string
   }> = []
 
-  for (const [ym, monthSlots] of byMonth) {
+  for (const ym of [...months].sort()) {
     const [y, m] = ym.split('-').map(Number)
     const lastDay = new Date(y, m, 0).getDate()
+    const monthSlots = slotsByMonth.get(ym) ?? []
+    const monthEntries = entriesByMonth.get(ym) ?? []
 
     // Einnahme: Bezirkszahlung (Monatsbudget)
     if (monthlyBudget > 0) {
@@ -115,11 +136,16 @@ async function generateSuggestions(userId: string) {
       })
     }
 
-    // Ausgabe: Nettolöhne des Monats
+    // Ausgabe: Nettolöhne des Monats (gemäß Zähl-Modus)
     let netTotal = 0
     for (const a of assistants) {
-      const mine = monthSlots.filter((s) => s.assigned_to === a.id)
-      const minutes = mine.reduce((sum, s) => sum + entryDurationMinutes(s.start_time, s.end_time), 0)
+      const slotMinutes = monthSlots
+        .filter((s) => s.assigned_to === a.id)
+        .reduce((sum, s) => sum + entryDurationMinutes(s.start_time, s.end_time), 0)
+      const entryMinutes = monthEntries
+        .filter((e) => e.assistant_id === a.id)
+        .reduce((sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time), 0)
+      const minutes = countedMinutes(countMode, entryMinutes, slotMinutes)
       if (minutes === 0) continue
       const rvPflicht = a.rv_pflicht !== false
       const kvPflicht = a.kv_pflicht !== false

@@ -11,6 +11,7 @@ import {
   monthName,
   grossFromBezirkRate,
   ratesFromSettings,
+  normalizeCountMode,
 } from '@/lib/payroll'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -83,28 +84,10 @@ export async function POST(request: Request) {
   const timeEntries = entriesRes.data ?? []
   const calendarSlots = (slotsRes.data ?? []) as Array<{ date: string; start_time: string; end_time: string; title: string }>
 
-  // Kombinierte und nach Datum sortierte Eintrags-Liste
-  type WorkRow = { date: string; start_time: string; end_time: string; label: string }
-  const allEntries: WorkRow[] = [
-    ...timeEntries.map((e) => ({
-      date: e.date,
-      start_time: e.start_time,
-      end_time: e.end_time,
-      label: e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–',
-    })),
-    ...calendarSlots.map((s) => ({
-      date: s.date,
-      start_time: s.start_time,
-      end_time: s.end_time,
-      label: s.title,
-    })),
-  ].sort((a, b) => {
-    const d = a.date.localeCompare(b.date)
-    return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
-  })
   const settings = settingsRes.data as {
     minijob_mode?: boolean
     bezirk_mode?: boolean
+    payroll_count_mode?: string
     uv_rate?: number
     employer_name?: string
     mj_kv_ag?: number | null
@@ -114,6 +97,32 @@ export async function POST(request: Request) {
     mj_insolvenzgeld?: number | null
     mj_rv_an?: number | null
   } | null
+  const countMode = normalizeCountMode(settings?.payroll_count_mode)
+
+  // Nur die Zeiten, die gemäß Zähl-Modus vergütet werden (Tabelle = Summe)
+  type WorkRow = { date: string; start_time: string; end_time: string; label: string }
+  const entryRows: WorkRow[] =
+    countMode === 'slots'
+      ? []
+      : timeEntries.map((e) => ({
+          date: e.date,
+          start_time: e.start_time,
+          end_time: e.end_time,
+          label: e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–',
+        }))
+  const slotRows: WorkRow[] =
+    countMode === 'entries'
+      ? []
+      : calendarSlots.map((s) => ({
+          date: s.date,
+          start_time: s.start_time,
+          end_time: s.end_time,
+          label: s.title,
+        }))
+  const allEntries: WorkRow[] = [...entryRows, ...slotRows].sort((a, b) => {
+    const d = a.date.localeCompare(b.date)
+    return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
+  })
   const assistantProfile = assistantRes.data as { rv_pflicht?: boolean; kv_pflicht?: boolean } | null
   const rvPflicht = assistantProfile?.rv_pflicht !== false
   const kvPflicht = assistantProfile?.kv_pflicht !== false

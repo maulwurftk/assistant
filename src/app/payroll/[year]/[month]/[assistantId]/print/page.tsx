@@ -10,6 +10,7 @@ import {
   monthName,
   grossFromBezirkRate,
   ratesFromSettings,
+  normalizeCountMode,
 } from '@/lib/payroll'
 import PrintButton from './_components/PrintButton'
 
@@ -63,6 +64,7 @@ export default async function PrintPage({ params }: Props) {
     currency: string
     minijob_mode?: boolean
     bezirk_mode?: boolean
+    payroll_count_mode?: string
     uv_rate?: number
     employer_name?: string
     employer_address?: string
@@ -80,24 +82,31 @@ export default async function PrintPage({ params }: Props) {
 
   const activityMap = Object.fromEntries(activities.map((a) => [a.id, a.name]))
 
-  // Kombinierte und sortierte Liste aller Arbeitsnachweise
+  const countMode = normalizeCountMode(settings?.payroll_count_mode)
+
+  // Nur die Zeiten anzeigen, die gemäß Zähl-Modus auch vergütet werden
   type WorkRow = { id: string; date: string; start_time: string; end_time: string; label: string }
-  const allRows: WorkRow[] = [
-    ...entries.map((e) => ({
-      id: `e-${e.id}`,
-      date: e.date,
-      start_time: e.start_time,
-      end_time: e.end_time,
-      label: e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–',
-    })),
-    ...calendarSlots.map((s) => ({
-      id: `s-${s.id}`,
-      date: s.date,
-      start_time: s.start_time,
-      end_time: s.end_time,
-      label: s.title,
-    })),
-  ].sort((a, b) => {
+  const entryRows: WorkRow[] =
+    countMode === 'slots'
+      ? []
+      : entries.map((e) => ({
+          id: `e-${e.id}`,
+          date: e.date,
+          start_time: e.start_time,
+          end_time: e.end_time,
+          label: e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–',
+        }))
+  const slotRows: WorkRow[] =
+    countMode === 'entries'
+      ? []
+      : calendarSlots.map((s) => ({
+          id: `s-${s.id}`,
+          date: s.date,
+          start_time: s.start_time,
+          end_time: s.end_time,
+          label: s.title,
+        }))
+  const allRows: WorkRow[] = [...entryRows, ...slotRows].sort((a, b) => {
     const d = a.date.localeCompare(b.date)
     return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
   })

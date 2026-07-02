@@ -12,6 +12,8 @@ import {
   nextMonth,
   grossFromBezirkRate,
   ratesFromSettings,
+  normalizeCountMode,
+  countedMinutes,
 } from '@/lib/payroll'
 import PayrollActions from './_components/PayrollActions'
 import RvPflichtToggle from './_components/RvPflichtToggle'
@@ -71,6 +73,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     currency: string
     minijob_mode?: boolean
     bezirk_mode?: boolean
+    payroll_count_mode?: string
     uv_rate?: number
     monthly_budget?: number
     account_fee?: number
@@ -109,6 +112,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const monthlyBudget = settings?.monthly_budget ?? 0
   const accountFee = settings?.account_fee ?? 0
   const weeklyHoursTarget = settings?.weekly_hours_target ?? 15
+  const countMode = normalizeCountMode(settings?.payroll_count_mode)
   const rates = ratesFromSettings(settings)
 
   // When bezirk_mode: hourly_rate is the Bezirk's flat rate (incl. AG costs).
@@ -126,7 +130,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       (sum, s) => sum + entryDurationMinutes(s.start_time, s.end_time),
       0
     )
-    const totalMinutes = entryMinutes + slotMinutes
+    const totalMinutes = countedMinutes(countMode, entryMinutes, slotMinutes)
     const rvPflicht = a.rv_pflicht !== false
     const kvPflicht = a.kv_pflicht !== false
     const effectiveBruttoRateForAssistant = bezirkMode

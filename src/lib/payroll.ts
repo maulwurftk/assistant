@@ -21,6 +21,23 @@ export function calculatePay(totalMinutes: number, hourlyRate: number): number {
   return Math.round((totalMinutes / 60) * hourlyRate * 100) / 100
 }
 
+// Zähl-Modus: welche erfassten Zeiten in die Lohnabrechnung einfließen.
+export type PayrollCountMode = 'slots' | 'entries' | 'both'
+
+export function normalizeCountMode(v: unknown): PayrollCountMode {
+  return v === 'entries' || v === 'both' ? v : 'slots'
+}
+
+export function countedMinutes(
+  mode: PayrollCountMode,
+  entryMinutes: number,
+  slotMinutes: number
+): number {
+  if (mode === 'entries') return entryMinutes
+  if (mode === 'both') return entryMinutes + slotMinutes
+  return slotMinutes
+}
+
 export function formatCurrency(amount: number, currency = 'EUR'): string {
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',

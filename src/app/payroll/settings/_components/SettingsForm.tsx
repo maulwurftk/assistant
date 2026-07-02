@@ -1,12 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { agTotalPercent, grossFromBezirkRate, formatCurrency, type MinijobRates } from '@/lib/payroll'
+import {
+  agTotalPercent,
+  grossFromBezirkRate,
+  formatCurrency,
+  type MinijobRates,
+  type PayrollCountMode,
+} from '@/lib/payroll'
 
 type Props = {
   currentRate: number
   currentCurrency: string
   currentPayrollEnabled: boolean
+  currentCountMode: PayrollCountMode
   currentMinijobMode: boolean
   currentBezirkMode: boolean
   currentUvRate: number
@@ -33,6 +40,7 @@ export default function SettingsForm({
   currentRate,
   currentCurrency,
   currentPayrollEnabled,
+  currentCountMode,
   currentMinijobMode,
   currentBezirkMode,
   currentUvRate,
@@ -48,6 +56,7 @@ export default function SettingsForm({
   const [rate, setRate] = useState(currentRate.toString())
   const [currency, setCurrency] = useState(currentCurrency)
   const [payrollEnabled, setPayrollEnabled] = useState(currentPayrollEnabled)
+  const [countMode, setCountMode] = useState<PayrollCountMode>(currentCountMode)
   const [minijobMode, setMinijobMode] = useState(currentMinijobMode)
   const [bezirkMode, setBezirkMode] = useState(currentBezirkMode)
   const [uvRate, setUvRate] = useState(currentUvRate.toString())
@@ -110,6 +119,7 @@ export default function SettingsForm({
           hourly_rate: parsedRate,
           currency,
           payroll_enabled: payrollEnabled,
+          payroll_count_mode: countMode,
           minijob_mode: minijobMode,
           bezirk_mode: bezirkMode,
           uv_rate: effectiveUvRate,
@@ -153,6 +163,27 @@ export default function SettingsForm({
             funktioniert weiter als reines Planungs-/Kalendertool.
           </p>
         </div>
+      </div>
+
+      {/* Zähl-Modus */}
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+          Welche Zeiten zählen für die Lohnabrechnung?
+        </label>
+        <select
+          value={countMode}
+          onChange={(e) => setCountMode(e.target.value as PayrollCountMode)}
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="slots">Nur Kalender-Slots (empfohlen)</option>
+          <option value="entries">Nur Zeiteinträge</option>
+          <option value="both">Slots + Einträge</option>
+        </select>
+        <p className="text-xs text-slate-400 mt-1.5">
+          {countMode === 'slots' && 'Es zählen ausschließlich zugewiesene Kalender-Slots. Zeiteinträge sind nur Nachweis.'}
+          {countMode === 'entries' && 'Es zählen ausschließlich manuell erfasste Zeiteinträge.'}
+          {countMode === 'both' && '⚠ Slots und Einträge werden addiert – wenn beide denselben Einsatz abbilden, zählt er doppelt.'}
+        </p>
       </div>
 
       {/* Stundensatz */}

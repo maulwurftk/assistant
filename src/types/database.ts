@@ -138,6 +138,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           payroll_enabled: boolean
+          payroll_count_mode: 'slots' | 'entries' | 'both'
           minijob_mode: boolean
           bezirk_mode: boolean
           uv_rate: number
@@ -160,6 +161,7 @@ export type Database = {
           currency?: string
           updated_by?: string | null
           payroll_enabled?: boolean
+          payroll_count_mode?: 'slots' | 'entries' | 'both'
           minijob_mode?: boolean
           bezirk_mode?: boolean
           uv_rate?: number
@@ -181,6 +183,7 @@ export type Database = {
           currency?: string
           updated_by?: string | null
           payroll_enabled?: boolean
+          payroll_count_mode?: 'slots' | 'entries' | 'both'
           minijob_mode?: boolean
           bezirk_mode?: boolean
           uv_rate?: number
