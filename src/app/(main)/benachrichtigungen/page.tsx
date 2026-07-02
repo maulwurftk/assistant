@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Notification } from '@/lib/types'
+import type { Notification } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,13 @@ const typeStyles: Record<string, string> = {
   success: 'bg-green-50 border-green-200',
   warning: 'bg-amber-50 border-amber-200',
   error: 'bg-red-50 border-red-200',
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = atob(base64)
+  return new Uint8Array([...rawData].map((c) => c.charCodeAt(0)))
 }
 
 interface ActionState {
@@ -100,6 +107,65 @@ export default function BenachrichtigungenPage() {
     setSubmitting(null)
   }
 
+  const [pushBusy, setPushBusy] = useState(false)
+
+  // Abonniert (falls nötig) und schickt eine Test-Benachrichtigung mit Klartext-Diagnose
+  async function testPush() {
+    setPushBusy(true)
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        toast.error('Dieser Browser unterstützt keine Push-Benachrichtigungen.')
+        return
+      }
+
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKey) {
+        toast.error('Server nicht konfiguriert: VAPID-Schlüssel fehlt (Env-Variablen + Redeploy nötig).')
+        return
+      }
+
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        toast.error('Benachrichtigungen im Browser nicht erlaubt. Bitte in den Website-Einstellungen freigeben.')
+        return
+      }
+
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
+      await navigator.serviceWorker.ready
+      let sub = await reg.pushManager.getSubscription()
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        })
+      }
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: JSON.parse(JSON.stringify(sub)) }),
+      })
+
+      const res = await fetch('/api/push/test', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+
+      if (data.ok) {
+        toast.success('Test gesendet – die Benachrichtigung sollte gleich erscheinen.')
+      } else if (data.reason === 'not_configured') {
+        toast.error('Server nicht konfiguriert: VAPID-Schlüssel fehlen in den Env-Variablen.')
+      } else if (data.reason === 'no_subscription') {
+        toast.error('Keine Subscription gespeichert – Migration ausgeführt? (supabase-migration-push.sql)')
+      } else if (data.reason === 'send_failed') {
+        toast.error(`Senden fehlgeschlagen: ${(data.errors ?? []).join(' · ') || 'unbekannt'}`)
+      } else {
+        toast.error('Push-Test fehlgeschlagen.')
+      }
+    } catch (err: any) {
+      toast.error(`Fehler: ${err?.message ?? 'unbekannt'}`)
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   return (
@@ -111,11 +177,16 @@ export default function BenachrichtigungenPage() {
             <p className="text-gray-500 text-sm mt-0.5">{unreadCount} ungelesen</p>
           )}
         </div>
-        {unreadCount > 0 && (
-          <Button variant="outline" size="sm" onClick={markAllRead}>
-            <CheckCheck className="h-4 w-4 mr-2" /> Alle gelesen
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={testPush} disabled={pushBusy}>
+            <Bell className="h-4 w-4 mr-2" /> {pushBusy ? 'Teste…' : 'Push testen'}
           </Button>
-        )}
+          {unreadCount > 0 && (
+            <Button variant="outline" size="sm" onClick={markAllRead}>
+              <CheckCheck className="h-4 w-4 mr-2" /> Alle gelesen
+            </Button>
+          )}
+        </div>
       </div>
 
       {notifications.length === 0 ? (
