@@ -52,15 +52,52 @@ export function nextMonth(year: number, month: number): { year: number; month: n
 }
 
 // ── Minijob-Berechnung ────────────────────────────────────────────────────────
-// Pauschalbeitragssätze 2025 (Arbeitgeber, via Minijob-Zentrale)
-export const MINIJOB_RATES = {
-  kvAG: 13.00,          // Krankenversicherung AG
-  rvAG: 15.00,          // Rentenversicherung AG
-  pauschsteuer: 2.00,   // Lohnsteuerpauschale
-  u2: 0.24,             // Umlage 2 (Mutterschaft)
-  insolvenzgeld: 0.06,  // Insolvenzgeldumlage
-  rvAN: 3.60,           // Aufstockungsbetrag AN (wenn RV-pflichtig)
-} as const
+export interface MinijobRates {
+  kvAG: number          // Krankenversicherung AG
+  rvAG: number          // Rentenversicherung AG
+  pauschsteuer: number  // Lohnsteuerpauschale
+  u2: number            // Umlage 2 (Mutterschaft)
+  insolvenzgeld: number // Insolvenzgeldumlage
+  rvAN: number          // Aufstockungsbetrag AN (wenn RV-pflichtig)
+}
+
+// Pauschalbeitragssätze 2025 (Arbeitgeber, via Minijob-Zentrale) – Default/Fallback.
+// Können pro Instanz in den Einstellungen überschrieben werden.
+export const MINIJOB_RATES: MinijobRates = {
+  kvAG: 13.00,
+  rvAG: 15.00,
+  pauschsteuer: 2.00,
+  u2: 0.24,
+  insolvenzgeld: 0.06,
+  rvAN: 3.60,
+}
+
+// Sätze aus den (evtl. teilweise gesetzten) payroll_settings-Spalten auflösen.
+// Fehlt eine Spalte oder ist null, greift der Default-Satz.
+export function ratesFromSettings(
+  s:
+    | {
+        mj_kv_ag?: number | null
+        mj_rv_ag?: number | null
+        mj_pauschsteuer?: number | null
+        mj_u2?: number | null
+        mj_insolvenzgeld?: number | null
+        mj_rv_an?: number | null
+      }
+    | null
+    | undefined
+): MinijobRates {
+  const num = (v: number | null | undefined, fallback: number) =>
+    typeof v === 'number' && !isNaN(v) ? v : fallback
+  return {
+    kvAG: num(s?.mj_kv_ag, MINIJOB_RATES.kvAG),
+    rvAG: num(s?.mj_rv_ag, MINIJOB_RATES.rvAG),
+    pauschsteuer: num(s?.mj_pauschsteuer, MINIJOB_RATES.pauschsteuer),
+    u2: num(s?.mj_u2, MINIJOB_RATES.u2),
+    insolvenzgeld: num(s?.mj_insolvenzgeld, MINIJOB_RATES.insolvenzgeld),
+    rvAN: num(s?.mj_rv_an, MINIJOB_RATES.rvAN),
+  }
+}
 
 export interface MinijobBreakdown {
   brutto: number
@@ -80,18 +117,19 @@ export function calculateMinijob(
   brutto: number,
   rvPflicht: boolean,
   uvRate: number = 1.60,
-  kvPflicht: boolean = true
+  kvPflicht: boolean = true,
+  rates: MinijobRates = MINIJOB_RATES
 ): MinijobBreakdown {
   const pct = (p: number) => Math.round(brutto * p) / 100
 
-  const kvAGAmount = kvPflicht ? pct(MINIJOB_RATES.kvAG) : 0
-  const rvAGAmount = pct(MINIJOB_RATES.rvAG)
-  const pauschsteuerAmount = pct(MINIJOB_RATES.pauschsteuer)
-  const u2Amount = pct(MINIJOB_RATES.u2)
-  const insolvenzgeldAmount = pct(MINIJOB_RATES.insolvenzgeld)
+  const kvAGAmount = kvPflicht ? pct(rates.kvAG) : 0
+  const rvAGAmount = pct(rates.rvAG)
+  const pauschsteuerAmount = pct(rates.pauschsteuer)
+  const u2Amount = pct(rates.u2)
+  const insolvenzgeldAmount = pct(rates.insolvenzgeld)
   const uvAmount = pct(uvRate)
 
-  const rvAN = rvPflicht ? pct(MINIJOB_RATES.rvAN) : 0
+  const rvAN = rvPflicht ? pct(rates.rvAN) : 0
   const netto = Math.round((brutto - rvAN) * 100) / 100
 
   const totalAGAbgaben = Math.round(
@@ -117,12 +155,20 @@ export function calculateMinijob(
 // ── Bezirk-Rückrechnung ──────────────────────────────────────────────────────
 // Der Bezirk zahlt einen Pauschalpreis inkl. aller AG-Abgaben (z.B. 20 €/h).
 // Daraus wird der tatsächliche Bruttolohn zurückgerechnet.
-export function agTotalPercent(uvRate: number, kvPflicht: boolean = true): number {
-  const kv = kvPflicht ? MINIJOB_RATES.kvAG : 0
-  return kv + MINIJOB_RATES.rvAG + MINIJOB_RATES.pauschsteuer +
-    MINIJOB_RATES.u2 + MINIJOB_RATES.insolvenzgeld + uvRate
+export function agTotalPercent(
+  uvRate: number,
+  kvPflicht: boolean = true,
+  rates: MinijobRates = MINIJOB_RATES
+): number {
+  const kv = kvPflicht ? rates.kvAG : 0
+  return kv + rates.rvAG + rates.pauschsteuer + rates.u2 + rates.insolvenzgeld + uvRate
 }
 
-export function grossFromBezirkRate(bezirkRate: number, uvRate: number = 1.60, kvPflicht: boolean = true): number {
-  return Math.round((bezirkRate / (1 + agTotalPercent(uvRate, kvPflicht) / 100)) * 10000) / 10000
+export function grossFromBezirkRate(
+  bezirkRate: number,
+  uvRate: number = 1.60,
+  kvPflicht: boolean = true,
+  rates: MinijobRates = MINIJOB_RATES
+): number {
+  return Math.round((bezirkRate / (1 + agTotalPercent(uvRate, kvPflicht, rates) / 100)) * 10000) / 10000
 }

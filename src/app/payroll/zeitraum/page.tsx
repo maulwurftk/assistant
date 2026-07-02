@@ -8,6 +8,7 @@ import {
   formatCurrency,
   formatDate,
   grossFromBezirkRate,
+  ratesFromSettings,
 } from '@/lib/payroll'
 import { PeriodPicker } from './_components/PeriodPicker'
 import { RuecklagenRechner } from './_components/RuecklagenRechner'
@@ -66,6 +67,12 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     employer_name?: string
     employer_address?: string
     employer_tax_number?: string
+    mj_kv_ag?: number | null
+    mj_rv_ag?: number | null
+    mj_pauschsteuer?: number | null
+    mj_u2?: number | null
+    mj_insolvenzgeld?: number | null
+    mj_rv_an?: number | null
   } | null
 
   const assistants = (assistantsRes.data ?? []) as unknown as Array<{
@@ -84,6 +91,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
   const bezirkMode = settings?.bezirk_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
   const monthlyBudget = settings?.monthly_budget ?? 0
+  const rates = ratesFromSettings(settings)
 
   const rows = assistants.map((a) => {
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
@@ -94,12 +102,12 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     const rvPflicht = a.rv_pflicht !== false
     const kvPflicht = a.kv_pflicht !== false
     const bruttoRate = bezirkMode
-      ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht)
+      ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates)
       : hourlyRate
     const brutto = calculatePay(totalMinutes, bruttoRate)
     const minijob =
       minijobMode && totalMinutes > 0
-        ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht)
+        ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates)
         : null
     const netto = minijob ? minijob.netto : brutto
     const bezirkKosten = bezirkMode ? calculatePay(totalMinutes, hourlyRate) : null

@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { MINIJOB_RATES, agTotalPercent, grossFromBezirkRate, formatCurrency } from '@/lib/payroll'
+import { agTotalPercent, grossFromBezirkRate, formatCurrency, type MinijobRates } from '@/lib/payroll'
 
 type Props = {
   currentRate: number
   currentCurrency: string
+  currentPayrollEnabled: boolean
   currentMinijobMode: boolean
   currentBezirkMode: boolean
   currentUvRate: number
@@ -15,12 +16,23 @@ type Props = {
   currentMonthlyBudget: number
   currentAccountFee: number
   currentWeeklyHoursTarget: number
+  currentRates: MinijobRates
   hasSettings: boolean
 }
+
+const RATE_FIELDS: Array<{ key: keyof MinijobRates; label: string }> = [
+  { key: 'kvAG', label: 'Krankenversicherung (KV)' },
+  { key: 'rvAG', label: 'Rentenversicherung (RV)' },
+  { key: 'pauschsteuer', label: 'Lohnsteuerpauschale' },
+  { key: 'u2', label: 'Umlage 2 (Mutterschaft)' },
+  { key: 'insolvenzgeld', label: 'Insolvenzgeldumlage' },
+  { key: 'rvAN', label: 'RV-Aufstockungsbetrag AN (wenn nicht befreit)' },
+]
 
 export default function SettingsForm({
   currentRate,
   currentCurrency,
+  currentPayrollEnabled,
   currentMinijobMode,
   currentBezirkMode,
   currentUvRate,
@@ -30,10 +42,12 @@ export default function SettingsForm({
   currentMonthlyBudget,
   currentAccountFee,
   currentWeeklyHoursTarget,
+  currentRates,
   hasSettings,
 }: Props) {
   const [rate, setRate] = useState(currentRate.toString())
   const [currency, setCurrency] = useState(currentCurrency)
+  const [payrollEnabled, setPayrollEnabled] = useState(currentPayrollEnabled)
   const [minijobMode, setMinijobMode] = useState(currentMinijobMode)
   const [bezirkMode, setBezirkMode] = useState(currentBezirkMode)
   const [uvRate, setUvRate] = useState(currentUvRate.toString())
@@ -43,31 +57,50 @@ export default function SettingsForm({
   const [monthlyBudget, setMonthlyBudget] = useState(currentMonthlyBudget.toString())
   const [accountFee, setAccountFee] = useState(currentAccountFee.toString())
   const [weeklyHoursTarget, setWeeklyHoursTarget] = useState(currentWeeklyHoursTarget.toString())
+  const [rateFields, setRateFields] = useState<Record<keyof MinijobRates, string>>({
+    kvAG: currentRates.kvAG.toString(),
+    rvAG: currentRates.rvAG.toString(),
+    pauschsteuer: currentRates.pauschsteuer.toString(),
+    u2: currentRates.u2.toString(),
+    insolvenzgeld: currentRates.insolvenzgeld.toString(),
+    rvAN: currentRates.rvAN.toString(),
+  })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  const num = (v: string, fallback = 0) => {
+    const n = parseFloat(v.replace(',', '.'))
+    return isNaN(n) ? fallback : n
+  }
+
+  // Live-Sätze aus den Eingabefeldern
+  const liveRates: MinijobRates = {
+    kvAG: num(rateFields.kvAG, currentRates.kvAG),
+    rvAG: num(rateFields.rvAG, currentRates.rvAG),
+    pauschsteuer: num(rateFields.pauschsteuer, currentRates.pauschsteuer),
+    u2: num(rateFields.u2, currentRates.u2),
+    insolvenzgeld: num(rateFields.insolvenzgeld, currentRates.insolvenzgeld),
+    rvAN: num(rateFields.rvAN, currentRates.rvAN),
+  }
+
   // Bezirk live preview
-  const bezirkRateNum = parseFloat(rate.replace(',', '.'))
-  const uvRateNum = parseFloat(uvRate.replace(',', '.'))
-  const effectiveUvRate = isNaN(uvRateNum) ? 1.6 : uvRateNum
-  const derivedBrutto = bezirkMode && !isNaN(bezirkRateNum) && bezirkRateNum > 0
-    ? grossFromBezirkRate(bezirkRateNum, effectiveUvRate)
-    : 0
-  const agTotal = agTotalPercent(effectiveUvRate)
+  const bezirkRateNum = num(rate)
+  const effectiveUvRate = num(uvRate, 1.6)
+  const derivedBrutto =
+    bezirkMode && bezirkRateNum > 0 ? grossFromBezirkRate(bezirkRateNum, effectiveUvRate, true, liveRates) : 0
+  const agTotal = agTotalPercent(effectiveUvRate, true, liveRates)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setMessage(null)
 
-    const parsedRate = parseFloat(rate.replace(',', '.'))
-    if (isNaN(parsedRate) || parsedRate <= 0) {
+    const parsedRate = num(rate)
+    if (parsedRate <= 0) {
       setMessage({ type: 'error', text: 'Bitte einen gültigen Stundensatz eingeben.' })
       setSaving(false)
       return
     }
-
-    const parsedUvRate = parseFloat(uvRate.replace(',', '.'))
 
     try {
       const res = await fetch('/api/payroll/settings', {
@@ -76,15 +109,22 @@ export default function SettingsForm({
         body: JSON.stringify({
           hourly_rate: parsedRate,
           currency,
+          payroll_enabled: payrollEnabled,
           minijob_mode: minijobMode,
           bezirk_mode: bezirkMode,
-          uv_rate: isNaN(parsedUvRate) ? 1.6 : parsedUvRate,
+          uv_rate: effectiveUvRate,
           employer_name: employerName,
           employer_address: employerAddress,
           employer_tax_number: employerTaxNumber,
-          monthly_budget: parseFloat(monthlyBudget.replace(',', '.')) || 0,
-          account_fee: parseFloat(accountFee.replace(',', '.')) || 0,
-          weekly_hours_target: parseFloat(weeklyHoursTarget.replace(',', '.')) || 15,
+          monthly_budget: num(monthlyBudget),
+          account_fee: num(accountFee),
+          weekly_hours_target: num(weeklyHoursTarget, 15),
+          mj_kv_ag: liveRates.kvAG,
+          mj_rv_ag: liveRates.rvAG,
+          mj_pauschsteuer: liveRates.pauschsteuer,
+          mj_u2: liveRates.u2,
+          mj_insolvenzgeld: liveRates.insolvenzgeld,
+          mj_rv_an: liveRates.rvAN,
         }),
       })
       if (!res.ok) throw new Error('Fehler beim Speichern')
@@ -98,6 +138,23 @@ export default function SettingsForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Lohnabrechnung aktivieren */}
+      <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+        <input
+          type="checkbox"
+          checked={payrollEnabled}
+          onChange={(e) => setPayrollEnabled(e.target.checked)}
+          className="w-4 h-4 mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+        />
+        <div>
+          <span className="text-sm font-medium text-slate-800">Lohnabrechnung aktiviert</span>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Ist dies deaktiviert, sind Übersicht, Zeitraum und Konto ausgeblendet – die App
+            funktioniert weiter als reines Planungs-/Kalendertool.
+          </p>
+        </div>
+      </div>
+
       {/* Stundensatz */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -169,8 +226,9 @@ export default function SettingsForm({
               Lohnzettel und E-Mails verwenden {formatCurrency(derivedBrutto)}/h als Bruttolohn.
             </p>
             <p className="text-xs text-emerald-600 mt-1">
-              Bei PKV-versicherten Assistentinnen: {formatCurrency(grossFromBezirkRate(bezirkRateNum, effectiveUvRate, false))}/h
-              (ohne KV-Beitrag, {agTotalPercent(effectiveUvRate, false).toFixed(2)} % AG-Kosten)
+              Bei PKV-versicherten Assistentinnen:{' '}
+              {formatCurrency(grossFromBezirkRate(bezirkRateNum, effectiveUvRate, false, liveRates))}/h
+              (ohne KV-Beitrag, {agTotalPercent(effectiveUvRate, false, liveRates).toFixed(2)} % AG-Kosten)
             </p>
           </div>
         )}
@@ -217,9 +275,6 @@ export default function SettingsForm({
             />
           </div>
         </div>
-        <p className="text-xs text-slate-400 mt-1.5">
-          Aus der Zielvereinbarung: 1.310 €/Monat · 10 € Kontogebühren · 15 h/Woche (9h Elternass. + 6h Pers. Ass.)
-        </p>
       </div>
 
       {/* Minijob-Modus */}
@@ -279,39 +334,40 @@ export default function SettingsForm({
             </div>
           </div>
 
-          {/* Beitragssätze */}
+          {/* Beitragssätze – jetzt editierbar */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-blue-800 mb-3">
-              Pauschalbeitragssätze 2025 (Arbeitgeber)
+            <h3 className="text-sm font-semibold text-blue-800 mb-1">
+              Pauschalbeitragssätze (Arbeitgeber)
             </h3>
+            <p className="text-xs text-blue-600 mb-3">
+              Alle Sätze manuell pflegbar – bei Gesetzesänderungen hier anpassen.
+            </p>
             <table className="w-full text-xs text-blue-900">
               <tbody>
-                <tr className="border-b border-blue-100">
-                  <td className="py-1.5">Krankenversicherung (KV)</td>
-                  <td className="text-right font-mono">{MINIJOB_RATES.kvAG.toFixed(2)} %</td>
-                </tr>
-                <tr className="border-b border-blue-100">
-                  <td className="py-1.5">Rentenversicherung (RV)</td>
-                  <td className="text-right font-mono">{MINIJOB_RATES.rvAG.toFixed(2)} %</td>
-                </tr>
-                <tr className="border-b border-blue-100">
-                  <td className="py-1.5">Lohnsteuerpauschale</td>
-                  <td className="text-right font-mono">{MINIJOB_RATES.pauschsteuer.toFixed(2)} %</td>
-                </tr>
-                <tr className="border-b border-blue-100">
-                  <td className="py-1.5">Umlage 2 (Mutterschaft)</td>
-                  <td className="text-right font-mono">{MINIJOB_RATES.u2.toFixed(2)} %</td>
-                </tr>
-                <tr className="border-b border-blue-100">
-                  <td className="py-1.5">Insolvenzgeldumlage</td>
-                  <td className="text-right font-mono">{MINIJOB_RATES.insolvenzgeld.toFixed(2)} %</td>
-                </tr>
+                {RATE_FIELDS.map((f) => (
+                  <tr key={f.key} className="border-b border-blue-100 last:border-0">
+                    <td className="py-1.5 pr-2">{f.label}</td>
+                    <td className="text-right py-1 w-28">
+                      <input
+                        type="number"
+                        value={rateFields[f.key]}
+                        onChange={(e) =>
+                          setRateFields((prev) => ({ ...prev, [f.key]: e.target.value }))
+                        }
+                        step="0.01"
+                        min="0"
+                        className="w-20 px-2 py-0.5 border border-blue-300 rounded text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <span className="ml-1">%</span>
+                    </td>
+                  </tr>
+                ))}
                 <tr>
-                  <td className="py-1.5">
+                  <td className="py-1.5 pr-2">
                     Unfallversicherung (BG)
-                    <span className="text-blue-600 ml-1">(konfigurierbar)</span>
+                    <span className="text-blue-600 ml-1">(betriebsindividuell)</span>
                   </td>
-                  <td className="text-right">
+                  <td className="text-right py-1">
                     <input
                       type="number"
                       value={uvRate}
@@ -326,7 +382,8 @@ export default function SettingsForm({
               </tbody>
             </table>
             <p className="text-xs text-blue-700 mt-3">
-              AN-Aufstockungsbetrag RV: {MINIJOB_RATES.rvAN.toFixed(2)} % (wenn nicht befreit) · wird pro Assistent konfiguriert
+              AG-Gesamtabgaben aktuell: <strong>{agTotal.toFixed(2)} %</strong> (GKV) · RV-AN wird
+              pro Assistent über den RV-Befreiungs-Schalter angewandt.
             </p>
           </div>
         </>

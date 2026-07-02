@@ -13,6 +13,7 @@ export async function POST(request: Request) {
   const {
     hourly_rate,
     currency,
+    payroll_enabled,
     minijob_mode,
     bezirk_mode,
     uv_rate,
@@ -22,6 +23,12 @@ export async function POST(request: Request) {
     monthly_budget,
     account_fee,
     weekly_hours_target,
+    mj_kv_ag,
+    mj_rv_ag,
+    mj_pauschsteuer,
+    mj_u2,
+    mj_insolvenzgeld,
+    mj_rv_an,
   } = body
 
   if (typeof hourly_rate !== 'number' || hourly_rate <= 0) {
@@ -34,10 +41,15 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 })
 
+  // Beitragssatz: nur übernehmen wenn valide Zahl 0..100, sonst weglassen (DB-Default greift)
+  const rate = (v: unknown) =>
+    typeof v === 'number' && !isNaN(v) && v >= 0 && v <= 100 ? v : undefined
+
   const payload = {
     hourly_rate,
     currency: currency ?? 'EUR',
     updated_by: user.id,
+    payroll_enabled: payroll_enabled !== false,
     minijob_mode: minijob_mode ?? false,
     bezirk_mode: bezirk_mode ?? false,
     uv_rate: typeof uv_rate === 'number' ? uv_rate : 1.6,
@@ -47,6 +59,12 @@ export async function POST(request: Request) {
     monthly_budget: typeof monthly_budget === 'number' ? monthly_budget : 0,
     account_fee: typeof account_fee === 'number' ? account_fee : 10,
     weekly_hours_target: typeof weekly_hours_target === 'number' ? weekly_hours_target : 15,
+    mj_kv_ag: rate(mj_kv_ag),
+    mj_rv_ag: rate(mj_rv_ag),
+    mj_pauschsteuer: rate(mj_pauschsteuer),
+    mj_u2: rate(mj_u2),
+    mj_insolvenzgeld: rate(mj_insolvenzgeld),
+    mj_rv_an: rate(mj_rv_an),
   }
 
   const { data: existing } = await supabase.from('payroll_settings').select('id').limit(1).single()

@@ -6,6 +6,7 @@ import {
   calculatePay,
   calculateMinijob,
   grossFromBezirkRate,
+  ratesFromSettings,
 } from '@/lib/payroll'
 
 function adminDb() {
@@ -79,6 +80,7 @@ async function generateSuggestions(userId: string) {
   const minijobMode = settings.minijob_mode ?? false
   const bezirkMode = settings.bezirk_mode ?? false
   const uvRate = settings.uv_rate ?? 1.6
+  const rates = ratesFromSettings(settings)
 
   // Slots nach Monat gruppieren
   const byMonth = new Map<string, typeof slots>()
@@ -121,9 +123,9 @@ async function generateSuggestions(userId: string) {
       if (minutes === 0) continue
       const rvPflicht = a.rv_pflicht !== false
       const kvPflicht = a.kv_pflicht !== false
-      const bruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht) : hourlyRate
+      const bruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates) : hourlyRate
       const brutto = calculatePay(minutes, bruttoRate)
-      const netto = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht).netto : brutto
+      const netto = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates).netto : brutto
       netTotal += netto
     }
     netTotal = Math.round(netTotal * 100) / 100

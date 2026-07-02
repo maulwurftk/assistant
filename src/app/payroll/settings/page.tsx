@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
+import { ratesFromSettings } from '@/lib/payroll'
 import SettingsForm from './_components/SettingsForm'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
   const { data: settings } = await supabase.from('payroll_settings').select('*').limit(1).single()
+  const rates = ratesFromSettings(settings)
 
   return (
     <div className="max-w-lg">
@@ -14,6 +16,7 @@ export default async function SettingsPage() {
         <SettingsForm
           currentRate={settings?.hourly_rate ?? 20}
           currentCurrency={settings?.currency ?? 'EUR'}
+          currentPayrollEnabled={settings?.payroll_enabled ?? true}
           currentMinijobMode={settings?.minijob_mode ?? false}
           currentBezirkMode={settings?.bezirk_mode ?? false}
           currentUvRate={settings?.uv_rate ?? 1.6}
@@ -23,6 +26,7 @@ export default async function SettingsPage() {
           currentMonthlyBudget={settings?.monthly_budget ?? 1310}
           currentAccountFee={settings?.account_fee ?? 10}
           currentWeeklyHoursTarget={settings?.weekly_hours_target ?? 15}
+          currentRates={rates}
           hasSettings={!!settings}
         />
       </div>

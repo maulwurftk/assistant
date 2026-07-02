@@ -8,8 +8,8 @@ import {
   formatCurrency,
   formatDate,
   monthName,
-  MINIJOB_RATES,
   grossFromBezirkRate,
+  ratesFromSettings,
 } from '@/lib/payroll'
 import PrintButton from './_components/PrintButton'
 
@@ -67,6 +67,12 @@ export default async function PrintPage({ params }: Props) {
     employer_name?: string
     employer_address?: string
     employer_tax_number?: string
+    mj_kv_ag?: number | null
+    mj_rv_ag?: number | null
+    mj_pauschsteuer?: number | null
+    mj_u2?: number | null
+    mj_insolvenzgeld?: number | null
+    mj_rv_an?: number | null
   } | null
   const entries = entriesRes.data ?? []
   const calendarSlots = (slotsRes.data ?? []) as Array<{ id: string; date: string; start_time: string; end_time: string; title: string }>
@@ -103,16 +109,17 @@ export default async function PrintPage({ params }: Props) {
   const uvRate = settings?.uv_rate ?? 1.6
   const rvPflicht = assistant.rv_pflicht !== false // default true
   const kvPflicht = assistant.kv_pflicht !== false // default true
+  const rates = ratesFromSettings(settings)
 
   // When bezirk_mode: hourly_rate is the Bezirk flat rate; back-calculate employee brutto
-  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht) : hourlyRate
+  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates) : hourlyRate
 
   const totalMinutes = allRows.reduce(
     (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
     0
   )
   const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
-  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht) : null
+  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
 
   const today = new Date().toLocaleDateString('de-DE')
 
@@ -311,7 +318,7 @@ export default async function PrintPage({ params }: Props) {
                 <div className="border-t border-slate-100 pt-2 space-y-1">
                   {minijob.rvAN > 0 ? (
                     <div className="flex justify-between text-slate-600">
-                      <span>− RV-Aufstockungsbetrag AN ({MINIJOB_RATES.rvAN.toFixed(2)} %)</span>
+                      <span>− RV-Aufstockungsbetrag AN ({rates.rvAN.toFixed(2)} %)</span>
                       <span>−{formatCurrency(minijob.rvAN, currency)}</span>
                     </div>
                   ) : (
@@ -341,7 +348,7 @@ export default async function PrintPage({ params }: Props) {
               <div className="px-5 py-4 space-y-1.5 text-sm">
                 {kvPflicht ? (
                   <div className="flex justify-between text-blue-900">
-                    <span>KV-Pauschalbeitrag ({MINIJOB_RATES.kvAG.toFixed(2)} %)</span>
+                    <span>KV-Pauschalbeitrag ({rates.kvAG.toFixed(2)} %)</span>
                     <span>{formatCurrency(minijob.kvAGAmount, currency)}</span>
                   </div>
                 ) : (
@@ -351,19 +358,19 @@ export default async function PrintPage({ params }: Props) {
                   </div>
                 )}
                 <div className="flex justify-between text-blue-900">
-                  <span>RV-Pauschalbeitrag ({MINIJOB_RATES.rvAG.toFixed(2)} %)</span>
+                  <span>RV-Pauschalbeitrag ({rates.rvAG.toFixed(2)} %)</span>
                   <span>{formatCurrency(minijob.rvAGAmount, currency)}</span>
                 </div>
                 <div className="flex justify-between text-blue-900">
-                  <span>Lohnsteuerpauschale ({MINIJOB_RATES.pauschsteuer.toFixed(2)} %)</span>
+                  <span>Lohnsteuerpauschale ({rates.pauschsteuer.toFixed(2)} %)</span>
                   <span>{formatCurrency(minijob.pauschsteuerAmount, currency)}</span>
                 </div>
                 <div className="flex justify-between text-blue-900">
-                  <span>Umlage 2 Mutterschaft ({MINIJOB_RATES.u2.toFixed(2)} %)</span>
+                  <span>Umlage 2 Mutterschaft ({rates.u2.toFixed(2)} %)</span>
                   <span>{formatCurrency(minijob.u2Amount, currency)}</span>
                 </div>
                 <div className="flex justify-between text-blue-900">
-                  <span>Insolvenzgeldumlage ({MINIJOB_RATES.insolvenzgeld.toFixed(2)} %)</span>
+                  <span>Insolvenzgeldumlage ({rates.insolvenzgeld.toFixed(2)} %)</span>
                   <span>{formatCurrency(minijob.insolvenzgeldAmount, currency)}</span>
                 </div>
                 <div className="flex justify-between text-blue-900">

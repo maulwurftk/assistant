@@ -137,6 +137,7 @@ export type Database = {
           currency: string
           updated_at: string
           updated_by: string | null
+          payroll_enabled: boolean
           minijob_mode: boolean
           bezirk_mode: boolean
           uv_rate: number
@@ -146,12 +147,19 @@ export type Database = {
           monthly_budget: number
           account_fee: number
           weekly_hours_target: number
+          mj_kv_ag: number
+          mj_rv_ag: number
+          mj_pauschsteuer: number
+          mj_u2: number
+          mj_insolvenzgeld: number
+          mj_rv_an: number
         }
         Insert: {
           id?: string
           hourly_rate: number
           currency?: string
           updated_by?: string | null
+          payroll_enabled?: boolean
           minijob_mode?: boolean
           bezirk_mode?: boolean
           uv_rate?: number
@@ -161,11 +169,18 @@ export type Database = {
           monthly_budget?: number
           account_fee?: number
           weekly_hours_target?: number
+          mj_kv_ag?: number
+          mj_rv_ag?: number
+          mj_pauschsteuer?: number
+          mj_u2?: number
+          mj_insolvenzgeld?: number
+          mj_rv_an?: number
         }
         Update: {
           hourly_rate?: number
           currency?: string
           updated_by?: string | null
+          payroll_enabled?: boolean
           minijob_mode?: boolean
           bezirk_mode?: boolean
           uv_rate?: number
@@ -175,6 +190,12 @@ export type Database = {
           monthly_budget?: number
           account_fee?: number
           weekly_hours_target?: number
+          mj_kv_ag?: number
+          mj_rv_ag?: number
+          mj_pauschsteuer?: number
+          mj_u2?: number
+          mj_insolvenzgeld?: number
+          mj_rv_an?: number
         }
         Relationships: Rel[]
       }

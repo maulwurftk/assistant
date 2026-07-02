@@ -11,6 +11,7 @@ import {
   prevMonth,
   nextMonth,
   grossFromBezirkRate,
+  ratesFromSettings,
 } from '@/lib/payroll'
 import PayrollActions from './_components/PayrollActions'
 import RvPflichtToggle from './_components/RvPflichtToggle'
@@ -74,6 +75,12 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     monthly_budget?: number
     account_fee?: number
     weekly_hours_target?: number
+    mj_kv_ag?: number | null
+    mj_rv_ag?: number | null
+    mj_pauschsteuer?: number | null
+    mj_u2?: number | null
+    mj_insolvenzgeld?: number | null
+    mj_rv_an?: number | null
   } | null
   const assistants = (assistantsRes.data ?? []) as Array<{
     id: string
@@ -102,10 +109,11 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const monthlyBudget = settings?.monthly_budget ?? 0
   const accountFee = settings?.account_fee ?? 0
   const weeklyHoursTarget = settings?.weekly_hours_target ?? 15
+  const rates = ratesFromSettings(settings)
 
   // When bezirk_mode: hourly_rate is the Bezirk's flat rate (incl. AG costs).
   // Derive the actual employee brutto from it (GKV default, shown in header).
-  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate) : hourlyRate
+  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, true, rates) : hourlyRate
 
   const assistantData = assistants.map((a) => {
     const myEntries = entries.filter((e) => e.assistant_id === a.id)
@@ -122,11 +130,11 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     const rvPflicht = a.rv_pflicht !== false
     const kvPflicht = a.kv_pflicht !== false
     const effectiveBruttoRateForAssistant = bezirkMode
-      ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht)
+      ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates)
       : hourlyRate
     const brutto = calculatePay(totalMinutes, effectiveBruttoRateForAssistant)
     const minijob = minijobMode && totalMinutes > 0
-      ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht)
+      ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates)
       : null
     const netto = minijob ? minijob.netto : brutto
     const report = reports.find((r) => r.assistant_id === a.id)

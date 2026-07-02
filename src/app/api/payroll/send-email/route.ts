@@ -9,8 +9,8 @@ import {
   formatCurrency,
   formatDate,
   monthName,
-  MINIJOB_RATES,
   grossFromBezirkRate,
+  ratesFromSettings,
 } from '@/lib/payroll'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -92,6 +92,12 @@ export async function POST(request: Request) {
     bezirk_mode?: boolean
     uv_rate?: number
     employer_name?: string
+    mj_kv_ag?: number | null
+    mj_rv_ag?: number | null
+    mj_pauschsteuer?: number | null
+    mj_u2?: number | null
+    mj_insolvenzgeld?: number | null
+    mj_rv_an?: number | null
   } | null
   const assistantProfile = assistantRes.data as { rv_pflicht?: boolean; kv_pflicht?: boolean } | null
   const rvPflicht = assistantProfile?.rv_pflicht !== false
@@ -100,16 +106,17 @@ export async function POST(request: Request) {
   const minijobMode = settings?.minijob_mode ?? false
   const bezirkMode = settings?.bezirk_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
+  const rates = ratesFromSettings(settings)
 
   // When bezirk_mode: hourlyRate is the Bezirk flat rate; derive actual employee brutto
-  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht) : hourlyRate
+  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates) : hourlyRate
 
   const totalMinutes = allEntries.reduce(
     (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
     0
   )
   const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
-  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht) : null
+  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
 
   if (totalMinutes === 0) {
     return NextResponse.json({ error: 'Keine Stunden für diesen Monat erfasst' }, { status: 400 })
@@ -162,7 +169,7 @@ export async function POST(request: Request) {
         </tr>
         ${minijob.rvAN > 0
           ? `<tr>
-          <td style="color:#dc2626;padding:4px 0">− RV-Aufstockungsbetrag AN (${MINIJOB_RATES.rvAN.toFixed(2)} %)</td>
+          <td style="color:#dc2626;padding:4px 0">− RV-Aufstockungsbetrag AN (${rates.rvAN.toFixed(2)} %)</td>
           <td style="text-align:right;color:#dc2626;padding:4px 0">−${formatCurrency(minijob.rvAN, currency)}</td>
         </tr>`
           : `<tr>
@@ -181,10 +188,10 @@ export async function POST(request: Request) {
       <p style="margin:0 0 10px;font-size:12px;color:#1d4ed8;text-transform:uppercase;font-weight:600;letter-spacing:.05em">Arbeitgeberabgaben (Info)</p>
       <table style="width:100%;font-size:13px;border-collapse:collapse">
         ${kvPflicht
-          ? `<tr><td style="color:#1e40af;padding:2px 0">KV-Pauschalbeitrag (${MINIJOB_RATES.kvAG.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.kvAGAmount, currency)}</td></tr>`
+          ? `<tr><td style="color:#1e40af;padding:2px 0">KV-Pauschalbeitrag (${rates.kvAG.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.kvAGAmount, currency)}</td></tr>`
           : `<tr><td style="color:#94a3b8;padding:2px 0;font-style:italic">Krankenversicherung (KV)</td><td style="text-align:right;color:#94a3b8;font-style:italic">entfällt (PKV)</td></tr>`}
-        <tr><td style="color:#1e40af;padding:2px 0">RV-Pauschalbeitrag (${MINIJOB_RATES.rvAG.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.rvAGAmount, currency)}</td></tr>
-        <tr><td style="color:#1e40af;padding:2px 0">Lohnsteuerpauschale (${MINIJOB_RATES.pauschsteuer.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.pauschsteuerAmount, currency)}</td></tr>
+        <tr><td style="color:#1e40af;padding:2px 0">RV-Pauschalbeitrag (${rates.rvAG.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.rvAGAmount, currency)}</td></tr>
+        <tr><td style="color:#1e40af;padding:2px 0">Lohnsteuerpauschale (${rates.pauschsteuer.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.pauschsteuerAmount, currency)}</td></tr>
         <tr><td style="color:#1e40af;padding:2px 0">Umlage 2 / Insolvenzgeldumlage</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.u2Amount + minijob.insolvenzgeldAmount, currency)}</td></tr>
         <tr><td style="color:#1e40af;padding:2px 0">Unfallversicherung (${uvRate.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.uvAmount, currency)}</td></tr>
         <tr style="border-top:1px solid #bfdbfe"><td style="color:#1e3a8a;font-weight:700;padding:6px 0 2px">Gesamtkosten Arbeitgeber</td><td style="text-align:right;font-weight:700;color:#1e3a8a">${formatCurrency(minijob.totalKosten, currency)}</td></tr>

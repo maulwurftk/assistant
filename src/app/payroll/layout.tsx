@@ -16,6 +16,13 @@ export default async function PayrollLayout({ children }: { children: React.Reac
     .eq('id', user.id)
     .single()
 
+  const { data: settingsRow } = await supabase
+    .from('payroll_settings')
+    .select('payroll_enabled')
+    .limit(1)
+    .single()
+  const payrollEnabled = (settingsRow as { payroll_enabled?: boolean } | null)?.payroll_enabled !== false
+
   if (!profile || profile.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -42,24 +49,28 @@ export default async function PayrollLayout({ children }: { children: React.Reac
             </a>
             <span className="font-semibold text-slate-900">Lohnabrechnung</span>
             <nav className="flex items-center gap-4 text-sm">
-              <a
-                href="/payroll"
-                className="text-slate-600 hover:text-slate-900 transition-colors"
-              >
-                Übersicht
-              </a>
-              <a
-                href="/payroll/zeitraum"
-                className="text-slate-600 hover:text-slate-900 transition-colors"
-              >
-                Zeitraum
-              </a>
-              <a
-                href="/payroll/konto"
-                className="text-slate-600 hover:text-slate-900 transition-colors"
-              >
-                Konto
-              </a>
+              {payrollEnabled && (
+                <>
+                  <a
+                    href="/payroll"
+                    className="text-slate-600 hover:text-slate-900 transition-colors"
+                  >
+                    Übersicht
+                  </a>
+                  <a
+                    href="/payroll/zeitraum"
+                    className="text-slate-600 hover:text-slate-900 transition-colors"
+                  >
+                    Zeitraum
+                  </a>
+                  <a
+                    href="/payroll/konto"
+                    className="text-slate-600 hover:text-slate-900 transition-colors"
+                  >
+                    Konto
+                  </a>
+                </>
+              )}
               <a
                 href="/payroll/settings"
                 className="text-slate-600 hover:text-slate-900 transition-colors"
