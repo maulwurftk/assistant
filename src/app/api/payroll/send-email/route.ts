@@ -34,8 +34,14 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 })
 
+  // Nur Admins dürfen Lohnabrechnungen versenden
+  const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if ((caller as { role?: string } | null)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 })
+  }
+
   const body: Body = await request.json()
-  const { assistantId, assistantName, assistantEmail, year, month, hourlyRate, currency } = body
+  const { assistantId, year, month, hourlyRate, currency } = body
 
   const dateFrom = `${year}-${month.toString().padStart(2, '0')}-01`
   const dateTo = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
@@ -61,8 +67,17 @@ export async function POST(request: Request) {
       .order('start_time'),
     supabase.from('activities').select('id, name'),
     supabase.from('payroll_settings').select('*').limit(1).single(),
-    supabase.from('profiles').select('rv_pflicht, kv_pflicht').eq('id', assistantId).single(),
+    supabase.from('profiles').select('full_name, email, rv_pflicht, kv_pflicht').eq('id', assistantId).single(),
   ])
+
+  // Empfänger IMMER aus der DB (nie aus dem Request-Body) – verhindert
+  // beliebige Empfänger/HTML-Injection über body-Werte
+  const assistantRow = assistantRes.data as { full_name?: string; email?: string } | null
+  if (!assistantRow?.email) {
+    return NextResponse.json({ error: 'Assistent nicht gefunden' }, { status: 404 })
+  }
+  const assistantName = assistantRow.full_name ?? ''
+  const assistantEmail = assistantRow.email
 
   const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.name]))
   const timeEntries = entriesRes.data ?? []
@@ -272,6 +287,7 @@ export async function POST(request: Request) {
     <!-- Footer -->
     <div style="padding:24px 32px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px">
       <p style="margin:0">Diese E-Mail wurde automatisch generiert. Bei Fragen wenden Sie sich bitte an Ihren Arbeitgeber.</p>
+      <p style="margin:8px 0 0">Unverbindlich und ohne Gewähr – keine Steuer- oder Lohnabrechnungsberatung. Verbindlich sind allein die Abrechnungen der Minijob-Zentrale und des Finanzamts.</p>
     </div>
   </div>
 </body>

@@ -41,6 +41,11 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 })
 
+  const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if ((caller as { role?: string } | null)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 })
+  }
+
   // Beitragssatz: nur übernehmen wenn valide Zahl 0..100, sonst weglassen (DB-Default greift)
   const rate = (v: unknown) =>
     typeof v === 'number' && !isNaN(v) && v >= 0 && v <= 100 ? v : undefined

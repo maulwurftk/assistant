@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import LogoutButton from './_components/LogoutButton'
+import { Disclaimer } from './_components/Disclaimer'
 
 export default async function PayrollLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -87,6 +88,10 @@ export default async function PayrollLayout({ children }: { children: React.Reac
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
+
+      <footer className="max-w-6xl mx-auto px-4 pb-10">
+        <Disclaimer />
+      </footer>
     </div>
   )
 }
