@@ -217,13 +217,13 @@ export default async function DashboardPage() {
           icon={<FileText className="h-5 w-5" />}
           label="Neue Berichte"
           value={(pendingReports ?? []).length}
-          tone={(pendingReports ?? []).length > 0 ? 'emerald' : 'slate'}
+          tone="violet"
         />
         <StatCard
           icon={<CalendarOff className="h-5 w-5" />}
           label="Offene Slots"
           value={(openSlots ?? []).length}
-          tone={(openSlots ?? []).length > 0 ? 'amber' : 'slate'}
+          tone="amber"
         />
       </div>
 
