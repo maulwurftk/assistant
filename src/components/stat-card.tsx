@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-type Tone = 'emerald' | 'amber' | 'rose' | 'slate' | 'violet'
+type Tone = 'emerald' | 'amber' | 'rose' | 'slate' | 'violet' | 'sky'
 
 const tones: Record<Tone, { chip: string; wash: string }> = {
   emerald: { chip: 'bg-gradient-to-br from-emerald-500 to-emerald-600', wash: 'from-emerald-500/15' },
@@ -8,6 +8,7 @@ const tones: Record<Tone, { chip: string; wash: string }> = {
   rose: { chip: 'bg-gradient-to-br from-rose-400 to-rose-500', wash: 'from-rose-500/15' },
   violet: { chip: 'bg-gradient-to-br from-violet-400 to-violet-500', wash: 'from-violet-500/15' },
   slate: { chip: 'bg-gradient-to-br from-slate-400 to-slate-500', wash: 'from-slate-500/10' },
+  sky: { chip: 'bg-gradient-to-br from-sky-400 to-sky-500', wash: 'from-sky-500/15' },
 }
 
 export function StatCard({
@@ -23,7 +24,7 @@ export function StatCard({
   hint?: ReactNode
   tone?: Tone
 }) {
-  const t = tones[tone]
+  const t = tones[tone] ?? tones.emerald
   return (
     <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-surface p-5 shadow-sm transition-shadow hover:shadow-md">
       {/* farbiger Verlauf-Schleier */}
