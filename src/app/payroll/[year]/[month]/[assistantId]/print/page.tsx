@@ -133,12 +133,12 @@ export default async function PrintPage({ params }: Props) {
   const today = new Date().toLocaleDateString('de-DE')
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       <div className="no-print fixed top-4 right-4 flex gap-2">
         <PrintButton />
         <a
           href={`/payroll/${year}/${month}`}
-          className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 bg-white"
+          className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 bg-surface"
         >
           Zurück
         </a>

@@ -126,7 +126,7 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
         <button
           onClick={generate}
           disabled={busy === 'generate'}
-          className="px-3 py-2 text-sm font-medium rounded-md bg-slate-900 text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
+          className="px-3 py-2 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
         >
           {busy === 'generate' ? 'Berechne…' : '↻ Vorschläge aus Lohndaten'}
         </button>
@@ -134,7 +134,7 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
 
       {/* Übersicht Ist / Soll */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white border border-slate-200 rounded-lg p-5">
+        <div className="bg-surface border border-slate-200 rounded-lg p-5">
           <p className="text-xs text-slate-500">Virtuelles Guthaben (Ist)</p>
           <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
             {formatCurrency(Math.round(ist * 100) / 100, currency)}
@@ -144,7 +144,7 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-5">
+        <div className="bg-surface border border-slate-200 rounded-lg p-5">
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-500">Soll-Rücklage (max erlaubt)</p>
             <div className="flex items-center gap-1">
@@ -192,7 +192,7 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
 
       {/* Zu bestätigen */}
       {pending.length > 0 && (
-        <div className="bg-white border border-amber-200 rounded-lg overflow-hidden mb-6">
+        <div className="bg-surface border border-amber-200 rounded-lg overflow-hidden mb-6">
           <div className="bg-amber-50 px-4 py-2.5 border-b border-amber-200">
             <p className="text-sm font-semibold text-amber-800">
               {pending.length} Vorschläge zu bestätigen
@@ -245,7 +245,7 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
       )}
 
       {/* Buchungen */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div className="bg-surface border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-800">Kontobuch</p>
           <button
@@ -272,7 +272,7 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
               <select
                 value={fDir}
                 onChange={(e) => setFDir(e.target.value as 'in' | 'out')}
-                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm bg-white"
+                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm bg-surface"
               >
                 <option value="in">Einnahme (+)</option>
                 <option value="out">Ausgabe (−)</option>

@@ -50,7 +50,7 @@ export function RuecklagenRechner({ currency, monthlyBudget, agAbgabenPeriod }: 
   const mussZurueck = differenz > 0
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6 print:hidden">
+    <div className="bg-surface border border-slate-200 rounded-lg p-6 mb-6 print:hidden">
       <h3 className="font-bold text-slate-900 mb-1">Rücklagen-Rechner</h3>
       <p className="text-xs text-slate-500 mb-4">
         Wieviel muss auf dem Konto bleiben, wieviel geht an den Bezirk zurück.

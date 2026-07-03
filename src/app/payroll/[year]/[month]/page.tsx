@@ -230,15 +230,15 @@ export default async function MonthlyPayrollPage({ params }: Props) {
 
       {/* Zusammenfassung */}
       <div className={`grid gap-4 mb-6 ${minijobMode ? 'grid-cols-4' : 'grid-cols-3'}`}>
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-surface border border-slate-200 rounded-xl p-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Assistenten</p>
           <p className="text-2xl font-bold text-slate-900 mt-1">{assistants.length}</p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-surface border border-slate-200 rounded-xl p-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Gesamtstunden</p>
           <p className="text-2xl font-bold text-slate-900 mt-1">{formatMinutes(totalAllMinutes)}</p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-surface border border-slate-200 rounded-xl p-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
             {minijobMode ? 'Brutto gesamt' : 'Gesamtlohn'}
           </p>
@@ -272,11 +272,11 @@ export default async function MonthlyPayrollPage({ params }: Props) {
 
       {/* Assistenten-Tabelle */}
       {assistants.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
+        <div className="bg-surface border border-slate-200 rounded-xl p-12 text-center">
           <p className="text-slate-400">Keine aktiven Assistenten gefunden.</p>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-surface border border-slate-200 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
@@ -413,7 +413,7 @@ function BudgetCard({
         </span>
       </div>
 
-      <div className="bg-white px-5 py-4">
+      <div className="bg-surface px-5 py-4">
         <div className="grid grid-cols-2 gap-6">
           {/* Budget-Rechnung */}
           <div className="space-y-2 text-sm">

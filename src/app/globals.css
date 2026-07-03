@@ -1,27 +1,210 @@
 @import "tailwindcss";
 
+/* Dark Mode über .dark-Klasse (statt System-Media) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Warme Neutraltöne + Emerald-Akzent, theme-fähig ──────────────────────────
+   Bestehende Tailwind-Klassen (slate/gray/emerald/blue/…) zeigen über @theme
+   inline auf CSS-Variablen, die unter .dark umschalten. So wird die ganze App
+   theme-fähig, ohne jede Klasse einzeln anzufassen. */
+@theme inline {
+  /* Neutrals: slate + gray + zinc auf denselben warmen Ramp */
+  --color-slate-50: var(--n-50);
+  --color-slate-100: var(--n-100);
+  --color-slate-200: var(--n-200);
+  --color-slate-300: var(--n-300);
+  --color-slate-400: var(--n-400);
+  --color-slate-500: var(--n-500);
+  --color-slate-600: var(--n-600);
+  --color-slate-700: var(--n-700);
+  --color-slate-800: var(--n-800);
+  --color-slate-900: var(--n-900);
+  --color-slate-950: var(--n-950);
+
+  --color-gray-50: var(--n-50);
+  --color-gray-100: var(--n-100);
+  --color-gray-200: var(--n-200);
+  --color-gray-300: var(--n-300);
+  --color-gray-400: var(--n-400);
+  --color-gray-500: var(--n-500);
+  --color-gray-600: var(--n-600);
+  --color-gray-700: var(--n-700);
+  --color-gray-800: var(--n-800);
+  --color-gray-900: var(--n-900);
+  --color-gray-950: var(--n-950);
+
+  --color-zinc-50: var(--n-50);
+  --color-zinc-100: var(--n-100);
+  --color-zinc-200: var(--n-200);
+  --color-zinc-300: var(--n-300);
+  --color-zinc-400: var(--n-400);
+  --color-zinc-500: var(--n-500);
+  --color-zinc-600: var(--n-600);
+  --color-zinc-700: var(--n-700);
+  --color-zinc-800: var(--n-800);
+  --color-zinc-900: var(--n-900);
+
+  /* Akzent: emerald + blue vereinheitlicht auf Emerald */
+  --color-emerald-50: var(--a-50);
+  --color-emerald-100: var(--a-100);
+  --color-emerald-200: var(--a-200);
+  --color-emerald-300: var(--a-300);
+  --color-emerald-400: var(--a-strong);
+  --color-emerald-500: var(--a-600);
+  --color-emerald-600: var(--a-600);
+  --color-emerald-700: var(--a-700);
+  --color-emerald-800: var(--a-text);
+  --color-emerald-900: var(--a-text);
+
+  --color-blue-50: var(--a-50);
+  --color-blue-100: var(--a-100);
+  --color-blue-200: var(--a-200);
+  --color-blue-300: var(--a-300);
+  --color-blue-400: var(--a-strong);
+  --color-blue-500: var(--a-600);
+  --color-blue-600: var(--a-600);
+  --color-blue-700: var(--a-700);
+  --color-blue-800: var(--a-text);
+  --color-blue-900: var(--a-text);
+
+  /* Status: Erfolg (grün) */
+  --color-green-50: var(--ok-50);
+  --color-green-100: var(--ok-100);
+  --color-green-200: var(--ok-200);
+  --color-green-600: var(--ok-600);
+  --color-green-700: var(--ok-text);
+  --color-green-800: var(--ok-text);
+
+  /* Status: Fehler (rot) */
+  --color-red-50: var(--err-50);
+  --color-red-100: var(--err-100);
+  --color-red-200: var(--err-200);
+  --color-red-500: var(--err-600);
+  --color-red-600: var(--err-600);
+  --color-red-700: var(--err-text);
+
+  /* Status: Warnung (amber) */
+  --color-amber-50: var(--warn-50);
+  --color-amber-100: var(--warn-100);
+  --color-amber-200: var(--warn-200);
+  --color-amber-600: var(--warn-text);
+  --color-amber-700: var(--warn-text);
+  --color-amber-800: var(--warn-text);
+}
+
+/* Weichere Radien für den soft & warm Look */
+@theme {
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
+/* Karten-/Flächen-Hintergrund (theme-fähig, ersetzt bg-white) */
+@utility bg-surface {
+  background-color: var(--surface);
+}
+
+/* ── Light (warm) ─────────────────────────────────────────────────────────── */
 :root {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --text-muted: #64748b;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-text: #ffffff;
-  --danger: #dc2626;
-  --success: #16a34a;
-  --warning-bg: #fef9c3;
-  --warning-text: #854d0e;
+  --n-50: #f7f5f2;
+  --n-100: #efeae3;
+  --n-200: #e5ded4;
+  --n-300: #d7cfc1;
+  --n-400: #b1a695;
+  --n-500: #8c8274;
+  --n-600: #6d6458;
+  --n-700: #524b41;
+  --n-800: #38322b;
+  --n-900: #262019;
+  --n-950: #1a1510;
+
+  --surface: #fffdf9;
+  --bg: #f3efe8;
+
+  --a-50: #ecfdf5;
+  --a-100: #d5f5e3;
+  --a-200: #a7f3d0;
+  --a-300: #6ee7b7;
+  --a-600: #059669;
+  --a-700: #047857;
+  --a-strong: #10b981;
+  --a-text: #047857;
+
+  --ok-50: #ecfdf5;
+  --ok-100: #d1fae5;
+  --ok-200: #bbf7d0;
+  --ok-600: #16a34a;
+  --ok-text: #15803d;
+
+  --err-50: #fef2f2;
+  --err-100: #fee2e2;
+  --err-200: #fecaca;
+  --err-600: #dc2626;
+  --err-text: #b91c1c;
+
+  --warn-50: #fffbeb;
+  --warn-100: #fef3c7;
+  --warn-200: #fde68a;
+  --warn-text: #b45309;
+}
+
+/* ── Dark (warm charcoal) ─────────────────────────────────────────────────── */
+.dark {
+  --n-50: #211e1a;
+  --n-100: #29251f;
+  --n-200: #39322b;
+  --n-300: #473f37;
+  --n-400: #6e655a;
+  --n-500: #948a7c;
+  --n-600: #b1a596;
+  --n-700: #cabfb0;
+  --n-800: #e5dccd;
+  --n-900: #f4efe6;
+  --n-950: #fbf8f2;
+
+  --surface: #29241f;
+  --bg: #1c1815;
+
+  --a-50: #10281f;
+  --a-100: #163529;
+  --a-200: #1f4a39;
+  --a-300: #276a4f;
+  --a-600: #10b981;
+  --a-700: #34d399;
+  --a-strong: #34d399;
+  --a-text: #6ee7b7;
+
+  --ok-50: #14271d;
+  --ok-100: #1a3325;
+  --ok-200: #1f4230;
+  --ok-600: #22c55e;
+  --ok-text: #4ade80;
+
+  --err-50: #2b1a18;
+  --err-100: #3a201d;
+  --err-200: #4d2723;
+  --err-600: #ef4444;
+  --err-text: #f87171;
+
+  --warn-50: #2a2413;
+  --warn-100: #3a3016;
+  --warn-200: #4d3f1a;
+  --warn-text: #fbbf24;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  background: var(--bg);
+}
+
 body {
   background: var(--bg);
-  color: var(--text);
+  color: var(--n-900);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }

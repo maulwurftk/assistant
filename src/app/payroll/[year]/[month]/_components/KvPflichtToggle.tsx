@@ -38,7 +38,7 @@ export default function KvPflichtToggle({ assistantId, kvPflicht: initial }: Pro
       }`}
     >
       <span
-        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-surface transition-transform ${
           value ? 'translate-x-4' : 'translate-x-1'
         }`}
       />

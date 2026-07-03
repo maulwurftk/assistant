@@ -108,7 +108,7 @@ export default function VerfuegbarkeitPage() {
             key={t}
             onClick={() => setTab(t)}
             className={`flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-              tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              tab === t ? 'bg-surface text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             {t === 'single' ? <><CalendarOff className="h-3.5 w-3.5" /> Einmalig</> : <><RefreshCw className="h-3.5 w-3.5" /> Regelmäßig</>}
@@ -117,7 +117,7 @@ export default function VerfuegbarkeitPage() {
       </div>
 
       {/* Formular */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
+      <div className="bg-surface border border-gray-200 rounded-xl p-5 mb-6">
         <h2 className="text-sm font-semibold text-gray-700 mb-4">
           {tab === 'single' ? 'Einmalige Sperrzeit hinzufügen' : 'Regelmäßige Sperrzeit hinzufügen'}
         </h2>
@@ -234,7 +234,7 @@ export default function VerfuegbarkeitPage() {
             {singles.length === 0 ? (
               <p className="text-sm text-gray-400 py-3">Keine eingetragen.</p>
             ) : (
-              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+              <div className="bg-surface border border-gray-200 rounded-xl divide-y divide-gray-100">
                 {singles.map((e) => (
                   <div key={e.id} className="flex items-center justify-between px-4 py-3">
                     <div>
@@ -265,7 +265,7 @@ export default function VerfuegbarkeitPage() {
             {recurrings.length === 0 ? (
               <p className="text-sm text-gray-400 py-3">Keine eingetragen.</p>
             ) : (
-              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+              <div className="bg-surface border border-gray-200 rounded-xl divide-y divide-gray-100">
                 {recurrings.map((e) => (
                   <div key={e.id} className="flex items-center justify-between px-4 py-3">
                     <div>

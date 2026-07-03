@@ -193,7 +193,7 @@ export default function BenutzerPage() {
                           type="color"
                           value={p.color ?? '#6366f1'}
                           onChange={e => updateColor(p.id, e.target.value)}
-                          className="w-8 h-8 rounded cursor-pointer border border-gray-200 p-0.5 bg-white"
+                          className="w-8 h-8 rounded cursor-pointer border border-gray-200 p-0.5 bg-surface"
                           title="Kalenderfarbe ändern"
                         />
                         <span className="text-xs text-gray-400 font-mono">{p.color ?? '#6366f1'}</span>

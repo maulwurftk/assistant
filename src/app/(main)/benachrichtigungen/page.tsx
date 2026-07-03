@@ -258,7 +258,7 @@ export default function BenachrichtigungenPage() {
                         value={activeAction.reason}
                         onChange={e => setActiveAction(prev => prev ? { ...prev, reason: e.target.value } : null)}
                         rows={2}
-                        className="text-sm bg-white"
+                        className="text-sm bg-surface"
                         autoFocus
                       />
                       <div className="flex gap-2">

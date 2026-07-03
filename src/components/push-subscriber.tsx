@@ -77,7 +77,7 @@ export function PushSubscriber() {
   if (!showBanner) return null
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-4 flex items-start gap-3">
+    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50 bg-surface border border-gray-200 rounded-xl shadow-lg p-4 flex items-start gap-3">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100">
         <Bell className="h-4 w-4 text-emerald-600" />
       </div>

@@ -354,7 +354,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
           </DialogHeader>
           <div className="space-y-2">
             {editingTemplate.map((row, i) => (
-              <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2.5 bg-white">
+              <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2.5 bg-surface">
                 <div className="flex gap-1">
                   {[{v:1,l:'Mo'},{v:2,l:'Di'},{v:3,l:'Mi'},{v:4,l:'Do'},{v:5,l:'Fr'},{v:6,l:'Sa'},{v:0,l:'So'}].map((d) => (
                     <button key={d.v} type="button" onClick={() => updateRow(i, { jsDay: d.v })}
@@ -556,7 +556,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       {/* Combined List */}
       <div className="space-y-2">
         {allItems.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-xl py-10 text-center text-gray-400 text-sm">
+          <div className="bg-surface border border-gray-200 rounded-xl py-10 text-center text-gray-400 text-sm">
             {selectedId ? `Keine Einträge für ${format(currentMonth, 'MMMM yyyy', { locale: de })}` : 'Bitte Assistentin wählen'}
           </div>
         ) : (
@@ -565,7 +565,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
               const entry = item.data
               const hours = durationHours(entry.start_time, entry.end_time)
               return (
-                <div key={`e-${entry.id}`} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                <div key={`e-${entry.id}`} className="bg-surface border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm text-gray-900">{format(new Date(entry.date), 'dd.MM.yyyy')}</span>

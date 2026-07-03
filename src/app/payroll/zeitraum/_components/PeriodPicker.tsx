@@ -78,7 +78,7 @@ export function PeriodPicker({
   )
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-4 print:hidden">
+    <div className="bg-surface border border-slate-200 rounded-lg p-4 print:hidden">
       <div className="flex flex-wrap gap-2 mb-3">
         {presets.map((p) => {
           const active = activePreset?.label === p.label
@@ -88,7 +88,7 @@ export function PeriodPicker({
               onClick={() => navigate(p.range.from, p.range.to)}
               className={
                 active
-                  ? 'px-3 py-1.5 text-xs font-medium rounded-md bg-slate-900 text-white'
+                  ? 'px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-600 text-white'
                   : 'px-3 py-1.5 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors'
               }
             >

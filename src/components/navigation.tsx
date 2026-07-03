@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 interface NavProps {
   profile: Profile
@@ -135,7 +136,7 @@ export function Navigation({ profile }: NavProps) {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-100 min-h-screen">
+      <aside className="hidden md:flex flex-col w-60 bg-surface border-r border-gray-100 min-h-screen">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 py-5 border-b border-gray-100">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 shrink-0">
@@ -151,6 +152,9 @@ export function Navigation({ profile }: NavProps) {
 
         {/* User Footer */}
         <div className="border-t border-gray-100 p-3">
+          <div className="flex justify-end mb-1">
+            <ThemeToggle />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2.5 w-full rounded-lg px-2.5 py-2 hover:bg-gray-50 transition-colors text-left group">
               <Avatar className="h-7 w-7 shrink-0">
@@ -192,7 +196,7 @@ export function Navigation({ profile }: NavProps) {
       </aside>
 
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-white/95 backdrop-blur border-b border-gray-100 px-4 py-3">
+      <header className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-surface backdrop-blur border-b border-gray-100 px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 shrink-0">
             <Users className="h-4 w-4 text-white" />
@@ -200,6 +204,7 @@ export function Navigation({ profile }: NavProps) {
           <span className="font-semibold text-gray-900 text-sm">Assistenten-App</span>
         </div>
         <div className="flex items-center gap-1">
+          <ThemeToggle className="h-9 w-9" />
           {unreadCount > 0 && (
             <Link href="/benachrichtigungen" className="relative flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
               <Bell className="h-5 w-5 text-gray-600" />

@@ -12,7 +12,7 @@ export default async function SettingsPage() {
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Einstellungen</h1>
       <p className="text-sm text-slate-500 mb-8">Lohnparameter konfigurieren</p>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
+      <div className="bg-surface border border-slate-200 rounded-xl p-6">
         <SettingsForm
           currentRate={settings?.hourly_rate ?? 20}
           currentCurrency={settings?.currency ?? 'EUR'}

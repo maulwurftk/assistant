@@ -173,7 +173,7 @@ export default function SettingsForm({
         <select
           value={countMode}
           onChange={(e) => setCountMode(e.target.value as PayrollCountMode)}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="slots">Nur Kalender-Slots (empfohlen)</option>
           <option value="entries">Nur Zeiteinträge</option>
@@ -387,7 +387,7 @@ export default function SettingsForm({
                         }
                         step="0.01"
                         min="0"
-                        className="w-20 px-2 py-0.5 border border-blue-300 rounded text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-20 px-2 py-0.5 border border-blue-300 rounded text-xs text-right font-mono bg-surface focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
                       <span className="ml-1">%</span>
                     </td>
@@ -405,7 +405,7 @@ export default function SettingsForm({
                       onChange={(e) => setUvRate(e.target.value)}
                       step="0.01"
                       min="0"
-                      className="w-20 px-2 py-0.5 border border-blue-300 rounded text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-20 px-2 py-0.5 border border-blue-300 rounded text-xs text-right font-mono bg-surface focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="ml-1">%</span>
                   </td>

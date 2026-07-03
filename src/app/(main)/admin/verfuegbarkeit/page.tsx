@@ -62,7 +62,7 @@ export default async function AdminVerfuegbarkeitPage() {
       <p className="text-sm text-gray-500 mb-8">Übersicht aller eingetragenen Nicht-Verfügbarkeiten</p>
 
       {all.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+        <div className="bg-surface border border-gray-200 rounded-xl p-12 text-center">
           <p className="text-gray-400 text-sm">Noch keine Sperrzeiten eingetragen.</p>
         </div>
       ) : (
@@ -73,7 +73,7 @@ export default async function AdminVerfuegbarkeitPage() {
               <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
                 Regelmäßige Sperrzeiten
               </h2>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="bg-surface border border-gray-200 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
@@ -116,7 +116,7 @@ export default async function AdminVerfuegbarkeitPage() {
               <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
                 Einmalige Sperrzeiten ({singles.length})
               </h2>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="bg-surface border border-gray-200 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">

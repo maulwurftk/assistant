@@ -215,7 +215,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       )}
 
       {/* Berichts-Kopf (auch beim Drucken sichtbar) */}
-      <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
+      <div className="bg-surface border border-slate-200 rounded-lg p-6 mb-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Lohn-Auswertung</h2>
@@ -259,7 +259,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       </div>
 
       {/* Tabelle pro Assistentin */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-6">
+      <div className="bg-surface border border-slate-200 rounded-lg overflow-hidden mb-6">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
@@ -335,7 +335,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
 
       {/* Minijobzentrale-Aufschlüsselung */}
       {minijobMode && activeRows.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
+        <div className="bg-surface border border-slate-200 rounded-lg p-6 mb-6">
           <h3 className="font-bold text-slate-900 mb-1">Aufschlüsselung AG-Abgaben (Minijobzentrale)</h3>
           <p className="text-xs text-slate-500 mb-4">
             Diese Beträge zieht die Minijob-Zentrale ein. Rücklagen-Bedarf für den Bezirk.
@@ -375,7 +375,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
 
       {/* Bezirk-Aufschlüsselung */}
       {bezirkMode && activeRows.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
+        <div className="bg-surface border border-slate-200 rounded-lg p-6 mb-6">
           <h3 className="font-bold text-slate-900 mb-1">Bezirk-Abrechnung</h3>
           <p className="text-xs text-slate-500 mb-4">
             Bezirkssatz: {formatCurrency(hourlyRate, currency)}/h (inkl. AG-Kosten)

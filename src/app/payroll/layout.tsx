@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import LogoutButton from './_components/LogoutButton'
 import { Disclaimer } from './_components/Disclaimer'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export default async function PayrollLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -39,7 +40,7 @@ export default async function PayrollLayout({ children }: { children: React.Reac
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+      <header className="bg-surface border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <a
@@ -81,6 +82,7 @@ export default async function PayrollLayout({ children }: { children: React.Reac
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-500">
+            <ThemeToggle />
             <span>{profile.full_name}</span>
             <LogoutButton />
           </div>

@@ -30,7 +30,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+      <div className="w-full max-w-sm bg-surface rounded-xl shadow-sm border border-slate-200 p-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Lohnabrechnung</h1>
           <p className="text-sm text-slate-500 mt-1">Bitte melden Sie sich an</p>
