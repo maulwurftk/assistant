@@ -2,10 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Clock, CheckCircle, AlertCircle, Users, FileText, CalendarOff } from 'lucide-react'
+import { Clock, CheckCircle, AlertCircle, Users, CalendarOff, Wallet, ArrowRight } from 'lucide-react'
 import { OpenSlotsCard } from '@/components/open-slots-card'
 import { StatCard } from '@/components/stat-card'
+import { KpiTile } from '@/components/kpi-tile'
 import { CalendarSubscribeCard } from '@/components/calendar-subscribe-card'
+import { entryDurationMinutes, calculatePay, formatCurrency } from '@/lib/payroll'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { de } from 'date-fns/locale'
 import Link from 'next/link'
@@ -187,6 +189,43 @@ export default async function DashboardPage() {
     .eq('status', 'open')
     .gte('date', format(now, 'yyyy-MM-dd'))
 
+  // Zugewiesene Slots diesen Monat → Stunden je Assistentin + Budget-Nutzung
+  const { data: monthSlots } = await supabase
+    .from('calendar_slots')
+    .select('assigned_to, start_time, end_time')
+    .eq('status', 'assigned')
+    .gte('date', monthStart)
+    .lte('date', monthEnd)
+
+  const { data: settingsRow } = await supabase
+    .from('payroll_settings')
+    .select('hourly_rate, monthly_budget, currency')
+    .limit(1)
+    .single()
+
+  const hourlyRate = (settingsRow as any)?.hourly_rate ?? 0
+  const monthlyBudget = (settingsRow as any)?.monthly_budget ?? 0
+  const currency = (settingsRow as any)?.currency ?? 'EUR'
+
+  const minutesByAssistant = new Map<string, number>()
+  for (const s of (monthSlots ?? []) as Array<{ assigned_to: string | null; start_time: string; end_time: string }>) {
+    if (!s.assigned_to) continue
+    minutesByAssistant.set(
+      s.assigned_to,
+      (minutesByAssistant.get(s.assigned_to) ?? 0) + entryDurationMinutes(s.start_time, s.end_time)
+    )
+  }
+  const totalMinutes = [...minutesByAssistant.values()].reduce((a, b) => a + b, 0)
+  const totalHours = totalMinutes / 60
+  const monthCost = calculatePay(totalMinutes, hourlyRate)
+  const budgetPct = monthlyBudget > 0 ? Math.round((monthCost / monthlyBudget) * 100) : 0
+
+  const hoursRows = (assistants ?? [])
+    .map((a) => ({ name: a.full_name as string, minutes: minutesByAssistant.get(a.id) ?? 0 }))
+    .sort((x, y) => y.minutes - x.minutes)
+  const maxMinutes = Math.max(60, ...hoursRows.map((r) => r.minutes))
+  const monthLabel = format(now, 'MMMM', { locale: de })
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Begrüßungs-Banner */}
@@ -206,63 +245,123 @@ export default async function DashboardPage() {
         <div className="pointer-events-none absolute right-10 -bottom-12 h-28 w-28 rounded-full bg-white/5" />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <StatCard
-          icon={<Users className="h-5 w-5" />}
-          label="Aktive Assistenten"
-          value={(assistants ?? []).length}
+      {/* KPI-Kacheln – klickbar, springen direkt zum Ort */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiTile
+          href="/admin/benutzer"
           tone="emerald"
+          icon={<Users className="h-4 w-4" />}
+          label="Assistenten"
+          value={(assistants ?? []).length}
+          sub="alle aktiv"
+          subTone="up"
         />
-        <StatCard
-          icon={<FileText className="h-5 w-5" />}
-          label="Neue Berichte"
-          value={(pendingReports ?? []).length}
-          tone="violet"
+        <KpiTile
+          href="/payroll"
+          tone="sky"
+          icon={<Clock className="h-4 w-4" />}
+          label={`Stunden ${monthLabel}`}
+          value={totalHours.toFixed(1)}
+          sub={`${formatCurrency(monthCost, currency)} Kosten`}
         />
-        <StatCard
-          icon={<CalendarOff className="h-5 w-5" />}
+        <KpiTile
+          href="/payroll/konto"
+          tone={budgetPct > 100 ? 'rose' : 'violet'}
+          icon={<Wallet className="h-4 w-4" />}
+          label="Budget genutzt"
+          value={`${budgetPct}%`}
+          sub={`${formatCurrency(monthCost, currency)} / ${formatCurrency(monthlyBudget, currency)}`}
+          subTone={budgetPct > 100 ? 'down' : 'muted'}
+        />
+        <KpiTile
+          href="/kalender"
+          tone="amber"
+          icon={<CalendarOff className="h-4 w-4" />}
           label="Offene Slots"
           value={(openSlots ?? []).length}
-          tone="amber"
+          sub={(openSlots ?? []).length > 0 ? 'zu besetzen' : 'alle besetzt'}
+          subTone={(openSlots ?? []).length > 0 ? 'warn' : 'up'}
         />
       </div>
 
-      {(pendingReports ?? []).length > 0 && (
+      {/* Stunden-Balken + Zu erledigen */}
+      <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-emerald-600" />
-              Neue Monatsberichte
-            </CardTitle>
+            <CardTitle className="text-base">Stunden pro Assistentin · {monthLabel}</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2">
-              {(pendingReports ?? []).map((r) => (
-                <li key={r.id} className="flex items-center justify-between">
-                  <span className="text-sm">{(r.assistant as any)?.full_name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
-                      {format(new Date(r.sent_at!), 'dd.MM.yyyy HH:mm')}
+            {hoursRows.every((r) => r.minutes === 0) ? (
+              <p className="text-sm text-slate-400 py-6 text-center">
+                Noch keine zugewiesenen Slots diesen Monat.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {hoursRows.map((r) => (
+                  <div key={r.name} className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3 text-sm">
+                    <span className="truncate text-slate-700">{r.name}</span>
+                    <span className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                      <span
+                        className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600"
+                        style={{ width: `${Math.round((r.minutes / maxMinutes) * 100)}%` }}
+                      />
                     </span>
-                    <Link href="/admin/berichte">
-                      <Button size="sm" variant="outline">Ansehen</Button>
-                    </Link>
+                    <span className="text-right tabular-nums text-slate-600">{(r.minutes / 60).toFixed(1)}</span>
                   </div>
-                </li>
-              ))}
-            </ul>
+                ))}
+                <div className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3 text-xs pt-2 border-t border-slate-100 text-slate-400">
+                  <span>Gesamt</span>
+                  <span />
+                  <span className="text-right tabular-nums font-semibold text-slate-600">{totalHours.toFixed(1)}</span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Zu erledigen</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <Link
+              href="/admin/berichte"
+              className="flex items-center justify-between py-2.5 border-b border-slate-100 hover:text-emerald-700 transition-colors"
+            >
+              <span className="text-sm">Berichte prüfen</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-violet-100 text-violet-700">
+                {(pendingReports ?? []).length} neu
+              </span>
+            </Link>
+            <Link
+              href="/kalender"
+              className="flex items-center justify-between py-2.5 border-b border-slate-100 hover:text-emerald-700 transition-colors"
+            >
+              <span className="text-sm">Slots besetzen</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-700">
+                {(openSlots ?? []).length} offen
+              </span>
+            </Link>
+            <Link
+              href="/payroll/zeitraum"
+              className="flex items-center justify-between py-2.5 hover:text-emerald-700 transition-colors"
+            >
+              <span className="text-sm">Rücklage prüfen</span>
+              <ArrowRight className="h-4 w-4 text-slate-300" />
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Schnellzugriff */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Schnellzugriff</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3">
-          <Link href="/admin/benutzer"><Button variant="outline" className="w-full">Benutzerverwaltung</Button></Link>
-          <Link href="/admin/berichte"><Button variant="outline" className="w-full">Berichte & Export</Button></Link>
-          <Link href="/kalender"><Button variant="outline" className="w-full">Kalender</Button></Link>
+        <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Link href="/admin/benutzer"><Button variant="outline" className="w-full">Benutzer</Button></Link>
+          <Link href="/admin/berichte"><Button variant="outline" className="w-full">Berichte</Button></Link>
+          <Link href="/payroll"><Button variant="outline" className="w-full">Abrechnung</Button></Link>
           <Link href="/admin/taetigkeiten"><Button variant="outline" className="w-full">Tätigkeiten</Button></Link>
         </CardContent>
       </Card>
