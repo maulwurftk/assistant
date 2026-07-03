@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Trash2, Plus, CalendarOff, RefreshCw } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 
 const WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
 
@@ -96,10 +97,14 @@ export default function VerfuegbarkeitPage() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Meine Sperrzeiten</h1>
-      <p className="text-sm text-gray-500 mb-6">
-        Tragen Sie ein, wann Sie nicht verfügbar sind — der Admin sieht das bei der Planung.
-      </p>
+      <div className="mb-6">
+        <PageHeader
+          icon={<CalendarOff className="h-5 w-5" />}
+          title="Meine Sperrzeiten"
+          subtitle="Tragen Sie ein, wann Sie nicht verfügbar sind — der Admin sieht das bei der Planung."
+          tone="amber"
+        />
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-gray-100 rounded-lg mb-6 w-fit">

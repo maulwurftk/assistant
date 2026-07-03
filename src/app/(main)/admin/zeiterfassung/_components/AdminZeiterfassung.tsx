@@ -33,7 +33,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2, FileText } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2, FileText, Clock } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { TemplateRow } from '@/lib/time-entry-template'
@@ -280,10 +281,12 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
   return (
     <div className="max-w-2xl space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Zeiterfassung verwalten</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Einträge und Kalender-Slots von Assistentinnen einsehen und bearbeiten</p>
-      </div>
+      <PageHeader
+        icon={<Clock className="h-5 w-5" />}
+        title="Zeiterfassung verwalten"
+        subtitle="Einträge und Kalender-Slots von Assistentinnen einsehen und bearbeiten"
+        tone="sky"
+      />
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">

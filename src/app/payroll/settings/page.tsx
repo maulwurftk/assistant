@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { ratesFromSettings } from '@/lib/payroll'
+import { Settings } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 import SettingsForm from './_components/SettingsForm'
 
 export default async function SettingsPage() {
@@ -9,8 +11,14 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-lg">
-      <h1 className="text-2xl font-bold text-slate-900 mb-1">Einstellungen</h1>
-      <p className="text-sm text-slate-500 mb-8">Lohnparameter konfigurieren</p>
+      <div className="mb-8">
+        <PageHeader
+          icon={<Settings className="h-5 w-5" />}
+          title="Einstellungen"
+          subtitle="Lohnparameter konfigurieren"
+          tone="slate"
+        />
+      </div>
 
       <div className="bg-surface border border-slate-200 rounded-xl p-6">
         <SettingsForm

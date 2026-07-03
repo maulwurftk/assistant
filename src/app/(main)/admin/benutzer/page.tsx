@@ -40,7 +40,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Plus, UserCheck, UserX } from 'lucide-react'
+import { Plus, UserCheck, UserX, Users } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 import { format } from 'date-fns'
 
 interface NewUserForm {
@@ -115,10 +116,11 @@ export default function BenutzerPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Benutzerverwaltung</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{profiles.filter(p => p.active).length} aktive Benutzer</p>
-        </div>
+        <PageHeader
+          icon={<Users className="h-5 w-5" />}
+          title="Benutzerverwaltung"
+          subtitle={`${profiles.filter(p => p.active).length} aktive Benutzer`}
+        />
         <Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-2" /> Neuer Benutzer</Button>
       </div>
 

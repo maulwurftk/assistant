@@ -25,7 +25,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, GripVertical, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, GripVertical, Eye, EyeOff, Tag } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 
 export default function TaetigkeitenPage() {
   const supabase = createClient()
@@ -90,12 +91,12 @@ export default function TaetigkeitenPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tätigkeiten</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Anpassbares Dropdown-Menü für die Zeiterfassung
-          </p>
-        </div>
+        <PageHeader
+          icon={<Tag className="h-5 w-5" />}
+          title="Tätigkeiten"
+          subtitle="Anpassbares Dropdown-Menü für die Zeiterfassung"
+          tone="violet"
+        />
         <Button onClick={openNew}>
           <Plus className="h-4 w-4 mr-2" /> Neue Tätigkeit
         </Button>

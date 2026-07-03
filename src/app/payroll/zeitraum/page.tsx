@@ -14,6 +14,8 @@ import {
 } from '@/lib/payroll'
 import { PeriodPicker } from './_components/PeriodPicker'
 import { RuecklagenRechner } from './_components/RuecklagenRechner'
+import { BarChart3 } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 
 type Props = {
   searchParams: Promise<{ from?: string; to?: string }>
@@ -194,12 +196,12 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       `}</style>
 
       <div className="flex items-center justify-between mb-6 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Zeitraum-Auswertung</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Quartals- und Jahressummen für Minijobzentrale & Bezirk
-          </p>
-        </div>
+        <PageHeader
+          icon={<BarChart3 className="h-5 w-5" />}
+          title="Zeitraum-Auswertung"
+          subtitle="Quartals- und Jahressummen für Minijobzentrale & Bezirk"
+          tone="sky"
+        />
       </div>
 
       <div className="mb-6">

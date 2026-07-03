@@ -22,7 +22,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Download, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Download, Eye, ChevronLeft, ChevronRight, FileText } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 import { format, subMonths, addMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
@@ -260,10 +261,12 @@ export default function BerichtePage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Berichte</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Monatsberichte und Excel-Export</p>
-        </div>
+        <PageHeader
+          icon={<FileText className="h-5 w-5" />}
+          title="Berichte"
+          subtitle="Monatsberichte und Excel-Export"
+          tone="violet"
+        />
         <Button onClick={exportAllMonth} disabled={loading} variant="outline">
           <Download className="h-4 w-4 mr-2" /> Alle exportieren
         </Button>

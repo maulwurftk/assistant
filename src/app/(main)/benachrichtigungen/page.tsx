@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCheck, Bell, Check, X } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -171,12 +172,11 @@ export default function BenachrichtigungenPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Benachrichtigungen</h1>
-          {unreadCount > 0 && (
-            <p className="text-gray-500 text-sm mt-0.5">{unreadCount} ungelesen</p>
-          )}
-        </div>
+        <PageHeader
+          icon={<Bell className="h-5 w-5" />}
+          title="Benachrichtigungen"
+          subtitle={unreadCount > 0 ? `${unreadCount} ungelesen` : undefined}
+        />
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={testPush} disabled={pushBusy}>
             <Bell className="h-4 w-4 mr-2" /> {pushBusy ? 'Teste…' : 'Push testen'}

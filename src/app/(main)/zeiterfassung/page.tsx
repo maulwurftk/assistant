@@ -33,7 +33,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Send, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, Send, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
 
@@ -239,12 +240,12 @@ export default function ZeiterfassungPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Month Navigator */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Zeiterfassung</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {totalHours.toFixed(1)} Std. · {entries.length} Einträge
-          </p>
-        </div>
+        <PageHeader
+          icon={<Clock className="h-5 w-5" />}
+          title="Zeiterfassung"
+          subtitle={`${totalHours.toFixed(1)} Std. · ${entries.length} Einträge`}
+          tone="sky"
+        />
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
             <ChevronLeft className="h-4 w-4" />

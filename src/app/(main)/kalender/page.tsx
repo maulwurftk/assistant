@@ -33,7 +33,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, X, CalendarPlus, Copy, RefreshCw } from 'lucide-react'
+import { Plus, X, CalendarPlus, Copy, RefreshCw, CalendarDays } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 
@@ -279,10 +280,11 @@ export default function KalenderPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Kalender</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Gemeinsame Planung und Verfügbarkeit</p>
-        </div>
+        <PageHeader
+          icon={<CalendarDays className="h-5 w-5" />}
+          title="Kalender"
+          subtitle="Gemeinsame Planung und Verfügbarkeit"
+        />
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={openIcalDialog}>
             <CalendarPlus className="h-4 w-4 mr-2" /> Google Kalender

@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { CalendarOff } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 const WEEKDAYS_FULL = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
@@ -58,8 +60,14 @@ export default async function AdminVerfuegbarkeitPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Sperrzeiten der Assistenten</h1>
-      <p className="text-sm text-gray-500 mb-8">Übersicht aller eingetragenen Nicht-Verfügbarkeiten</p>
+      <div className="mb-8">
+        <PageHeader
+          icon={<CalendarOff className="h-5 w-5" />}
+          title="Sperrzeiten der Assistenten"
+          subtitle="Übersicht aller eingetragenen Nicht-Verfügbarkeiten"
+          tone="amber"
+        />
+      </div>
 
       {all.length === 0 ? (
         <div className="bg-surface border border-gray-200 rounded-xl p-12 text-center">

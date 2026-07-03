@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCurrency, formatDate } from '@/lib/payroll'
+import { Wallet } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 
 type Entry = {
   id: string
@@ -117,12 +119,12 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Virtuelles Konto</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Kontostand ohne Bankzugriff – jede Buchung wird bestätigt.
-          </p>
-        </div>
+        <PageHeader
+          icon={<Wallet className="h-5 w-5" />}
+          title="Virtuelles Konto"
+          subtitle="Kontostand ohne Bankzugriff – jede Buchung wird bestätigt."
+          tone="violet"
+        />
         <button
           onClick={generate}
           disabled={busy === 'generate'}

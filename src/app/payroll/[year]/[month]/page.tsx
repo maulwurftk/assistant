@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { Banknote } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import {
   entryDurationMinutes,
@@ -175,7 +176,10 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg text-white shadow-sm bg-gradient-to-br from-emerald-500 to-emerald-600">
+              <Banknote className="h-5 w-5" />
+            </span>
             {monthName(month)} {year}
           </h1>
           {settings ? (
