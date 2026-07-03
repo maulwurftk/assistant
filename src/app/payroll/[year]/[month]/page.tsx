@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Banknote } from 'lucide-react'
+import { Banknote, Users, Clock, Wallet } from 'lucide-react'
+import { StatCard } from '@/components/stat-card'
 import { createClient } from '@/lib/supabase/server'
 import {
   entryDurationMinutes,
@@ -233,30 +234,32 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       </div>
 
       {/* Zusammenfassung */}
-      <div className={`grid gap-4 mb-6 ${minijobMode ? 'grid-cols-4' : 'grid-cols-3'}`}>
-        <div className="bg-surface border border-slate-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Assistenten</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{assistants.length}</p>
-        </div>
-        <div className="bg-surface border border-slate-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Gesamtstunden</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{formatMinutes(totalAllMinutes)}</p>
-        </div>
-        <div className="bg-surface border border-slate-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            {minijobMode ? 'Brutto gesamt' : 'Gesamtlohn'}
-          </p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">
-            {formatCurrency(totalAllBrutto, currency)}
-          </p>
-        </div>
+      <div className={`grid gap-4 mb-6 grid-cols-2 ${minijobMode ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        <StatCard
+          icon={<Users className="h-5 w-5" />}
+          label="Assistenten"
+          value={assistants.length}
+          tone="slate"
+        />
+        <StatCard
+          icon={<Clock className="h-5 w-5" />}
+          label="Gesamtstunden"
+          value={formatMinutes(totalAllMinutes)}
+          tone="sky"
+        />
+        <StatCard
+          icon={<Banknote className="h-5 w-5" />}
+          label={minijobMode ? 'Brutto gesamt' : 'Gesamtlohn'}
+          value={formatCurrency(totalAllBrutto, currency)}
+          tone="violet"
+        />
         {minijobMode && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-            <p className="text-xs font-medium text-green-600 uppercase tracking-wide">Netto gesamt</p>
-            <p className="text-2xl font-bold text-green-700 mt-1">
-              {formatCurrency(totalAllNetto, currency)}
-            </p>
-          </div>
+          <StatCard
+            icon={<Wallet className="h-5 w-5" />}
+            label="Netto gesamt"
+            value={formatCurrency(totalAllNetto, currency)}
+            tone="emerald"
+          />
         )}
       </div>
 
