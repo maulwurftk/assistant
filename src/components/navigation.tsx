@@ -205,14 +205,14 @@ export function Navigation({ profile }: NavProps) {
         </div>
         <div className="flex items-center gap-1">
           <ThemeToggle className="h-9 w-9" />
-          {unreadCount > 0 && (
-            <Link href="/benachrichtigungen" className="relative flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
-              <Bell className="h-5 w-5 text-gray-600" />
+          <Link href="/benachrichtigungen" className="relative flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors" aria-label="Benachrichtigungen">
+            <Bell className="h-5 w-5 text-gray-600" />
+            {unreadCount > 0 && (
               <span className="absolute top-1.5 right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
-            </Link>
-          )}
+            )}
+          </Link>
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
               <Menu className="h-5 w-5 text-gray-600" />
@@ -238,7 +238,20 @@ export function Navigation({ profile }: NavProps) {
               <div className="px-3 py-4">
                 <NavLinks profile={profile} onClick={() => setMobileOpen(false)} />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 border-t border-gray-100 p-3">
+              <div className="absolute bottom-0 left-0 right-0 border-t border-gray-100 p-3 space-y-0.5">
+                <Link
+                  href="/benachrichtigungen"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <Bell className="h-4 w-4 text-gray-400" />
+                  Benachrichtigungen
+                  {unreadCount > 0 && (
+                    <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </Link>
                 <button
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                   onClick={handleLogout}
