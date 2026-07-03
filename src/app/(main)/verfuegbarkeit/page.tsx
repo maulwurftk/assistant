@@ -131,8 +131,8 @@ export default function VerfuegbarkeitPage() {
           <div className="space-y-3">
             <div className="flex gap-3 flex-wrap">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Datum</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                <label htmlFor="unav-date" className="block text-xs font-medium text-gray-600 mb-1">Datum</label>
+                <input id="unav-date" aria-label="Datum" type="date" value={date} onChange={(e) => setDate(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
               </div>
               <div className="flex items-end">
@@ -146,12 +146,12 @@ export default function VerfuegbarkeitPage() {
                 <>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Von</label>
-                    <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+                    <input aria-label="Von (Uhrzeit)" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Bis</label>
-                    <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
+                    <input aria-label="Bis (Uhrzeit)" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
                 </>
@@ -159,7 +159,7 @@ export default function VerfuegbarkeitPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Bemerkung (optional)</label>
-              <input type="text" value={note} onChange={(e) => setNote(e.target.value)}
+              <input aria-label="Bemerkung" type="text" value={note} onChange={(e) => setNote(e.target.value)}
                 placeholder="z.B. Urlaub, Arzttermin..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
@@ -169,7 +169,7 @@ export default function VerfuegbarkeitPage() {
             <div className="flex gap-3 flex-wrap">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Wochentag</label>
-                <select value={dayOfWeek} onChange={(e) => setDayOfWeek(Number(e.target.value))}
+                <select aria-label="Wochentag" value={dayOfWeek} onChange={(e) => setDayOfWeek(Number(e.target.value))}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                   {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
                 </select>
@@ -185,12 +185,12 @@ export default function VerfuegbarkeitPage() {
                 <>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Von</label>
-                    <input type="time" value={recurStart} onChange={(e) => setRecurStart(e.target.value)}
+                    <input aria-label="Von (Uhrzeit)" type="time" value={recurStart} onChange={(e) => setRecurStart(e.target.value)}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Bis</label>
-                    <input type="time" value={recurEnd} onChange={(e) => setRecurEnd(e.target.value)}
+                    <input aria-label="Bis (Uhrzeit)" type="time" value={recurEnd} onChange={(e) => setRecurEnd(e.target.value)}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
                 </>
@@ -199,18 +199,18 @@ export default function VerfuegbarkeitPage() {
             <div className="flex gap-3 flex-wrap">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Gültig ab (optional)</label>
-                <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)}
+                <input aria-label="Gültig ab" type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Gültig bis (optional)</label>
-                <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)}
+                <input aria-label="Gültig bis" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
               </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Bemerkung (optional)</label>
-              <input type="text" value={recurNote} onChange={(e) => setRecurNote(e.target.value)}
+              <input aria-label="Bemerkung" type="text" value={recurNote} onChange={(e) => setRecurNote(e.target.value)}
                 placeholder="z.B. Kurs, regelmäßiger Termin..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>

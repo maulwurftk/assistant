@@ -214,7 +214,7 @@ export function Navigation({ profile }: NavProps) {
             )}
           </Link>
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+            <SheetTrigger aria-label="Menü öffnen" className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
               <Menu className="h-5 w-5 text-gray-600" />
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0 border-r border-gray-100">

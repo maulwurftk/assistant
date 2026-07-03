@@ -290,8 +290,9 @@ export default function ZeiterfassungPage() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label>Datum</Label>
+              <Label htmlFor="entry-date">Datum</Label>
               <Input
+                id="entry-date"
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
@@ -299,16 +300,18 @@ export default function ZeiterfassungPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Startzeit</Label>
+                <Label htmlFor="entry-start">Startzeit</Label>
                 <Input
+                  id="entry-start"
                   type="time"
                   value={form.start_time}
                   onChange={(e) => setForm({ ...form, start_time: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Endzeit</Label>
+                <Label htmlFor="entry-end">Endzeit</Label>
                 <Input
+                  id="entry-end"
                   type="time"
                   value={form.end_time}
                   onChange={(e) => setForm({ ...form, end_time: e.target.value })}
@@ -316,12 +319,12 @@ export default function ZeiterfassungPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Tätigkeit</Label>
+              <Label htmlFor="entry-activity">Tätigkeit</Label>
               <Select
                 value={form.activity_id || undefined}
                 onValueChange={(v) => setForm({ ...form, activity_id: v ?? '' })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="entry-activity">
                   <SelectValue placeholder="Tätigkeit wählen..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -332,11 +335,12 @@ export default function ZeiterfassungPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>
+              <Label htmlFor="entry-desc">
                 Beschreibung / Details{' '}
                 <span className="text-gray-400 font-normal">(optional)</span>
               </Label>
               <Textarea
+                id="entry-desc"
                 placeholder="Weitere Details zur Tätigkeit..."
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
