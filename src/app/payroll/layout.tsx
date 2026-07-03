@@ -5,6 +5,7 @@ import { Disclaimer } from './_components/Disclaimer'
 import { ThemeToggle } from '@/components/theme-toggle'
 
 export default async function PayrollLayout({ children }: { children: React.ReactNode }) {
+  try {
   const supabase = await createClient()
   const {
     data: { user },
@@ -96,4 +97,16 @@ export default async function PayrollLayout({ children }: { children: React.Reac
       </footer>
     </div>
   )
+  } catch (err: any) {
+    if (typeof err?.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) throw err
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+          <p className="font-semibold text-red-800 mb-2">Diagnose (Layout): Fehler im Lohnabrechnungs-Bereich</p>
+          <p className="text-xs text-red-600 mb-3">Bitte diesen Text kopieren und schicken.</p>
+          <pre className="whitespace-pre-wrap text-xs text-red-900 bg-white/60 rounded p-3 overflow-auto max-h-96">{String(err?.stack || err?.message || err)}</pre>
+        </div>
+      </div>
+    )
+  }
 }
