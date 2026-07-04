@@ -7,11 +7,9 @@
 -- ============================================================================
 
 -- ── Hilfsfunktionen ─────────────────────────────────────────────────────────
-create or replace function public.get_my_role()
-returns text language sql security definer stable as $$
-  select role from public.profiles where id = auth.uid()
-$$;
-
+-- Hinweis: get_my_role() referenziert public.profiles und wird deshalb ERST
+-- nach den Tabellen definiert (weiter unten), damit ein frisches Projekt nicht
+-- mit "relation public.profiles does not exist" abbricht.
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$
 begin
@@ -187,6 +185,12 @@ create table if not exists public.assistant_unavailability (
   note         text,
   created_at   timestamptz not null default now()
 );
+
+-- ── Hilfsfunktion, die auf Tabellen zugreift (jetzt existieren sie) ─────────
+create or replace function public.get_my_role()
+returns text language sql security definer stable as $$
+  select role from public.profiles where id = auth.uid()
+$$;
 
 -- ── Row Level Security aktivieren ───────────────────────────────────────────
 alter table public.profiles                enable row level security;
