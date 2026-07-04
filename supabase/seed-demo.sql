@@ -62,19 +62,19 @@ begin
 
   insert into public.time_entries
     (assistant_id, date, start_time, end_time, activity_id, description, month_status)
-  select v_anna, current_date - 3, '08:00', '12:00',
+  select v_anna, current_date - 3, '08:00'::time, '12:00'::time,
          (select id from public.activities order by sort_order limit 1),
          'Vormittagseinsatz', 'confirmed'
   union all
-  select v_anna, current_date - 2, '09:00', '13:00',
+  select v_anna, current_date - 2, '09:00'::time, '13:00'::time,
          (select id from public.activities where name = 'Arztbegleitung' limit 1),
          'Arztbegleitung', 'confirmed'
   union all
-  select v_ben,  current_date - 3, '14:00', '18:00',
+  select v_ben,  current_date - 3, '14:00'::time, '18:00'::time,
          (select id from public.activities where name = 'Begleitung / Freizeit' limit 1),
          'Nachmittagseinsatz', 'confirmed'
   union all
-  select v_ben,  current_date - 1, '15:00', '19:00',
+  select v_ben,  current_date - 1, '15:00'::time, '19:00'::time,
          (select id from public.activities where name = 'Haushalt' limit 1),
          'Haushaltshilfe', 'draft';
 

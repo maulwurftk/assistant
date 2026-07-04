@@ -14,8 +14,6 @@ import {
   normalizeCountMode,
 } from '@/lib/payroll'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 type Body = {
   assistantId: string
   assistantName: string
@@ -302,6 +300,14 @@ export async function POST(request: Request) {
 </body>
 </html>
 `
+
+  if (!process.env.RESEND_API_KEY) {
+    return NextResponse.json(
+      { error: 'E-Mail-Versand ist nicht konfiguriert (RESEND_API_KEY fehlt).' },
+      { status: 503 }
+    )
+  }
+  const resend = new Resend(process.env.RESEND_API_KEY)
 
   const { error: sendError } = await resend.emails.send({
     from: fromEmail,
