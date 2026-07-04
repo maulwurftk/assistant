@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { format, addHours } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { sendPushToUsers } from '@/lib/push'
+import { escapeHtml } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 // Vercel Cron: alle 6 Stunden
@@ -98,14 +99,14 @@ export async function POST(request: Request) {
                 subject: `[Assistenten-App] Offener Slot in 48h`,
                 html: `
                   <h2 style="color:#d97706">⚠️ Offener Slot – noch verfügbar</h2>
-                  <p>Hallo ${assistant.full_name},</p>
+                  <p>Hallo ${escapeHtml(assistant.full_name)},</p>
                   <p>folgender Slot ist in ca. 48 Stunden und noch nicht besetzt:</p>
                   <table style="border-collapse:collapse;margin:16px 0">
-                    <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Slot</td><td><strong>${slot.title}</strong></td></tr>
+                    <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Slot</td><td><strong>${escapeHtml(slot.title)}</strong></td></tr>
                     <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Datum</td><td>${dateStr}</td></tr>
                     <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Uhrzeit</td><td>${timeStr}</td></tr>
                   </table>
-                  ${slot.description ? `<p style="color:#6b7280">${slot.description}</p>` : ''}
+                  ${slot.description ? `<p style="color:#6b7280">${escapeHtml(slot.description)}</p>` : ''}
                   <p>
                     <a href="${APP_URL}/dashboard"
                        style="display:inline-block;padding:10px 20px;background:#d97706;color:#fff;border-radius:6px;text-decoration:none">

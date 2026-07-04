@@ -197,12 +197,14 @@ export type Database = {
           mj_u2: number
           mj_insolvenzgeld: number
           mj_rv_an: number
+          weekly_template: unknown | null
         }
         Insert: {
           id?: string
           tenant_id?: string
           hourly_rate: number
           currency?: string
+          weekly_template?: unknown | null
           updated_by?: string | null
           payroll_enabled?: boolean
           payroll_count_mode?: 'slots' | 'entries' | 'both'
@@ -243,6 +245,7 @@ export type Database = {
           mj_u2?: number
           mj_insolvenzgeld?: number
           mj_rv_an?: number
+          weekly_template?: unknown | null
         }
         Relationships: Rel[]
       }

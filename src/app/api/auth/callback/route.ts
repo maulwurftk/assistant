@@ -4,7 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/payroll'
+  // Nur interne Pfade zulassen — verhindert Open-Redirect via next=//evil (M2)
+  const rawNext = searchParams.get('next') ?? '/payroll'
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/payroll'
 
   if (code) {
     const supabase = await createClient()

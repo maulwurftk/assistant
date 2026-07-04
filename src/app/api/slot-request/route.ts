@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { sendPushToUser, sendPushToUsers } from '@/lib/push'
 import { resolveTenant, type TenantContext } from '@/lib/tenant'
+import { escapeHtml } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 const adminDb = () => createAdminClient<Database>(
@@ -96,7 +97,7 @@ async function handleRequest(ctx: TenantContext, slotId: string) {
         'Neue Slot-Anfrage',
         `
           <h2 style="color:#059669">Neue Slot-Anfrage</h2>
-          <p>${msg}</p>
+          <p>${escapeHtml(msg)}</p>
           <p>
             <a href="${APP_URL}/benachrichtigungen"
                style="display:inline-block;padding:10px 20px;background:#059669;color:#fff;border-radius:6px;text-decoration:none">
@@ -137,7 +138,7 @@ async function handleAdminAction(
 
   const dateStr = format(new Date(slot.date), 'EEEE, dd. MMMM', { locale: de })
   const timeStr = `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)} Uhr`
-  const reasonSuffix = reason ? ` <strong>${reason}</strong>` : ''
+  const reasonSuffix = reason ? ` <strong>${escapeHtml(reason)}</strong>` : ''
 
   if (action === 'approve') {
     const { error } = await db.from('calendar_slots').update({
@@ -165,8 +166,8 @@ async function handleAdminAction(
         'Slot bestätigt',
         `
           <h2 style="color:#059669">Ihr Slot wurde bestätigt ✓</h2>
-          <p>Hallo ${requester.full_name},</p>
-          <p>Ihre Anfrage für <strong>„${slot.title}"</strong> am <strong>${dateStr}</strong> (${timeStr}) wurde genehmigt.</p>
+          <p>Hallo ${escapeHtml(requester.full_name)},</p>
+          <p>Ihre Anfrage für <strong>„${escapeHtml(slot.title)}"</strong> am <strong>${dateStr}</strong> (${timeStr}) wurde genehmigt.</p>
           ${reason ? `<p><strong>Hinweis vom Admin:</strong>${reasonSuffix}</p>` : ''}
           <p>
             <a href="${APP_URL}/kalender"
@@ -202,8 +203,8 @@ async function handleAdminAction(
         'Slot abgelehnt',
         `
           <h2 style="color:#dc2626">Ihr Slot wurde abgelehnt</h2>
-          <p>Hallo ${requester.full_name},</p>
-          <p>Ihre Anfrage für <strong>„${slot.title}"</strong> am <strong>${dateStr}</strong> (${timeStr}) wurde leider abgelehnt.</p>
+          <p>Hallo ${escapeHtml(requester.full_name)},</p>
+          <p>Ihre Anfrage für <strong>„${escapeHtml(slot.title)}"</strong> am <strong>${dateStr}</strong> (${timeStr}) wurde leider abgelehnt.</p>
           ${reason ? `<p><strong>Grund:</strong>${reasonSuffix}</p>` : ''}
           <p>
             <a href="${APP_URL}/dashboard"

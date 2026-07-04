@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { sendPushToUsers } from '@/lib/push'
 import { resolveTenant } from '@/lib/tenant'
+import { escapeHtml } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 export async function POST(request: Request) {
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
           subject: `[Assistenten-App] ${title}`,
           html: `
             <h2>Neuer Monatsbericht</h2>
-            <p>${message}</p>
+            <p>${escapeHtml(message)}</p>
             <p>Bitte melden Sie sich an, um den Bericht einzusehen und zu exportieren.</p>
             <p><a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/admin/berichte">Zum Bericht</a></p>
           `,

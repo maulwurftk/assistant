@@ -42,6 +42,13 @@ export async function POST(request: Request) {
   if (type === 'recurring' && (day_of_week === undefined || day_of_week === null)) {
     return NextResponse.json({ error: 'Wochentag fehlt' }, { status: 400 })
   }
+  // Eingaben validieren, bevor sie in die DB-Check-Constraints laufen (L3)
+  if (type === 'recurring' && (typeof day_of_week !== 'number' || day_of_week < 0 || day_of_week > 6)) {
+    return NextResponse.json({ error: 'Ungültiger Wochentag (0–6)' }, { status: 400 })
+  }
+  if (!all_day && start_time && end_time && start_time >= end_time) {
+    return NextResponse.json({ error: 'Endzeit muss nach der Startzeit liegen' }, { status: 400 })
+  }
 
   const { data, error } = await supabase
     .from('assistant_unavailability')

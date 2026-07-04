@@ -13,6 +13,7 @@ import {
   ratesFromSettings,
   normalizeCountMode,
 } from '@/lib/payroll'
+import { escapeHtml } from '@/lib/utils'
 
 type Body = {
   assistantId: string
@@ -152,7 +153,7 @@ export async function POST(request: Request) {
       return `
         <tr style="border-bottom:1px solid #e2e8f0">
           <td style="padding:8px 12px;color:#334155">${formatDate(e.date)}</td>
-          <td style="padding:8px 12px;color:#334155">${e.label}</td>
+          <td style="padding:8px 12px;color:#334155">${escapeHtml(e.label)}</td>
           <td style="padding:8px 12px;color:#64748b;font-family:monospace">${e.start_time.slice(0, 5)}</td>
           <td style="padding:8px 12px;color:#64748b;font-family:monospace">${e.end_time.slice(0, 5)}</td>
           <td style="padding:8px 12px;text-align:right;color:#0f172a;font-weight:500">${formatMinutes(minutes)}</td>
@@ -263,7 +264,7 @@ export async function POST(request: Request) {
 
     <!-- Anrede -->
     <div style="padding:32px 32px 0">
-      <p style="color:#334155;margin:0 0 24px">Hallo ${assistantName},<br><br>
+      <p style="color:#334155;margin:0 0 24px">Hallo ${escapeHtml(assistantName)},<br><br>
       anbei Ihre Lohnabrechnung für ${monthName(month)} ${year}.</p>
     </div>
 
