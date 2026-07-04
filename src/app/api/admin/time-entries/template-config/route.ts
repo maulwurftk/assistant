@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { resolveTenantAdmin } from '@/lib/tenant'
 import { DEFAULT_TEMPLATE } from '@/lib/time-entry-template'
-
-export type { TemplateRow } from '@/lib/time-entry-template'
-export { DEFAULT_TEMPLATE }
+// Hinweis: Route-Dateien dürfen nur HTTP-Handler exportieren (Next.js App Router).
+// DEFAULT_TEMPLATE/TemplateRow werden direkt aus '@/lib/time-entry-template' importiert.
 
 export async function GET() {
   const ctx = await resolveTenantAdmin()
