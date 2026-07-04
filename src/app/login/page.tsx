@@ -81,6 +81,11 @@ export default function LoginPage() {
             {loading ? 'Anmelden…' : 'Anmelden'}
           </button>
         </form>
+
+        <p className="text-sm text-slate-500 mt-6">
+          Neuer Arbeitgeber?{' '}
+          <a href="/registrieren" className="text-blue-600 hover:underline">Konto erstellen</a>
+        </p>
       </div>
     </div>
   )

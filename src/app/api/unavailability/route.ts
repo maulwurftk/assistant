@@ -11,7 +11,7 @@ export async function GET() {
 
   let query = supabase
     .from('assistant_unavailability')
-    .select('*, profiles(full_name)')
+    .select('*, profiles!assistant_id(full_name)')
     .order('type')
     .order('date', { ascending: true, nullsFirst: false })
     .order('day_of_week', { ascending: true, nullsFirst: false })

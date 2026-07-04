@@ -15,7 +15,10 @@ export default async function MainLayout({ children }: { children: React.ReactNo
     .eq('id', user.id)
     .single()
 
-  if (!profile || !profile.active) redirect('/login')
+  // Eingeloggt, aber (noch) kein Profil → Registrierung abschließen
+  // (provision_tenant wurde nach signUp noch nicht ausgeführt; Architektur §4.1)
+  if (!profile) redirect('/registrieren/abschliessen')
+  if (!profile.active) redirect('/login')
 
   return (
     <div className="min-h-screen bg-gray-50/60 md:flex">

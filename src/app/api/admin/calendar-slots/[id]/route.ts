@@ -1,19 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { resolveTenantAdmin } from '@/lib/tenant'
 
 type Params = Promise<{ id: string }>
 
-async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  return profile?.role === 'admin' ? user : null
-}
-
 export async function PATCH(request: Request, { params }: { params: Params }) {
-  const user = await requireAdmin()
-  if (!user) return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 })
+  const ctx = await resolveTenantAdmin()
+  if (!ctx) return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 })
 
   const { id } = await params
   const body = await request.json()
@@ -30,7 +23,13 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
   if (end_time !== undefined) patch.end_time = end_time
 
   const service = await createServiceClient()
-  const { error } = await service.from('calendar_slots').update(patch as any).eq('id', id)
+  const { data, error } = await service
+    .from('calendar_slots')
+    .update(patch as never)
+    .eq('id', id)
+    .eq('tenant_id', ctx.tenantId)
+    .select('id')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data?.length) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }

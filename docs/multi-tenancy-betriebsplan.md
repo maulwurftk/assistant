@@ -70,11 +70,42 @@ Reines Cloud-Setup — **Prod-Supabase _und_ Prod-Vercel bleiben unangetastet.**
 Stelle: **Vercel-Staging**. „Lokal" ist keine zweite Instanz, sondern nur, wo Fable im Terminal
 `npm run build` / `npm test` ausführt (auf deinem Rechner).
 
+### 🔒 PREFLIGHT — Pflicht-Gate, BEVOR Fable irgendetwas schreibt
+
+> **Hintergrund (2026-07-04):** `.env.local` zeigte anfangs unbemerkt auf **Prod** (Ref
+> `rqtwlqsfrjnzduzdjrhe`, `NEXT_PUBLIC_APP_URL=https://karas.pro`) — die Prod-Werte des ursprünglichen
+> Setups waren nie ersetzt worden. Fable hat das erkannt und gestoppt, bevor etwas geschrieben wurde.
+> Dieser Check macht das künftig unmöglich. **Staging-Ref = `yequvsxydshxuhytwrpm`, Prod-Ref =
+> `rqtwlqsfrjnzduzdjrhe`.** Taucht die Prod-Ref oder `karas.pro` in `.env.local` auf → **STOPP**.
+
+- [ ] **URL/App-URL:** `NEXT_PUBLIC_SUPABASE_URL` enthält die **Staging-Ref**, `NEXT_PUBLIC_APP_URL` ist
+      `localhost`/Staging — **nicht** `karas.pro`:
+      ```bash
+      grep -E 'SUPABASE_URL|APP_URL' .env.local
+      ```
+- [ ] **Keys:** stammen aus dem **Staging**-Projekt (Settings → API Keys), Format `sb_publishable_…` /
+      `sb_secret_…`. Auth-Check — der Key muss gegen **Staging** authentifizieren (HTTP 200), nicht 401:
+      ```bash
+      key=$(grep '^NEXT_PUBLIC_SUPABASE_ANON_KEY=' .env.local | cut -d= -f2-)
+      curl -s -o /dev/null -w '%{http_code}\n' -H "apikey: $key" \
+        "https://yequvsxydshxuhytwrpm.supabase.co/rest/v1/"
+      ```
+      **200** = Key gehört zu Staging ✅ · **401** = falscher Key (evtl. Prod) → **STOPP, nicht weiterbauen.**
+- [ ] Erst wenn beide Checks grün sind, darf Fable Migrationen/Code gegen die DB schreiben.
+
 **Haupt-Testfläche: Staging-*Deployment* (Vercel).**
 - [ ] **Separates Vercel-Projekt** `assistenten-app-staging` aus demselben Repo (eigener Staging-Branch,
       eigene Env-Vars) → Prod-Vercel bleibt unberührt. _Leichtere Alternative: Staging-Keys nur auf den
       **Preview**-Scope des bestehenden Projekts; dann fasst du aber Prod-Projekteinstellungen an._
-- [ ] Loop: Fable ändert Code → Push Staging-Branch → Vercel-Staging baut → auf Staging-URL testen.
+- [ ] Loop: Fable ändert Code **auf `staging`** → Push → Vercel-Staging baut → auf Staging-URL testen.
+
+**🔴 Branch-Strategie (Deploy-Isolation — Pflicht vor MT-Code):**
+- `staging`-Branch = Fables Arbeitsbranch. **Staging**-Vercel-Projekt: _Production Branch_ = `staging`.
+- `main` = Prod. **Prod**-Vercel-Projekt: _Production Branch_ = `main` (unverändert).
+- Fable committet/pusht **nur auf `staging`**; `main` bleibt unberührt bis zum bewussten Merge/Cutover.
+- **Warum kritisch:** Landet tenant-aware Code auf `main`, während die Prod-DB noch kein `tenant_id` hat,
+  **bricht Prod**. Ein Ein-Branch-Setup (beide Vercel-Projekte bauen `main`) tut genau das — daher getrennte
+  Branches. _(Status: `staging`-Branch existiert seit 2026-07-04; Vercel-Tracking noch zu setzen.)_
 - [ ] **⚠️ Supabase-Auth-URLs (Staging-Projekt) → Authentication → URL Configuration:** **Site URL** +
       **Redirect-Allow-List** um die Staging-Vercel-URL ergänzen (+ `http://localhost:3000` **nur** falls du
       den optionalen lokalen Speed-up nutzt) — sonst brechen Login/Redirects ab, obwohl DB/Code stimmen.

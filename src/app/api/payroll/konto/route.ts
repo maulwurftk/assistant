@@ -1,6 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { resolveTenantAdmin } from '@/lib/tenant'
+import type { Database } from '@/types/database'
 import {
   entryDurationMinutes,
   calculatePay,
@@ -12,32 +13,22 @@ import {
 } from '@/lib/payroll'
 
 function adminDb() {
-  return createAdminClient(
+  return createAdminClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
 
-async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized', status: 401 as const, userId: null }
-  const db = adminDb()
-  const { data: profile } = await db.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return { error: 'Kein Zugriff', status: 403 as const, userId: null }
-  return { error: null, status: 200 as const, userId: user.id }
-}
-
 // Neue manuelle Buchung (direkt bestätigt)
 export async function POST(req: Request) {
-  const auth = await requireAdmin()
-  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const ctx = await resolveTenantAdmin()
+  if (!ctx) return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 })
 
   const body = await req.json()
 
   // Vorschläge aus Lohndaten generieren
   if (body.action === 'generate') {
-    return generateSuggestions(auth.userId!)
+    return generateSuggestions(ctx.tenantId, ctx.userId)
   }
 
   const { booking_date, direction, category, amount, description } = body
@@ -47,6 +38,7 @@ export async function POST(req: Request) {
 
   const db = adminDb()
   const { error } = await db.from('account_ledger').insert({
+    tenant_id: ctx.tenantId,
     booking_date,
     direction,
     category,
@@ -54,22 +46,22 @@ export async function POST(req: Request) {
     description: description ?? null,
     status: 'confirmed',
     source: 'manual',
-    created_by: auth.userId,
+    created_by: ctx.userId,
     confirmed_at: new Date().toISOString(),
-  })
+  } as never)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
 
-async function generateSuggestions(userId: string) {
+async function generateSuggestions(tenantId: string, userId: string) {
   const db = adminDb()
 
   const [settingsRes, assistantsRes, slotsRes, entriesRes] = await Promise.all([
-    db.from('payroll_settings').select('*').limit(1).single(),
-    db.from('profiles').select('id, rv_pflicht, kv_pflicht').eq('role', 'assistant').eq('active', true),
-    db.from('calendar_slots').select('assigned_to, date, start_time, end_time').eq('status', 'assigned'),
-    db.from('time_entries').select('assistant_id, date, start_time, end_time'),
+    db.from('payroll_settings').select('*').eq('tenant_id', tenantId).single(),
+    db.from('profiles').select('id, rv_pflicht, kv_pflicht').eq('tenant_id', tenantId).eq('role', 'assistant').eq('active', true),
+    db.from('calendar_slots').select('assigned_to, date, start_time, end_time').eq('tenant_id', tenantId).eq('status', 'assigned'),
+    db.from('time_entries').select('assistant_id, date, start_time, end_time').eq('tenant_id', tenantId),
   ])
 
   const settings = settingsRes.data as any
@@ -171,15 +163,17 @@ async function generateSuggestions(userId: string) {
     return NextResponse.json({ ok: true, inserted: 0 })
   }
 
-  // Nur einfügen was noch nicht existiert (dedup_key unique, ignoreDuplicates)
+  // Nur einfügen was noch nicht existiert — dedup_key ist jetzt TENANT-LOKAL
+  // unique (0006: account_ledger_tenant_dedup_uk) → onConflict beide Spalten
   const { error } = await db.from('account_ledger').upsert(
     suggestions.map((s) => ({
       ...s,
+      tenant_id: tenantId,
       status: 'pending',
       source: 'auto',
       created_by: userId,
-    })),
-    { onConflict: 'dedup_key', ignoreDuplicates: true }
+    })) as never[],
+    { onConflict: 'tenant_id,dedup_key', ignoreDuplicates: true }
   )
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

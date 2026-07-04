@@ -179,7 +179,7 @@ export default async function DashboardPage() {
 
   const { data: pendingReports } = await supabase
     .from('monthly_reports')
-    .select('*, assistant:profiles(full_name)')
+    .select('*, assistant:profiles!assistant_id(full_name)')
     .eq('status', 'sent')
     .is('admin_viewed_at', null)
 

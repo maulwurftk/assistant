@@ -2,12 +2,14 @@ export type Role = 'admin' | 'assistant'
 
 export interface Profile {
   id: string
+  tenant_id?: string
   email: string
   full_name: string
   role: Role
   active: boolean
   color?: string
-  ical_token?: string
+  ical_token?: string | null
+  iban?: string | null
   created_at: string
 }
 
@@ -32,7 +34,7 @@ export interface TimeEntry {
   month_status: MonthStatus
   created_at: string
   updated_at: string
-  activity?: Activity
+  activity?: Pick<Activity, 'name'> | null
   assistant?: Profile
 }
 

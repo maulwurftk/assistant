@@ -26,9 +26,10 @@ export async function GET(request: Request) {
 
   const db = adminDb()
 
+  // Tenant folgt aus dem Profil des Tokens (Architektur §5.4) — nie aus der URL.
   const { data: profile } = await db
     .from('profiles')
-    .select('id, full_name, role')
+    .select('id, full_name, role, tenant_id')
     .eq('ical_token', token)
     .single()
 
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
   const { data: slots } = await db
     .from('calendar_slots')
     .select('*, assigned_profile:profiles!assigned_to(id, full_name, color)')
+    .eq('tenant_id', profile.tenant_id)
     .neq('status', 'cancelled')
     .gte('date', today)
     .lte('date', horizonDate)

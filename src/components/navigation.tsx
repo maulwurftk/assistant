@@ -32,6 +32,7 @@ import {
   ChevronUp,
   Banknote,
   CalendarOff,
+  Save,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -53,6 +54,7 @@ const navItems = (role: string) => [
     { href: '/admin/zeiterfassung', label: 'Zeiterfassung', icon: Clock },
     { href: '/admin/verfuegbarkeit', label: 'Sperrzeiten', icon: CalendarOff },
     { href: '/payroll', label: 'Abrechnung', icon: Banknote },
+    { href: '/admin/sicherung', label: 'Datensicherung', icon: Save },
   ] : []),
 ]
 

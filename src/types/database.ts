@@ -9,9 +9,34 @@ type Rel = {
 export type Database = {
   public: {
     Tables: {
+      organizations: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          status: 'active' | 'suspended' | 'deleted'
+          plan: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          status?: 'active' | 'suspended' | 'deleted'
+          plan?: string
+        }
+        Update: {
+          name?: string
+          slug?: string
+          status?: 'active' | 'suspended' | 'deleted'
+          plan?: string
+        }
+        Relationships: Rel[]
+      }
       profiles: {
         Row: {
           id: string
+          tenant_id: string
           email: string
           full_name: string
           role: 'admin' | 'assistant'
@@ -21,9 +46,11 @@ export type Database = {
           ical_token: string | null
           rv_pflicht: boolean
           kv_pflicht: boolean
+          iban: string | null
         }
         Insert: {
           id: string
+          tenant_id?: string
           email: string
           full_name: string
           role: 'admin' | 'assistant'
@@ -32,6 +59,7 @@ export type Database = {
           ical_token?: string | null
           rv_pflicht?: boolean
           kv_pflicht?: boolean
+          iban?: string | null
         }
         Update: {
           email?: string
@@ -42,12 +70,14 @@ export type Database = {
           ical_token?: string | null
           rv_pflicht?: boolean
           kv_pflicht?: boolean
+          iban?: string | null
         }
         Relationships: Rel[]
       }
       activities: {
         Row: {
           id: string
+          tenant_id: string
           name: string
           active: boolean
           sort_order: number
@@ -55,6 +85,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          tenant_id?: string
           name: string
           active?: boolean
           sort_order?: number
@@ -69,6 +100,7 @@ export type Database = {
       time_entries: {
         Row: {
           id: string
+          tenant_id: string
           assistant_id: string
           date: string
           start_time: string
@@ -81,6 +113,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          tenant_id?: string
           assistant_id: string
           date: string
           start_time: string
@@ -88,6 +121,7 @@ export type Database = {
           activity_id?: string | null
           description?: string | null
           month_status?: 'draft' | 'confirmed' | 'sent'
+          updated_at?: string
         }
         Update: {
           assistant_id?: string
@@ -97,12 +131,17 @@ export type Database = {
           activity_id?: string | null
           description?: string | null
           month_status?: 'draft' | 'confirmed' | 'sent'
+          updated_at?: string
         }
-        Relationships: Rel[]
+        Relationships: [
+          { foreignKeyName: 'time_entries_assistant_id_fkey', columns: ['assistant_id'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'time_entries_activity_id_fkey', columns: ['activity_id'], isOneToOne: false, referencedRelation: 'activities', referencedColumns: ['id'] },
+        ]
       }
       monthly_reports: {
         Row: {
           id: string
+          tenant_id: string
           assistant_id: string
           year: number
           month: number
@@ -114,6 +153,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          tenant_id?: string
           assistant_id: string
           year: number
           month: number
@@ -128,11 +168,14 @@ export type Database = {
           sent_at?: string | null
           admin_viewed_at?: string | null
         }
-        Relationships: Rel[]
+        Relationships: [
+          { foreignKeyName: 'monthly_reports_assistant_id_fkey', columns: ['assistant_id'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+        ]
       }
       payroll_settings: {
         Row: {
           id: string
+          tenant_id: string
           hourly_rate: number
           currency: string
           updated_at: string
@@ -157,6 +200,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          tenant_id?: string
           hourly_rate: number
           currency?: string
           updated_by?: string | null
@@ -205,6 +249,7 @@ export type Database = {
       payroll_runs: {
         Row: {
           id: string
+          tenant_id: string
           year: number
           month: number
           assistant_id: string
@@ -217,6 +262,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          tenant_id?: string
           year: number
           month: number
           assistant_id: string
@@ -236,6 +282,7 @@ export type Database = {
       notifications: {
         Row: {
           id: string
+          tenant_id: string
           user_id: string
           title: string
           message: string
@@ -247,6 +294,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          tenant_id?: string
           user_id: string
           title: string
           message: string
@@ -261,6 +309,7 @@ export type Database = {
       calendar_slots: {
         Row: {
           id: string
+          tenant_id: string
           date: string
           start_time: string
           end_time: string
@@ -268,11 +317,14 @@ export type Database = {
           description: string | null
           assigned_to: string | null
           created_by: string
-          status: 'open' | 'assigned' | 'cancelled'
+          status: 'open' | 'pending' | 'assigned' | 'cancelled'
+          pending_request_by: string | null
+          reminder_sent_at: string | null
           created_at: string
         }
         Insert: {
           id?: string
+          tenant_id?: string
           date: string
           start_time: string
           end_time: string
@@ -280,7 +332,9 @@ export type Database = {
           description?: string | null
           assigned_to?: string | null
           created_by: string
-          status?: 'open' | 'assigned' | 'cancelled'
+          status?: 'open' | 'pending' | 'assigned' | 'cancelled'
+          pending_request_by?: string | null
+          reminder_sent_at?: string | null
         }
         Update: {
           date?: string
@@ -289,15 +343,148 @@ export type Database = {
           title?: string
           description?: string | null
           assigned_to?: string | null
-          status?: 'open' | 'assigned' | 'cancelled'
+          status?: 'open' | 'pending' | 'assigned' | 'cancelled'
+          pending_request_by?: string | null
+          reminder_sent_at?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: 'calendar_slots_assigned_to_fkey', columns: ['assigned_to'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'calendar_slots_created_by_fkey', columns: ['created_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'calendar_slots_pending_request_by_fkey', columns: ['pending_request_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+        ]
+      }
+      account_ledger: {
+        Row: {
+          id: string
+          tenant_id: string
+          booking_date: string
+          direction: 'in' | 'out'
+          category: string
+          amount: number
+          description: string | null
+          status: 'pending' | 'confirmed'
+          source: 'manual' | 'auto'
+          dedup_key: string | null
+          created_by: string | null
+          created_at: string
+          confirmed_at: string | null
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          booking_date: string
+          direction: 'in' | 'out'
+          category: string
+          amount: number
+          description?: string | null
+          status?: 'pending' | 'confirmed'
+          source?: 'manual' | 'auto'
+          dedup_key?: string | null
+          created_by?: string | null
+          confirmed_at?: string | null
+        }
+        Update: {
+          booking_date?: string
+          direction?: 'in' | 'out'
+          category?: string
+          amount?: number
+          description?: string | null
+          status?: 'pending' | 'confirmed'
+          source?: 'manual' | 'auto'
+          dedup_key?: string | null
+          created_by?: string | null
+          confirmed_at?: string | null
         }
         Relationships: Rel[]
       }
+      push_subscriptions: {
+        Row: {
+          id: string
+          tenant_id: string
+          user_id: string
+          endpoint: string
+          subscription: unknown
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          user_id: string
+          endpoint: string
+          subscription: unknown
+        }
+        Update: {
+          user_id?: string
+          endpoint?: string
+          subscription?: unknown
+        }
+        Relationships: Rel[]
+      }
+      assistant_unavailability: {
+        Row: {
+          id: string
+          tenant_id: string
+          assistant_id: string
+          type: 'single' | 'recurring'
+          date: string | null
+          day_of_week: number | null
+          all_day: boolean
+          start_time: string | null
+          end_time: string | null
+          valid_from: string | null
+          valid_until: string | null
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          assistant_id: string
+          type: 'single' | 'recurring'
+          date?: string | null
+          day_of_week?: number | null
+          all_day?: boolean
+          start_time?: string | null
+          end_time?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+          note?: string | null
+        }
+        Update: {
+          type?: 'single' | 'recurring'
+          date?: string | null
+          day_of_week?: number | null
+          all_day?: boolean
+          start_time?: string | null
+          end_time?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+          note?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: 'assistant_unavailability_assistant_id_fkey', columns: ['assistant_id'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+        ]
+      }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      current_tenant: {
+        Args: Record<string, never>
+        Returns: string | null
+      }
+      provision_tenant: {
+        Args: { p_org_name: string; p_slug: string }
+        Returns: string
+      }
+      import_backup: {
+        Args: { p_payload: unknown; p_mode: 'merge' | 'replace' }
+        Returns: unknown
+      }
+    }
   }
 }
+
+export type Organization = Database['public']['Tables']['organizations']['Row']
 
 export type Profile = Database['public']['Tables']['profiles']['Row']
 export type TimeEntry = Database['public']['Tables']['time_entries']['Row']

@@ -46,10 +46,11 @@ export async function GET(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Token validieren – Profil anhand des ical_token finden
+  // Token validieren – Profil anhand des ical_token finden.
+  // Der Tenant folgt aus dem Profil des Tokens (Architektur §5.4) — nie aus der URL.
   const { data: profile } = await adminClient
     .from('profiles')
-    .select('id, full_name, role')
+    .select('id, full_name, role, tenant_id')
     .eq('ical_token', token)
     .single()
 
@@ -57,10 +58,11 @@ export async function GET(request: Request) {
     return new NextResponse('Ungültiger Token', { status: 401 })
   }
 
-  // Kalender-Slots laden (Admin sieht alle, Assistent nur eigene)
+  // Kalender-Slots laden (Admin sieht alle, Assistent nur eigene) — tenant-scoped
   let query = adminClient
     .from('calendar_slots')
     .select('*, assigned_profile:profiles!assigned_to(full_name)')
+    .eq('tenant_id', profile.tenant_id)
     .neq('status', 'cancelled')
     .order('date')
     .order('start_time')
