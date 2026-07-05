@@ -83,3 +83,59 @@ export interface Notification {
   related_id: string | null
   created_at: string
 }
+
+export type TodoRecurrence = 'per_shift' | 'daily' | 'weekly'
+
+export interface TodoTemplate {
+  id: string
+  tenant_id?: string
+  title: string
+  description: string | null
+  activity_id: string | null
+  recurrence: TodoRecurrence
+  weekday: number | null
+  assignee_id: string | null
+  active: boolean
+  sort_order: number
+  created_at: string
+  activity?: Pick<Activity, 'name'> | null
+  assignee?: Pick<Profile, 'full_name'> | null
+}
+
+export interface TodoCheck {
+  id: string
+  tenant_id?: string
+  template_id: string
+  slot_id: string | null
+  check_date: string
+  done_by: string
+  done_at: string
+  note: string | null
+  confirmed_by: string | null
+  confirmed_at: string | null
+  template?: Pick<TodoTemplate, 'title'> | null
+  done_by_profile?: Pick<Profile, 'full_name'> | null
+  confirmed_by_profile?: Pick<Profile, 'full_name'> | null
+}
+
+export type TodoStatus = 'open' | 'done' | 'cancelled'
+
+export interface Todo {
+  id: string
+  tenant_id?: string
+  title: string
+  description: string | null
+  activity_id: string | null
+  assignee_id: string | null
+  due_date: string | null
+  status: TodoStatus
+  done_by: string | null
+  done_at: string | null
+  note: string | null
+  confirmed_by: string | null
+  confirmed_at: string | null
+  created_by: string
+  created_at: string
+  activity?: Pick<Activity, 'name'> | null
+  assignee?: Pick<Profile, 'full_name'> | null
+}

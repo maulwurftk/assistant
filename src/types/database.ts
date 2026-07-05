@@ -522,6 +522,138 @@ export type Database = {
         }
         Relationships: Rel[]
       }
+      todo_templates: {
+        Row: {
+          id: string
+          tenant_id: string
+          title: string
+          description: string | null
+          activity_id: string | null
+          recurrence: 'per_shift' | 'daily' | 'weekly'
+          weekday: number | null
+          assignee_id: string | null
+          active: boolean
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          title: string
+          description?: string | null
+          activity_id?: string | null
+          recurrence?: 'per_shift' | 'daily' | 'weekly'
+          weekday?: number | null
+          assignee_id?: string | null
+          active?: boolean
+          sort_order?: number
+        }
+        Update: {
+          title?: string
+          description?: string | null
+          activity_id?: string | null
+          recurrence?: 'per_shift' | 'daily' | 'weekly'
+          weekday?: number | null
+          assignee_id?: string | null
+          active?: boolean
+          sort_order?: number
+        }
+        Relationships: [
+          { foreignKeyName: 'todo_templates_activity_id_fkey', columns: ['activity_id'], isOneToOne: false, referencedRelation: 'activities', referencedColumns: ['id'] },
+          { foreignKeyName: 'todo_templates_assignee_id_fkey', columns: ['assignee_id'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+        ]
+      }
+      todo_checks: {
+        Row: {
+          id: string
+          tenant_id: string
+          template_id: string
+          slot_id: string | null
+          check_date: string
+          done_by: string
+          done_at: string
+          note: string | null
+          confirmed_by: string | null
+          confirmed_at: string | null
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          template_id: string
+          slot_id?: string | null
+          check_date?: string
+          done_by: string
+          note?: string | null
+          confirmed_by?: string | null
+          confirmed_at?: string | null
+        }
+        Update: {
+          note?: string | null
+          confirmed_by?: string | null
+          confirmed_at?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: 'todo_checks_template_id_fkey', columns: ['template_id'], isOneToOne: false, referencedRelation: 'todo_templates', referencedColumns: ['id'] },
+          { foreignKeyName: 'todo_checks_slot_id_fkey', columns: ['slot_id'], isOneToOne: false, referencedRelation: 'calendar_slots', referencedColumns: ['id'] },
+          { foreignKeyName: 'todo_checks_done_by_fkey', columns: ['done_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'todo_checks_confirmed_by_fkey', columns: ['confirmed_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+        ]
+      }
+      todos: {
+        Row: {
+          id: string
+          tenant_id: string
+          title: string
+          description: string | null
+          activity_id: string | null
+          assignee_id: string | null
+          due_date: string | null
+          status: 'open' | 'done' | 'cancelled'
+          done_by: string | null
+          done_at: string | null
+          note: string | null
+          confirmed_by: string | null
+          confirmed_at: string | null
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          title: string
+          description?: string | null
+          activity_id?: string | null
+          assignee_id?: string | null
+          due_date?: string | null
+          status?: 'open' | 'done' | 'cancelled'
+          done_by?: string | null
+          done_at?: string | null
+          note?: string | null
+          confirmed_by?: string | null
+          confirmed_at?: string | null
+          created_by: string
+        }
+        Update: {
+          title?: string
+          description?: string | null
+          activity_id?: string | null
+          assignee_id?: string | null
+          due_date?: string | null
+          status?: 'open' | 'done' | 'cancelled'
+          done_by?: string | null
+          done_at?: string | null
+          note?: string | null
+          confirmed_by?: string | null
+          confirmed_at?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: 'todos_activity_id_fkey', columns: ['activity_id'], isOneToOne: false, referencedRelation: 'activities', referencedColumns: ['id'] },
+          { foreignKeyName: 'todos_assignee_id_fkey', columns: ['assignee_id'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'todos_done_by_fkey', columns: ['done_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'todos_confirmed_by_fkey', columns: ['confirmed_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'todos_created_by_fkey', columns: ['created_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+        ]
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -537,6 +669,10 @@ export type Database = {
         Args: { p_payload: unknown; p_mode: 'merge' | 'replace' }
         Returns: unknown
       }
+      complete_todo: {
+        Args: { p_id: string; p_note?: string | null }
+        Returns: unknown
+      }
     }
   }
 }
@@ -549,3 +685,6 @@ export type Activity = Database['public']['Tables']['activities']['Row']
 export type MonthlyReport = Database['public']['Tables']['monthly_reports']['Row']
 export type PayrollSettings = Database['public']['Tables']['payroll_settings']['Row']
 export type PayrollRun = Database['public']['Tables']['payroll_runs']['Row']
+export type TodoTemplate = Database['public']['Tables']['todo_templates']['Row']
+export type TodoCheck = Database['public']['Tables']['todo_checks']['Row']
+export type Todo = Database['public']['Tables']['todos']['Row']

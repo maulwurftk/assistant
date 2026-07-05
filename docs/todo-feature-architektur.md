@@ -1,6 +1,6 @@
 # To-do-Funktion für Assistenten · Architektur-Entwurf
 
-_Planungsdokument für eine spätere Sitzung. Stand: 2026-07-05, noch NICHT umgesetzt.
+_Stand: 2026-07-05, Fragen §7 geklärt, Umsetzung läuft.
 Kontext: Multi-Tenant ist live (Migrationen 0001–0013), nächste freie Migrationsnummer: **0014**.
 Referenzen: [Architektur](multi-tenancy-architektur.md) · [Betriebsplan](multi-tenancy-betriebsplan.md)._
 
@@ -58,8 +58,10 @@ create table todo_checks (
   done_by     uuid not null references profiles(id),
   done_at     timestamptz not null default now(),
   note        text,
+  confirmed_by uuid references profiles(id),   -- Abnahme durch Arbeitgeber (§7.3)
+  confirmed_at timestamptz,
   unique (template_id, slot_id),          -- pro Dienst nur 1× abhakbar
-  -- für daily/weekly stattdessen eindeutig pro Tag (partieller Unique-Index):
+  -- daily/weekly: eindeutig pro Tag (partieller Unique-Index, §7.5 — MVP):
   -- create unique index ... on todo_checks (template_id, check_date) where slot_id is null;
   constraint slot_or_date check (slot_id is not null or check_date is not null)
 );
@@ -77,6 +79,8 @@ create table todos (
   done_by     uuid references profiles(id),
   done_at     timestamptz,
   note        text,                            -- Rückmeldung des Assistenten
+  confirmed_by uuid references profiles(id),   -- Abnahme durch Arbeitgeber (§7.3)
+  confirmed_at timestamptz,
   created_by  uuid not null references profiles(id),
   created_at  timestamptz not null default now()
 );
@@ -122,18 +126,18 @@ hängen. Kopplung bewusst **lose** über nullable `activity_id`:
   optional „Dienst endete, Aufgabe X nicht abgehakt" → Arbeitgeber (das wäre der einzige Cron-Anteil,
   kann in bestehende Cron-Struktur pro active-Org eingehängt werden — v2, nicht MVP).
 
-## 7. Offene Fragen an Thomas (vor Umsetzung klären)
+## 7. Entscheidungen Thomas (geklärt 2026-07-05)
 
-1. Gilt „bei jedem Dienst" pro **Dienst** oder pro **Tag** (zwei Dienste am selben Tag → zweimal Mistkübel)? (Modell oben: pro Dienst)
-2. Sollen Templates einzelnen Assistenten zuweisbar sein oder reicht „gilt für alle"? (Modell: beides via nullable `assignee_id`)
-3. Braucht der Arbeitgeber eine **Abnahme** (Assistent hakt ab → Arbeitgeber bestätigt) oder reicht Abhaken + Sichtbarkeit? (Modell: nur Abhaken; Abnahme wäre Zusatzspalte `confirmed_by/At`)
-4. Fotos/Anhänge als Nachweis? (→ Supabase Storage, deutlich mehr Aufwand, eher v2)
-5. Wiederholung auch zeitbasiert unabhängig vom Dienst (täglich/wöchentlich)? (Modell: vorbereitet über `recurrence`, MVP kann mit `per_shift` + einmalig starten)
-6. Zählt Abhaken als Arbeitszeit-Anlass (Zeiteintrag-Vorschlag aus §5) — MVP oder später?
+1. **Pro Dienst** — zwei Dienste am selben Tag → zweimal abhaken. (Modell wie oben.)
+2. **Beides** — Templates via nullable `assignee_id` für alle ODER eine bestimmte Person.
+3. **MIT Abnahme** — Assistent hakt ab, Arbeitgeber bestätigt. → Zusatzspalten `confirmed_by`/`confirmed_at` auf `todo_checks` und `todos` + Bestätigen-Aktion in der Admin-Matrix. Unbestätigt ≠ unerledigt: Abhaken zählt, Abnahme ist zweite Ebene.
+4. **Keine Fotos** im MVP (v2, Supabase Storage).
+5. **daily/weekly gleich im MVP** — `recurrence` voll umsetzen inkl. partiellem Unique-Index (`(template_id, check_date) where slot_id is null`) und Checklisten-UI auch ohne Dienst-Bezug (Tages-Checkliste).
+6. **Zeiteintrag-Kopplung später** — MVP nur `activity_id` im Datenmodell + Anzeige; Ein-Tap-Zeiteintrag-Flow ist v2.
 
-## 8. Umsetzungsplan (wenn freigegeben)
+## 8. Umsetzungsplan (freigegeben 2026-07-05)
 
-1. Fragen aus §7 klären → Modell final.
+1. ~~Fragen aus §7 klären~~ → erledigt, Modell final (inkl. Abnahme + daily/weekly).
 2. Migration `0014_todos.sql` + `down/` (Composite-FKs!, RLS, ggf. RPC `complete_todo`), Staging einspielen.
 3. RLS-Tests erweitern (`__tests__/rls-cross-tenant/`, Muster all-tables: Cross-Tenant-Isolation, Assistent-darf-nur-eigenes).
 4. Typen (`types/database.ts`), UI Assistent + Admin, Nav.

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rls": "node __tests__/rls-cross-tenant/calendar-slots.test.mjs && node __tests__/rls-cross-tenant/all-tables.test.mjs && node __tests__/rls-cross-tenant/rpc.test.mjs && node __tests__/rls-cross-tenant/backup.test.mjs",
+    "test:rls": "node __tests__/rls-cross-tenant/calendar-slots.test.mjs && node __tests__/rls-cross-tenant/all-tables.test.mjs && node __tests__/rls-cross-tenant/rpc.test.mjs && node __tests__/rls-cross-tenant/backup.test.mjs && node __tests__/rls-cross-tenant/todos.test.mjs",
     "db:migrate": "node scripts/db-migrate.mjs"
   },
   "dependencies": {
