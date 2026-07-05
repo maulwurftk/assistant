@@ -14,9 +14,11 @@ set -euo pipefail
 
 # --- Prod-Ziel (fest verdrahtet, damit nichts verrutscht) --------------------
 PROD_REF="rqtwlqsfrjnzduzdjrhe"
-REGION="eu-central-1"
-POOLER_HOST="aws-0-${REGION}.pooler.supabase.com"
-PORT="5432"
+# Pooler-Host aus Prod-Dashboard: Settings -> Database -> Session Pooler.
+# Region/aws-Nummer muss exakt zum Projekt passen, sonst "tenant/user not found".
+# Bei Bedarf ueberschreiben:  POOLER_HOST='aws-1-xx-xxxx-x.pooler.supabase.com' ./scripts/prod-backup.sh
+POOLER_HOST="${POOLER_HOST:-aws-0-eu-central-1.pooler.supabase.com}"
+PORT="${PORT:-5432}"
 
 # --- Ausgabeort: außerhalb des Repos ----------------------------------------
 OUT_DIR="${BACKUP_DIR:-$HOME/supabasebackup}"
