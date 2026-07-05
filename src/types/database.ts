@@ -16,6 +16,7 @@ export type Database = {
           slug: string
           status: 'active' | 'suspended' | 'deleted'
           plan: string
+          notes: string | null
           created_at: string
         }
         Insert: {
@@ -24,12 +25,14 @@ export type Database = {
           slug: string
           status?: 'active' | 'suspended' | 'deleted'
           plan?: string
+          notes?: string | null
         }
         Update: {
           name?: string
           slug?: string
           status?: 'active' | 'suspended' | 'deleted'
           plan?: string
+          notes?: string | null
         }
         Relationships: Rel[]
       }
@@ -660,6 +663,10 @@ export type Database = {
       current_tenant: {
         Args: Record<string, never>
         Returns: string | null
+      }
+      is_org_suspended: {
+        Args: Record<string, never>
+        Returns: boolean
       }
       provision_tenant: {
         Args: { p_org_name: string; p_slug: string; p_code?: string | null }

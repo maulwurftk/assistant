@@ -95,11 +95,16 @@ export default function RegistrierungClient() {
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Registrierung verwalten</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Plattform-Einstellung — gilt für alle Organisationen
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Registrierung verwalten</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Plattform-Einstellung — gilt für alle Organisationen
+            </p>
+          </div>
+          <a href="/superadmin/mandanten" className="text-sm text-blue-600 hover:underline">
+            Mandanten →
+          </a>
         </div>
 
         {error && (

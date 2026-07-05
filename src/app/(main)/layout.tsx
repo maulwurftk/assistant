@@ -15,9 +15,16 @@ export default async function MainLayout({ children }: { children: React.ReactNo
     .eq('id', user.id)
     .single()
 
-  // Eingeloggt, aber (noch) kein Profil → Registrierung abschließen
-  // (provision_tenant wurde nach signUp noch nicht ausgeführt; Architektur §4.1)
-  if (!profile) redirect('/registrieren/abschliessen')
+  // Eingeloggt, aber (noch) kein Profil: Zwei mögliche Ursachen, die hier
+  // unterschieden werden müssen. RLS blendet das Profil über current_tenant()
+  // auch dann aus, wenn die Organisation gesperrt ist (Migration 0015) — das
+  // sieht identisch aus wie "Registrierung noch nicht abgeschlossen".
+  if (!profile) {
+    const { data: suspended } = await supabase.rpc('is_org_suspended')
+    if (suspended === true) redirect('/gesperrt')
+    // (provision_tenant wurde nach signUp noch nicht ausgeführt; Architektur §4.1)
+    redirect('/registrieren/abschliessen')
+  }
   if (!profile.active) redirect('/login')
 
   return (
