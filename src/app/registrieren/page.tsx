@@ -1,24 +1,65 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 // Registrierung neuer Arbeitgeber (Architektur §4.1):
 // signUp → provision_tenant-RPC legt Org + Admin-Profil transaktional an.
 // Falls E-Mail-Bestätigung aktiv ist (kein Session-Objekt nach signUp), wird
-// der Org-Name in user_metadata geparkt und die Provisionierung beim ersten
-// Login über /registrieren/abschliessen nachgeholt — kein Zombie-Account.
+// der Org-Name (+ Einladungscode) in user_metadata geparkt und die
+// Provisionierung beim ersten Login über /registrieren/abschliessen nachgeholt.
+//
+// Registrierungs-Gating (0013): platform_settings.registration_mode steuert,
+// ob offen / nur mit Einladungscode / geschlossen. Der eigentliche Guard sitzt
+// serverseitig in provision_tenant — die UI spiegelt ihn nur.
+type RegMode = 'open' | 'code' | 'closed'
+
+function mapProvisionError(message: string): string {
+  if (message.includes('slug already taken'))
+    return 'Dieser Organisationsname ist bereits vergeben — bitte einen anderen wählen.'
+  if (message.includes('registration code required'))
+    return 'Für die Registrierung wird ein Einladungscode benötigt.'
+  if (message.includes('invalid registration code'))
+    return 'Dieser Einladungscode ist ungültig, abgelaufen oder bereits verbraucht.'
+  if (message.includes('registration closed'))
+    return 'Die Registrierung ist derzeit geschlossen.'
+  return 'Einrichtung fehlgeschlagen: ' + message
+}
+
 export default function RegistrierenPage() {
   const router = useRouter()
   const supabase = createClient()
+  const [mode, setMode] = useState<RegMode | null>(null)
   const [orgName, setOrgName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
+  const [code, setCode] = useState('')
+  const [consent, setConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    // Einladungscode aus dem Link übernehmen (z. B. /registrieren?code=XYZ)
+    const params = new URLSearchParams(window.location.search)
+    const fromUrl = params.get('code')
+    if (fromUrl) setCode(fromUrl.trim())
+
+    // Registrierungs-Modus laden (anon-lesbar via RLS-Policy, nur dieser Key)
+    async function loadMode() {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'registration_mode')
+        .maybeSingle()
+      const value = typeof data?.value === 'string' ? data.value : 'open'
+      setMode(value === 'code' || value === 'closed' ? value : 'open')
+    }
+    loadMode()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
@@ -36,13 +77,30 @@ export default function RegistrierenPage() {
       setError('Die Passwörter stimmen nicht überein.')
       return
     }
+    if (mode === 'code' && code.trim().length === 0) {
+      setError('Bitte den Einladungscode eingeben.')
+      return
+    }
+    if (!consent) {
+      setError('Bitte stimmen Sie den Nutzungsbedingungen und der Datenschutzerklärung zu.')
+      return
+    }
 
     setLoading(true)
 
+    const trimmedCode = code.trim() || null
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { org_name: orgName.trim() } },
+      options: {
+        data: {
+          org_name: orgName.trim(),
+          // Für den /abschliessen-Pfad (E-Mail-Bestätigung aktiv) parken:
+          reg_code: trimmedCode,
+          // Einwilligungs-Nachweis (Zeitpunkt der Zustimmung im Formular):
+          terms_accepted_at: new Date().toISOString(),
+        },
+      },
     })
 
     if (signUpError) {
@@ -68,14 +126,11 @@ export default function RegistrierenPage() {
     const { error: provisionError } = await supabase.rpc('provision_tenant', {
       p_org_name: orgName.trim(),
       p_slug: orgName.trim(),
+      p_code: trimmedCode,
     })
 
     if (provisionError) {
-      setError(
-        provisionError.message.includes('slug already taken')
-          ? 'Dieser Organisationsname ist bereits vergeben — bitte einen anderen wählen.'
-          : 'Einrichtung fehlgeschlagen: ' + provisionError.message
-      )
+      setError(mapProvisionError(provisionError.message))
       setLoading(false)
       return
     }
@@ -94,7 +149,14 @@ export default function RegistrierenPage() {
           </p>
         </div>
 
-        {info ? (
+        {mode === null ? (
+          <p className="text-sm text-slate-500">Einen Moment…</p>
+        ) : mode === 'closed' ? (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg">
+            Die Registrierung ist derzeit geschlossen. Bitte wenden Sie sich an
+            den Betreiber, wenn Sie ein Konto benötigen.
+          </p>
+        ) : info ? (
           <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg">
             {info}
           </p>
@@ -162,6 +224,49 @@ export default function RegistrierenPage() {
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            {mode === 'code' && (
+              <div>
+                <label htmlFor="reg-code" className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Einladungscode
+                </label>
+                <input
+                  id="reg-code"
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                  autoComplete="off"
+                  placeholder="Code aus Ihrer Einladung"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            )}
+
+            <label htmlFor="reg-consent" className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                id="reg-consent"
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                required
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-xs text-slate-600">
+                Ich habe die{' '}
+                <a href="/nutzungsbedingungen" target="_blank" className="text-blue-600 hover:underline">
+                  Nutzungsbedingungen
+                </a>{' '}
+                und die{' '}
+                <a href="/datenschutz" target="_blank" className="text-blue-600 hover:underline">
+                  Datenschutzerklärung
+                </a>{' '}
+                gelesen und stimme ihnen zu. Mir ist bekannt, dass in dieser
+                Anwendung personenbezogene Daten meiner Beschäftigten
+                verarbeitet werden und ich dafür als Arbeitgeber
+                datenschutzrechtlich verantwortlich bin.
+              </span>
+            </label>
 
             {error && (
               <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">

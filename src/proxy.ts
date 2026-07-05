@@ -42,7 +42,20 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse
   }
 
-  if (!user && !pathname.startsWith('/login')) {
+  // Ohne Session erreichbare Seiten: Login, Registrierung (inkl. /abschliessen,
+  // das clientseitig selbst auf /login umleitet), Auth-Callback (E-Mail-
+  // Bestätigungslinks!) und Rechtsseiten.
+  const publicPaths = [
+    '/login',
+    '/registrieren',
+    '/auth/callback',
+    '/datenschutz',
+    '/nutzungsbedingungen',
+  ]
+  const isPublic = publicPaths.some(
+    (p) => pathname === p || pathname.startsWith(p + '/')
+  )
+  if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

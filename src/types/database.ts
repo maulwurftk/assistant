@@ -468,6 +468,48 @@ export type Database = {
           { foreignKeyName: 'assistant_unavailability_assistant_id_fkey', columns: ['assistant_id'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
         ]
       }
+      platform_settings: {
+        Row: {
+          key: string
+          value: unknown
+          updated_at: string
+        }
+        Insert: {
+          key: string
+          value: unknown
+        }
+        Update: {
+          value?: unknown
+        }
+        Relationships: Rel[]
+      }
+      registration_codes: {
+        Row: {
+          id: string
+          code: string
+          max_uses: number
+          used_count: number
+          expires_at: string | null
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          max_uses?: number
+          used_count?: number
+          expires_at?: string | null
+          note?: string | null
+        }
+        Update: {
+          code?: string
+          max_uses?: number
+          used_count?: number
+          expires_at?: string | null
+          note?: string | null
+        }
+        Relationships: Rel[]
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -476,7 +518,7 @@ export type Database = {
         Returns: string | null
       }
       provision_tenant: {
-        Args: { p_org_name: string; p_slug: string }
+        Args: { p_org_name: string; p_slug: string; p_code?: string | null }
         Returns: string
       }
       import_backup: {
