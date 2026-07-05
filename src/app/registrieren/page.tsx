@@ -93,6 +93,10 @@ export default function RegistrierenPage() {
       email,
       password,
       options: {
+        // Bestätigungslink explizit auf die aktuelle Domain zeigen lassen
+        // (unabhängig von der Supabase-Site-URL); nach Bestätigung direkt
+        // in den Abschluss der Einrichtung.
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/registrieren/abschliessen')}`,
         data: {
           org_name: orgName.trim(),
           // Für den /abschliessen-Pfad (E-Mail-Bestätigung aktiv) parken:
