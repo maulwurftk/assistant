@@ -468,6 +468,17 @@ export type Database = {
           { foreignKeyName: 'assistant_unavailability_assistant_id_fkey', columns: ['assistant_id'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
         ]
       }
+      platform_admins: {
+        Row: {
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+        }
+        Update: Record<string, never>
+        Relationships: Rel[]
+      }
       platform_settings: {
         Row: {
           key: string
@@ -480,6 +491,7 @@ export type Database = {
         }
         Update: {
           value?: unknown
+          updated_at?: string
         }
         Relationships: Rel[]
       }
