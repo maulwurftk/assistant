@@ -79,7 +79,7 @@ export async function GET(request: Request) {
     `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}` +
     `T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://assistenten-app.vercel.app'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://assistenz.charmely.cloud'
 
   const lines: string[] = [
     'BEGIN:VCALENDAR',

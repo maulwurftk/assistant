@@ -145,7 +145,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Keine Stunden für diesen Monat erfasst' }, { status: 400 })
   }
 
-  const fromEmail = process.env.FROM_EMAIL ?? 'noreply@example.com'
+  const fromEmail = process.env.FROM_EMAIL ?? 'noreply@charmely.cloud'
 
   const rowsHtml = allEntries
     .map((e) => {

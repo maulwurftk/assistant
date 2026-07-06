@@ -62,14 +62,14 @@ export async function POST(request: Request) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: process.env.FROM_EMAIL ?? 'noreply@assistenten-app.de',
+          from: process.env.FROM_EMAIL ?? 'noreply@charmely.cloud',
           to: process.env.ADMIN_EMAIL,
           subject: `[Assistenten-App] ${title}`,
           html: `
             <h2>Neuer Monatsbericht</h2>
             <p>${escapeHtml(message)}</p>
             <p>Bitte melden Sie sich an, um den Bericht einzusehen und zu exportieren.</p>
-            <p><a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/admin/berichte">Zum Bericht</a></p>
+            <p><a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://assistenz.charmely.cloud'}/admin/berichte">Zum Bericht</a></p>
           `,
         }),
       })

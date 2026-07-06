@@ -12,8 +12,8 @@ const adminDb = () => createAdminClient<Database>(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://karas.pro'
-const FROM = process.env.FROM_EMAIL ?? 'noreply@karas.pro'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://assistenz.charmely.cloud'
+const FROM = process.env.FROM_EMAIL ?? 'noreply@charmely.cloud'
 
 async function sendEmail(to: string, subject: string, html: string) {
   if (!process.env.RESEND_API_KEY) return

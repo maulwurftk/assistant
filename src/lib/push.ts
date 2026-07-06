@@ -17,7 +17,7 @@ function initWebPush() {
   const privateKey = process.env.VAPID_PRIVATE_KEY
   if (!publicKey || !privateKey) return null
   // VAPID-Subject muss eine mailto:- oder https-URL sein
-  let subject = process.env.VAPID_EMAIL ?? 'mailto:admin@example.com'
+  let subject = process.env.VAPID_EMAIL ?? 'mailto:admin@charmely.cloud'
   if (!subject.startsWith('mailto:') && !subject.startsWith('http')) {
     subject = `mailto:${subject}`
   }

@@ -6,7 +6,7 @@
 #      homeassistant:
 #        packages: !include_dir_named packages
 # 3. In secrets.yaml hinzufügen:
-#      assistenten_url: "https://assistenz.karas.pro/api/ha/status?token=DEIN-ICAL-TOKEN"
+#      assistenten_url: "https://assistenz.charmely.cloud/api/ha/status?token=DEIN-ICAL-TOKEN"
 # 4. Home Assistant neu starten (NICHT nur "YAML neu laden", das reicht für packages nicht)
 
 rest:

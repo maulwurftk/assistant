@@ -28,8 +28,8 @@ export async function POST(request: Request) {
   const windowStart = addHours(now, 24)
   const windowEnd = addHours(now, 48)
 
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://karas.pro'
-  const FROM = process.env.FROM_EMAIL ?? 'noreply@karas.pro'
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://assistenz.charmely.cloud'
+  const FROM = process.env.FROM_EMAIL ?? 'noreply@charmely.cloud'
 
   const { data: orgs } = await db.from('organizations').select('id').eq('status', 'active')
   let remindedTotal = 0
