@@ -49,6 +49,7 @@ export async function proxy(request: NextRequest) {
   // nach Sperrung).
   const publicPaths = [
     '/login',
+    '/passwort-vergessen',
     '/registrieren',
     '/auth/callback',
     '/datenschutz',
