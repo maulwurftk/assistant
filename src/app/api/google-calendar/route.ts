@@ -6,10 +6,18 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
   if (profile?.role !== 'admin') return NextResponse.json([])
 
-  const icalUrl = process.env.GOOGLE_CALENDAR_ICAL_URL
+  // Kalender-Feed ist pro Mandant hinterlegt (organizations.google_calendar_ical_url),
+  // NIE global — sonst sehen alle Admins aller Mandanten denselben Kalender.
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('google_calendar_ical_url')
+    .eq('id', (profile as any).tenant_id)
+    .single()
+
+  const icalUrl = (org as any)?.google_calendar_ical_url
   if (!icalUrl) return NextResponse.json([])
 
   try {
