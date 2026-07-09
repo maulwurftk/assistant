@@ -67,12 +67,39 @@ export function OneOffTab() {
   }, [])
 
   async function loadTodos() {
-    const { data } = await supabase
+    // Kein Embed-Hint für activity/assignee: seit Migration 0014 gibt es je
+    // zwei FKs auf activities/profiles (Einzelspalte + Tenant-Composite),
+    // PostgREST liefert dann 300 Multiple Choices statt Daten (siehe
+    // TemplatesTab/MonitoringTab). Getrennte Query statt Embed.
+    const { data, error } = await supabase
       .from('todos')
-      .select('*, activity:activities(name), assignee:profiles!assignee_id(full_name)')
+      .select('*')
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
-    setTodos((data ?? []) as unknown as Todo[])
+    if (error) { toast.error('Fehler beim Laden: ' + error.message); return }
+    const rows = (data ?? []) as unknown as Todo[]
+
+    const activityIds = Array.from(new Set(rows.map((r) => r.activity_id).filter(Boolean) as string[]))
+    const assigneeIds = Array.from(new Set(rows.map((r) => r.assignee_id).filter(Boolean) as string[]))
+
+    const [{ data: acts }, { data: assignees }] = await Promise.all([
+      activityIds.length
+        ? supabase.from('activities').select('id, name').in('id', activityIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      assigneeIds.length
+        ? supabase.from('profiles').select('id, full_name').in('id', assigneeIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    ])
+    const activityMap = new Map((acts ?? []).map((a) => [a.id, a]))
+    const assigneeMap = new Map((assignees ?? []).map((a) => [a.id, a]))
+
+    setTodos(
+      rows.map((r) => ({
+        ...r,
+        activity: r.activity_id ? activityMap.get(r.activity_id) ?? null : null,
+        assignee: r.assignee_id ? assigneeMap.get(r.assignee_id) ?? null : null,
+      })) as unknown as Todo[]
+    )
   }
 
   async function loadActivities() {

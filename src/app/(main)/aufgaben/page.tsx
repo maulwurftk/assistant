@@ -32,13 +32,45 @@ export default async function AufgabenPage() {
     .order('start_time')
 
   // Aktive Templates des Tenants (alle Recurrence-Arten in einem Rutsch laden)
-  const { data: templates } = await supabase
+  // Kein Embed-Hint für activity/assignee: seit Migration 0014 gibt es je zwei
+  // FKs auf activities/profiles (Einzelspalte + Tenant-Composite), PostgREST
+  // liefert dann 300 Multiple Choices statt Daten. Getrennte Query statt Embed
+  // (gleiches Muster wie admin/aufgaben/TemplatesTab.tsx).
+  const { data: templatesRaw } = await supabase
     .from('todo_templates')
-    .select('*, activity:activities(name), assignee:profiles!assignee_id(full_name)')
+    .select('*')
     .eq('active', true)
     .order('sort_order')
 
-  const allTemplates = (templates ?? []) as unknown as TodoTemplate[]
+  // Einmalaufgaben: offen, nicht storniert, unzugewiesen oder mir zugewiesen
+  const { data: todosRaw } = await supabase
+    .from('todos')
+    .select('*')
+    .eq('status', 'open')
+    .or(`assignee_id.is.null,assignee_id.eq.${user.id}`)
+    .order('due_date', { ascending: true, nullsFirst: false })
+
+  const allTemplatesRaw = (templatesRaw ?? []) as unknown as TodoTemplate[]
+  const todosRawTyped = (todosRaw ?? []) as unknown as Todo[]
+
+  // activity-Namen für Templates + Todos gemeinsam nachladen (kein Embed, s.o.)
+  const activityIds = Array.from(
+    new Set([...allTemplatesRaw.map((t) => t.activity_id), ...todosRawTyped.map((t) => t.activity_id)].filter(Boolean) as string[])
+  )
+  const { data: activitiesData } = activityIds.length
+    ? await supabase.from('activities').select('id, name').in('id', activityIds)
+    : { data: [] as { id: string; name: string }[] }
+  const activityMap = new Map((activitiesData ?? []).map((a) => [a.id, a]))
+
+  const allTemplates = allTemplatesRaw.map((t) => ({
+    ...t,
+    activity: t.activity_id ? activityMap.get(t.activity_id) ?? null : null,
+  })) as unknown as TodoTemplate[]
+  const todos = todosRawTyped.map((t) => ({
+    ...t,
+    activity: t.activity_id ? activityMap.get(t.activity_id) ?? null : null,
+  })) as unknown as Todo[]
+
   const perShiftTemplates = allTemplates.filter(
     (t) => t.recurrence === 'per_shift' && (t.assignee_id === null || t.assignee_id === user.id)
   )
@@ -59,16 +91,6 @@ export default async function AufgabenPage() {
     .select('*')
     .eq('check_date', today)
     .is('slot_id', null)
-
-  // Einmalaufgaben: offen, nicht storniert, unzugewiesen oder mir zugewiesen
-  const { data: todosRaw } = await supabase
-    .from('todos')
-    .select('*, activity:activities(name)')
-    .eq('status', 'open')
-    .or(`assignee_id.is.null,assignee_id.eq.${user.id}`)
-    .order('due_date', { ascending: true, nullsFirst: false })
-
-  const todos = (todosRaw ?? []) as unknown as Todo[]
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

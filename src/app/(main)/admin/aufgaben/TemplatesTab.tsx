@@ -94,11 +94,39 @@ export function TemplatesTab() {
   }, [])
 
   async function loadTemplates() {
-    const { data } = await supabase
+    // Kein Embed-Hint für activity/assignee: seit Migration 0014 gibt es je
+    // zwei FKs auf activities/profiles (Einzelspalte + Tenant-Composite aus
+    // Schritt 5), PostgREST kann das nicht mehr eindeutig auflösen (300
+    // Multiple Choices, Insert wirkt dann nach außen wie "passiert nichts").
+    // Gleiches Muster wie MonitoringTab: getrennte Query statt Embed.
+    const { data, error } = await supabase
       .from('todo_templates')
-      .select('*, activity:activities(name), assignee:profiles!assignee_id(full_name)')
+      .select('*')
       .order('sort_order')
-    setTemplates((data ?? []) as unknown as TodoTemplate[])
+    if (error) { toast.error('Fehler beim Laden: ' + error.message); return }
+    const rows = (data ?? []) as unknown as TodoTemplate[]
+
+    const activityIds = Array.from(new Set(rows.map((r) => r.activity_id).filter(Boolean) as string[]))
+    const assigneeIds = Array.from(new Set(rows.map((r) => r.assignee_id).filter(Boolean) as string[]))
+
+    const [{ data: acts }, { data: assignees }] = await Promise.all([
+      activityIds.length
+        ? supabase.from('activities').select('id, name').in('id', activityIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      assigneeIds.length
+        ? supabase.from('profiles').select('id, full_name').in('id', assigneeIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    ])
+    const activityMap = new Map((acts ?? []).map((a) => [a.id, a]))
+    const assigneeMap = new Map((assignees ?? []).map((a) => [a.id, a]))
+
+    setTemplates(
+      rows.map((r) => ({
+        ...r,
+        activity: r.activity_id ? activityMap.get(r.activity_id) ?? null : null,
+        assignee: r.assignee_id ? assigneeMap.get(r.assignee_id) ?? null : null,
+      })) as unknown as TodoTemplate[]
+    )
   }
 
   async function loadActivities() {
