@@ -34,6 +34,8 @@ import {
   CalendarOff,
   Save,
   ListTodo,
+  Building2,
+  UserPlus,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -41,9 +43,10 @@ import { ThemeToggle } from '@/components/theme-toggle'
 
 interface NavProps {
   profile: Profile
+  isPlatformAdmin?: boolean
 }
 
-const navItems = (role: string) => [
+const navItems = (role: string, isPlatformAdmin?: boolean) => [
   { href: '/dashboard', label: 'Übersicht', icon: LayoutDashboard },
   { href: '/zeiterfassung', label: 'Zeiterfassung', icon: Clock },
   { href: '/kalender', label: 'Kalender', icon: CalendarDays },
@@ -59,11 +62,15 @@ const navItems = (role: string) => [
     { href: '/payroll', label: 'Abrechnung', icon: Banknote },
     { href: '/admin/sicherung', label: 'Datensicherung', icon: Save },
   ] : []),
+  ...(isPlatformAdmin ? [
+    { href: '/superadmin/mandanten', label: 'Mandanten', icon: Building2, section: 'Superadmin' },
+    { href: '/superadmin/registrierung', label: 'Registrierung', icon: UserPlus },
+  ] : []),
 ]
 
-function NavLinks({ profile, onClick }: { profile: Profile; onClick?: () => void }) {
+function NavLinks({ profile, isPlatformAdmin, onClick }: { profile: Profile; isPlatformAdmin?: boolean; onClick?: () => void }) {
   const pathname = usePathname()
-  const items = navItems(profile.role)
+  const items = navItems(profile.role, isPlatformAdmin)
   let lastSection = ''
 
   return (
@@ -102,7 +109,7 @@ function NavLinks({ profile, onClick }: { profile: Profile; onClick?: () => void
   )
 }
 
-export function Navigation({ profile }: NavProps) {
+export function Navigation({ profile, isPlatformAdmin }: NavProps) {
   const router = useRouter()
   const supabase = createClient()
   const [unreadCount, setUnreadCount] = useState(0)
@@ -152,7 +159,7 @@ export function Navigation({ profile }: NavProps) {
 
         {/* Nav */}
         <div className="flex-1 px-3 py-4">
-          <NavLinks profile={profile} />
+          <NavLinks profile={profile} isPlatformAdmin={isPlatformAdmin} />
         </div>
 
         {/* User Footer */}
@@ -222,14 +229,14 @@ export function Navigation({ profile }: NavProps) {
             <SheetTrigger aria-label="Menü öffnen" className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
               <Menu className="h-5 w-5 text-gray-600" />
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0 border-r border-gray-100">
-              <div className="flex items-center gap-2.5 px-5 py-5 border-b border-gray-100">
+            <SheetContent side="left" className="w-72 p-0 border-r border-gray-100 flex flex-col overflow-hidden">
+              <div className="flex items-center gap-2.5 px-5 py-5 border-b border-gray-100 shrink-0">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 shrink-0">
                   <Users className="h-4 w-4 text-white" />
                 </div>
                 <span className="font-semibold text-gray-900 text-sm">Assistenten-App</span>
               </div>
-              <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100 shrink-0">
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="bg-emerald-100 text-emerald-700 text-sm font-semibold">
                     {initials}
@@ -240,10 +247,10 @@ export function Navigation({ profile }: NavProps) {
                   <p className="text-xs text-gray-400">{profile.role === 'admin' ? 'Administrator' : 'Assistent'}</p>
                 </div>
               </div>
-              <div className="px-3 py-4">
-                <NavLinks profile={profile} onClick={() => setMobileOpen(false)} />
+              <div className="flex-1 min-h-0 overflow-y-auto px-3 py-4">
+                <NavLinks profile={profile} isPlatformAdmin={isPlatformAdmin} onClick={() => setMobileOpen(false)} />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 border-t border-gray-100 p-3 space-y-0.5">
+              <div className="shrink-0 border-t border-gray-100 p-3 space-y-0.5">
                 <Link
                   href="/benachrichtigungen"
                   onClick={() => setMobileOpen(false)}

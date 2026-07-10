@@ -40,6 +40,7 @@ export default async function PrintPage({ params }: Props) {
       .from('time_entries')
       .select('id, date, start_time, end_time, activity_id, description, month_status')
       .eq('assistant_id', assistantId)
+      .eq('is_private', false)
       .gte('date', dateFrom)
       .lt('date', dateTo)
       .order('date')
@@ -72,6 +73,7 @@ export default async function PrintPage({ params }: Props) {
     mj_kv_ag?: number | null
     mj_rv_ag?: number | null
     mj_pauschsteuer?: number | null
+    mj_u1?: number | null
     mj_u2?: number | null
     mj_insolvenzgeld?: number | null
     mj_rv_an?: number | null
@@ -373,6 +375,10 @@ export default async function PrintPage({ params }: Props) {
                 <div className="flex justify-between text-blue-900">
                   <span>Lohnsteuerpauschale ({rates.pauschsteuer.toFixed(2)} %)</span>
                   <span>{formatCurrency(minijob.pauschsteuerAmount, currency)}</span>
+                </div>
+                <div className="flex justify-between text-blue-900">
+                  <span>Umlage 1 Krankheit/Kur ({rates.u1.toFixed(2)} %)</span>
+                  <span>{formatCurrency(minijob.u1Amount, currency)}</span>
                 </div>
                 <div className="flex justify-between text-blue-900">
                   <span>Umlage 2 Mutterschaft ({rates.u2.toFixed(2)} %)</span>

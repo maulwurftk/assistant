@@ -34,6 +34,7 @@ export default async function DashboardPage() {
       .from('time_entries')
       .select('*, activity:activities(name)')
       .eq('assistant_id', user.id)
+      .eq('is_private', false)
       .gte('date', monthStart)
       .lte('date', monthEnd)
       .order('date', { ascending: false })

@@ -32,6 +32,7 @@ export interface TimeEntry {
   activity_id: string | null
   description: string | null
   month_status: MonthStatus
+  is_private: boolean
   created_at: string
   updated_at: string
   activity?: Pick<Activity, 'name'> | null

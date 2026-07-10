@@ -17,6 +17,7 @@ export type Database = {
           status: 'active' | 'suspended' | 'deleted'
           plan: string
           notes: string | null
+          onboarding_completed_at: string | null
           created_at: string
         }
         Insert: {
@@ -26,6 +27,7 @@ export type Database = {
           status?: 'active' | 'suspended' | 'deleted'
           plan?: string
           notes?: string | null
+          onboarding_completed_at?: string | null
         }
         Update: {
           name?: string
@@ -33,6 +35,7 @@ export type Database = {
           status?: 'active' | 'suspended' | 'deleted'
           plan?: string
           notes?: string | null
+          onboarding_completed_at?: string | null
         }
         Relationships: Rel[]
       }
@@ -111,6 +114,7 @@ export type Database = {
           activity_id: string | null
           description: string | null
           month_status: 'draft' | 'confirmed' | 'sent'
+          is_private: boolean
           created_at: string
           updated_at: string
         }
@@ -124,6 +128,7 @@ export type Database = {
           activity_id?: string | null
           description?: string | null
           month_status?: 'draft' | 'confirmed' | 'sent'
+          is_private?: boolean
           updated_at?: string
         }
         Update: {
@@ -134,6 +139,7 @@ export type Database = {
           activity_id?: string | null
           description?: string | null
           month_status?: 'draft' | 'confirmed' | 'sent'
+          is_private?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -194,9 +200,12 @@ export type Database = {
           monthly_budget: number
           account_fee: number
           weekly_hours_target: number
+          reserve_months: number
+          private_hours_budget: number
           mj_kv_ag: number
           mj_rv_ag: number
           mj_pauschsteuer: number
+          mj_u1: number
           mj_u2: number
           mj_insolvenzgeld: number
           mj_rv_an: number
@@ -220,9 +229,12 @@ export type Database = {
           monthly_budget?: number
           account_fee?: number
           weekly_hours_target?: number
+          reserve_months?: number
+          private_hours_budget?: number
           mj_kv_ag?: number
           mj_rv_ag?: number
           mj_pauschsteuer?: number
+          mj_u1?: number
           mj_u2?: number
           mj_insolvenzgeld?: number
           mj_rv_an?: number
@@ -242,9 +254,12 @@ export type Database = {
           monthly_budget?: number
           account_fee?: number
           weekly_hours_target?: number
+          reserve_months?: number
+          private_hours_budget?: number
           mj_kv_ag?: number
           mj_rv_ag?: number
           mj_pauschsteuer?: number
+          mj_u1?: number
           mj_u2?: number
           mj_insolvenzgeld?: number
           mj_rv_an?: number
@@ -678,6 +693,10 @@ export type Database = {
       }
       complete_todo: {
         Args: { p_id: string; p_note?: string | null }
+        Returns: unknown
+      }
+      complete_onboarding: {
+        Args: Record<string, never>
         Returns: unknown
       }
     }

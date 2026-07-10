@@ -50,6 +50,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     supabase
       .from('time_entries')
       .select('id, assistant_id, date, start_time, end_time, activity_id, month_status')
+      .eq('is_private', false)
       .gte('date', dateFrom)
       .lt('date', dateTo),
     supabase
@@ -83,6 +84,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     mj_kv_ag?: number | null
     mj_rv_ag?: number | null
     mj_pauschsteuer?: number | null
+    mj_u1?: number | null
     mj_u2?: number | null
     mj_insolvenzgeld?: number | null
     mj_rv_an?: number | null

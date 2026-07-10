@@ -44,6 +44,7 @@ interface EntryForm {
   end_time: string
   activity_id: string
   description: string
+  is_private: boolean
 }
 
 const emptyForm: EntryForm = {
@@ -52,6 +53,7 @@ const emptyForm: EntryForm = {
   end_time: '12:00',
   activity_id: '',
   description: '',
+  is_private: false,
 }
 
 export default function ZeiterfassungPage() {
@@ -68,12 +70,15 @@ export default function ZeiterfassungPage() {
   const [monthlyConfirmOpen, setMonthlyConfirmOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [privateHoursBudget, setPrivateHoursBudget] = useState(0)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setUserId(user.id)
     })
     loadActivities()
+    supabase.from('payroll_settings').select('private_hours_budget').limit(1).single()
+      .then(({ data }) => setPrivateHoursBudget(data?.private_hours_budget ?? 0))
   }, [])
 
   useEffect(() => {
@@ -128,6 +133,7 @@ export default function ZeiterfassungPage() {
       end_time: entry.end_time.slice(0, 5),
       activity_id: entry.activity_id ?? '',
       description: entry.description ?? '',
+      is_private: entry.is_private ?? false,
     })
     setDialogOpen(true)
   }
@@ -147,6 +153,7 @@ export default function ZeiterfassungPage() {
       end_time: form.end_time,
       activity_id: form.activity_id || null,
       description: form.description || null,
+      is_private: form.is_private,
       updated_at: new Date().toISOString(),
     }
 
@@ -227,7 +234,13 @@ export default function ZeiterfassungPage() {
     setSubmitting(false)
   }
 
-  const totalHours = entries.reduce((acc, e) => {
+  const totalHours = entries.filter(e => !e.is_private).reduce((acc, e) => {
+    const [sh, sm] = e.start_time.split(':').map(Number)
+    const [eh, em] = e.end_time.split(':').map(Number)
+    return acc + (eh * 60 + em - sh * 60 - sm) / 60
+  }, 0)
+
+  const privateHours = entries.filter(e => e.is_private).reduce((acc, e) => {
     const [sh, sm] = e.start_time.split(':').map(Number)
     const [eh, em] = e.end_time.split(':').map(Number)
     return acc + (eh * 60 + em - sh * 60 - sm) / 60
@@ -270,6 +283,16 @@ export default function ZeiterfassungPage() {
           <span className="text-green-700 font-medium text-sm">
             ✓ Monat abgeschlossen und gesendet am{' '}
             {report?.sent_at ? format(new Date(report.sent_at), 'dd.MM.yyyy', { locale: de }) : ''}
+          </span>
+        </div>
+      )}
+
+      {/* Private Hours */}
+      {(privateHours > 0 || privateHoursBudget > 0) && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-600 flex items-center justify-between">
+          <span>Private Stunden diesen Monat (unbezahlt, außerhalb Budget)</span>
+          <span className="font-medium text-gray-800">
+            {privateHours.toFixed(1)} h{privateHoursBudget > 0 ? ` / ${privateHoursBudget.toFixed(1)} h` : ''}
           </span>
         </div>
       )}
@@ -347,6 +370,21 @@ export default function ZeiterfassungPage() {
                 rows={3}
               />
             </div>
+            <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_private}
+                onChange={(e) => setForm({ ...form, is_private: e.target.checked })}
+                className="mt-0.5 rounded border-gray-300"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-gray-700">Privat (unbezahlt)</span>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Zählt nicht zu Ihren regulären Stunden, Lohn oder Budget – nur sichtbar in der
+                  eigenen Übersicht.
+                </p>
+              </span>
+            </label>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                 Abbrechen
@@ -384,7 +422,7 @@ export default function ZeiterfassungPage() {
             <AlertDialogTitle>Monat abschließen?</AlertDialogTitle>
             <AlertDialogDescription>
               Sie schließen {format(currentMonth, 'MMMM yyyy', { locale: de })} mit{' '}
-              {totalHours.toFixed(1)} Stunden ({entries.length} Einträge) ab.
+              {totalHours.toFixed(1)} Stunden ({entries.filter(e => !e.is_private).length} Einträge) ab.
               Nach dem Senden können keine Änderungen mehr vorgenommen werden.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -427,6 +465,9 @@ export default function ZeiterfassungPage() {
                         {entry.start_time.slice(0, 5)} – {entry.end_time.slice(0, 5)} Uhr
                       </span>
                       <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
+                      {entry.is_private && (
+                        <Badge className="text-xs bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
+                      )}
                     </div>
                     <div className="mt-0.5 text-xs text-gray-500">
                       {(entry.activity as any)?.name ?? (

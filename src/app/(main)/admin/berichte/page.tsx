@@ -76,6 +76,7 @@ export default function BerichtePage() {
       .from('time_entries')
       .select('*, activity:activities(name)')
       .eq('assistant_id', report.assistant_id)
+      .eq('is_private', false)
       .gte('date', monthStart)
       .lte('date', monthEnd)
       .order('date')
@@ -98,6 +99,7 @@ export default function BerichtePage() {
       .from('time_entries')
       .select('*, activity:activities(name)')
       .eq('assistant_id', report.assistant_id)
+      .eq('is_private', false)
       .gte('date', monthStart)
       .lte('date', monthEnd)
       .order('date')
@@ -156,6 +158,7 @@ export default function BerichtePage() {
     const { data: entries } = await supabase
       .from('time_entries')
       .select('*, activity:activities(name), assistant:profiles!assistant_id(full_name)')
+      .eq('is_private', false)
       .gte('date', monthStart)
       .lte('date', monthEnd)
       .order('assistant_id')

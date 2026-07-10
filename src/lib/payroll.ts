@@ -73,20 +73,23 @@ export interface MinijobRates {
   kvAG: number          // Krankenversicherung AG
   rvAG: number          // Rentenversicherung AG
   pauschsteuer: number  // Lohnsteuerpauschale
+  u1: number            // Umlage 1 (Krankheit/Kur)
   u2: number            // Umlage 2 (Mutterschaft)
-  insolvenzgeld: number // Insolvenzgeldumlage
+  insolvenzgeld: number // Insolvenzgeldumlage (im Haushaltsscheck-Verfahren i.d.R. 0)
   rvAN: number          // Aufstockungsbetrag AN (wenn RV-pflichtig)
 }
 
-// Pauschalbeitragssätze 2025 (Arbeitgeber, via Minijob-Zentrale) – Default/Fallback.
+// Pauschalbeitragssätze Haushaltsscheck-Verfahren, gültig seit 01.01.2026
+// (Arbeitgeber, via Minijob-Zentrale) – Default/Fallback.
 // Können pro Instanz in den Einstellungen überschrieben werden.
 export const MINIJOB_RATES: MinijobRates = {
-  kvAG: 13.00,
-  rvAG: 15.00,
+  kvAG: 5.00,
+  rvAG: 5.00,
   pauschsteuer: 2.00,
-  u2: 0.24,
-  insolvenzgeld: 0.06,
-  rvAN: 3.60,
+  u1: 0.80,
+  u2: 0.22,
+  insolvenzgeld: 0.00,
+  rvAN: 13.60,
 }
 
 // Sätze aus den (evtl. teilweise gesetzten) payroll_settings-Spalten auflösen.
@@ -97,6 +100,7 @@ export function ratesFromSettings(
         mj_kv_ag?: number | null
         mj_rv_ag?: number | null
         mj_pauschsteuer?: number | null
+        mj_u1?: number | null
         mj_u2?: number | null
         mj_insolvenzgeld?: number | null
         mj_rv_an?: number | null
@@ -110,6 +114,7 @@ export function ratesFromSettings(
     kvAG: num(s?.mj_kv_ag, MINIJOB_RATES.kvAG),
     rvAG: num(s?.mj_rv_ag, MINIJOB_RATES.rvAG),
     pauschsteuer: num(s?.mj_pauschsteuer, MINIJOB_RATES.pauschsteuer),
+    u1: num(s?.mj_u1, MINIJOB_RATES.u1),
     u2: num(s?.mj_u2, MINIJOB_RATES.u2),
     insolvenzgeld: num(s?.mj_insolvenzgeld, MINIJOB_RATES.insolvenzgeld),
     rvAN: num(s?.mj_rv_an, MINIJOB_RATES.rvAN),
@@ -123,6 +128,7 @@ export interface MinijobBreakdown {
   kvAGAmount: number
   rvAGAmount: number
   pauschsteuerAmount: number
+  u1Amount: number
   u2Amount: number
   insolvenzgeldAmount: number
   uvAmount: number          // Unfallversicherung (konfigurierbar)
@@ -142,6 +148,7 @@ export function calculateMinijob(
   const kvAGAmount = kvPflicht ? pct(rates.kvAG) : 0
   const rvAGAmount = pct(rates.rvAG)
   const pauschsteuerAmount = pct(rates.pauschsteuer)
+  const u1Amount = pct(rates.u1)
   const u2Amount = pct(rates.u2)
   const insolvenzgeldAmount = pct(rates.insolvenzgeld)
   const uvAmount = pct(uvRate)
@@ -150,7 +157,7 @@ export function calculateMinijob(
   const netto = Math.round((brutto - rvAN) * 100) / 100
 
   const totalAGAbgaben = Math.round(
-    (kvAGAmount + rvAGAmount + pauschsteuerAmount + u2Amount + insolvenzgeldAmount + uvAmount) * 100
+    (kvAGAmount + rvAGAmount + pauschsteuerAmount + u1Amount + u2Amount + insolvenzgeldAmount + uvAmount) * 100
   ) / 100
   const totalKosten = Math.round((brutto + totalAGAbgaben) * 100) / 100
 
@@ -161,6 +168,7 @@ export function calculateMinijob(
     kvAGAmount,
     rvAGAmount,
     pauschsteuerAmount,
+    u1Amount,
     u2Amount,
     insolvenzgeldAmount,
     uvAmount,
@@ -178,7 +186,7 @@ export function agTotalPercent(
   rates: MinijobRates = MINIJOB_RATES
 ): number {
   const kv = kvPflicht ? rates.kvAG : 0
-  return kv + rates.rvAG + rates.pauschsteuer + rates.u2 + rates.insolvenzgeld + uvRate
+  return kv + rates.rvAG + rates.pauschsteuer + rates.u1 + rates.u2 + rates.insolvenzgeld + uvRate
 }
 
 export function grossFromBezirkRate(

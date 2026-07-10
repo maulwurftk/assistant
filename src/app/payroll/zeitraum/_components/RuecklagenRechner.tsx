@@ -7,6 +7,8 @@ type Props = {
   currency: string
   monthlyBudget: number
   agAbgabenPeriod: number
+  /** Startwert aus payroll_settings.reserve_months (Onboarding-Schritt 4 / Einstellungen). */
+  defaultReserveMonths?: number
 }
 
 function euro(v: string): number {
@@ -14,13 +16,14 @@ function euro(v: string): number {
   return isNaN(n) ? 0 : n
 }
 
-export function RuecklagenRechner({ currency, monthlyBudget, agAbgabenPeriod }: Props) {
+export function RuecklagenRechner({ currency, monthlyBudget, agAbgabenPeriod, defaultReserveMonths = 2 }: Props) {
   const [kontostand, setKontostand] = useState('')
   const [minijobRes, setMinijobRes] = useState(agAbgabenPeriod.toFixed(2).replace('.', ','))
-  const [budgetMonths, setBudgetMonths] = useState('2')
+  const [budgetMonths, setBudgetMonths] = useState(String(defaultReserveMonths))
   const [loaded, setLoaded] = useState(false)
 
-  // Aus localStorage laden
+  // Startwert: payroll_settings.reserve_months (via Prop), überschrieben durch
+  // einen ggf. abweichenden Wert aus einer vorherigen Session in diesem Browser.
   useEffect(() => {
     const k = localStorage.getItem('ruecklage_kontostand')
     const b = localStorage.getItem('ruecklage_budgetMonths')

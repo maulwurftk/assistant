@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       .from('time_entries')
       .select('date, start_time, end_time, activity_id, description')
       .eq('assistant_id', assistantId)
+      .eq('is_private', false)
       .gte('date', dateFrom)
       .lt('date', dateTo)
       .order('date')
@@ -92,6 +93,7 @@ export async function POST(request: Request) {
     mj_kv_ag?: number | null
     mj_rv_ag?: number | null
     mj_pauschsteuer?: number | null
+    mj_u1?: number | null
     mj_u2?: number | null
     mj_insolvenzgeld?: number | null
     mj_rv_an?: number | null
@@ -215,6 +217,7 @@ export async function POST(request: Request) {
           : `<tr><td style="color:#94a3b8;padding:2px 0;font-style:italic">Krankenversicherung (KV)</td><td style="text-align:right;color:#94a3b8;font-style:italic">entfällt (PKV)</td></tr>`}
         <tr><td style="color:#1e40af;padding:2px 0">RV-Pauschalbeitrag (${rates.rvAG.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.rvAGAmount, currency)}</td></tr>
         <tr><td style="color:#1e40af;padding:2px 0">Lohnsteuerpauschale (${rates.pauschsteuer.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.pauschsteuerAmount, currency)}</td></tr>
+        <tr><td style="color:#1e40af;padding:2px 0">Umlage 1 (Krankheit/Kur)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.u1Amount, currency)}</td></tr>
         <tr><td style="color:#1e40af;padding:2px 0">Umlage 2 / Insolvenzgeldumlage</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.u2Amount + minijob.insolvenzgeldAmount, currency)}</td></tr>
         <tr><td style="color:#1e40af;padding:2px 0">Unfallversicherung (${uvRate.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(minijob.uvAmount, currency)}</td></tr>
         <tr style="border-top:1px solid #bfdbfe"><td style="color:#1e3a8a;font-weight:700;padding:6px 0 2px">Gesamtkosten Arbeitgeber</td><td style="text-align:right;font-weight:700;color:#1e3a8a">${formatCurrency(minijob.totalKosten, currency)}</td></tr>

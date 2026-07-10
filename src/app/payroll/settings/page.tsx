@@ -35,6 +35,7 @@ export default async function SettingsPage() {
           currentMonthlyBudget={settings?.monthly_budget ?? 1310}
           currentAccountFee={settings?.account_fee ?? 10}
           currentWeeklyHoursTarget={settings?.weekly_hours_target ?? 15}
+          currentPrivateHoursBudget={settings?.private_hours_budget ?? 0}
           currentRates={rates}
           hasSettings={!!settings}
         />

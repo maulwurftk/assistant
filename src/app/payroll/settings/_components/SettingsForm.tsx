@@ -23,6 +23,7 @@ type Props = {
   currentMonthlyBudget: number
   currentAccountFee: number
   currentWeeklyHoursTarget: number
+  currentPrivateHoursBudget: number
   currentRates: MinijobRates
   hasSettings: boolean
 }
@@ -31,8 +32,9 @@ const RATE_FIELDS: Array<{ key: keyof MinijobRates; label: string }> = [
   { key: 'kvAG', label: 'Krankenversicherung (KV)' },
   { key: 'rvAG', label: 'Rentenversicherung (RV)' },
   { key: 'pauschsteuer', label: 'Lohnsteuerpauschale' },
+  { key: 'u1', label: 'Umlage 1 (Krankheit/Kur)' },
   { key: 'u2', label: 'Umlage 2 (Mutterschaft)' },
-  { key: 'insolvenzgeld', label: 'Insolvenzgeldumlage' },
+  { key: 'insolvenzgeld', label: 'Insolvenzgeldumlage (Haushaltsscheck: i.d.R. 0)' },
   { key: 'rvAN', label: 'RV-Aufstockungsbetrag AN (wenn nicht befreit)' },
 ]
 
@@ -50,6 +52,7 @@ export default function SettingsForm({
   currentMonthlyBudget,
   currentAccountFee,
   currentWeeklyHoursTarget,
+  currentPrivateHoursBudget,
   currentRates,
   hasSettings,
 }: Props) {
@@ -66,10 +69,12 @@ export default function SettingsForm({
   const [monthlyBudget, setMonthlyBudget] = useState(currentMonthlyBudget.toString())
   const [accountFee, setAccountFee] = useState(currentAccountFee.toString())
   const [weeklyHoursTarget, setWeeklyHoursTarget] = useState(currentWeeklyHoursTarget.toString())
+  const [privateHoursBudget, setPrivateHoursBudget] = useState(currentPrivateHoursBudget.toString())
   const [rateFields, setRateFields] = useState<Record<keyof MinijobRates, string>>({
     kvAG: currentRates.kvAG.toString(),
     rvAG: currentRates.rvAG.toString(),
     pauschsteuer: currentRates.pauschsteuer.toString(),
+    u1: currentRates.u1.toString(),
     u2: currentRates.u2.toString(),
     insolvenzgeld: currentRates.insolvenzgeld.toString(),
     rvAN: currentRates.rvAN.toString(),
@@ -87,6 +92,7 @@ export default function SettingsForm({
     kvAG: num(rateFields.kvAG, currentRates.kvAG),
     rvAG: num(rateFields.rvAG, currentRates.rvAG),
     pauschsteuer: num(rateFields.pauschsteuer, currentRates.pauschsteuer),
+    u1: num(rateFields.u1, currentRates.u1),
     u2: num(rateFields.u2, currentRates.u2),
     insolvenzgeld: num(rateFields.insolvenzgeld, currentRates.insolvenzgeld),
     rvAN: num(rateFields.rvAN, currentRates.rvAN),
@@ -129,9 +135,11 @@ export default function SettingsForm({
           monthly_budget: num(monthlyBudget),
           account_fee: num(accountFee),
           weekly_hours_target: num(weeklyHoursTarget, 15),
+          private_hours_budget: num(privateHoursBudget, 0),
           mj_kv_ag: liveRates.kvAG,
           mj_rv_ag: liveRates.rvAG,
           mj_pauschsteuer: liveRates.pauschsteuer,
+          mj_u1: liveRates.u1,
           mj_u2: liveRates.u2,
           mj_insolvenzgeld: liveRates.insolvenzgeld,
           mj_rv_an: liveRates.rvAN,
@@ -306,6 +314,24 @@ export default function SettingsForm({
             />
           </div>
         </div>
+      </div>
+
+      {/* Private Stunden */}
+      <div className="border-t border-slate-200 pt-6">
+        <h3 className="text-sm font-semibold text-slate-700 mb-1">Privates Monatsbudget (Stunden)</h3>
+        <p className="text-xs text-slate-400 mb-3">
+          Optionales monatliches Stunden-Limit für unbezahlte, private Einträge (z.B. Gefälligkeiten).
+          Diese Stunden fließen nie in Lohn, Anwesenheitsnachweis oder Bezirks-Budget ein — 0 = kein Limit/keine Anzeige.
+        </p>
+        <input
+          type="number"
+          value={privateHoursBudget}
+          onChange={(e) => setPrivateHoursBudget(e.target.value)}
+          step="0.5"
+          min="0"
+          className="w-36 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="z.B. 4"
+        />
       </div>
 
       {/* Minijob-Modus */}

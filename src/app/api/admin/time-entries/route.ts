@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   if (!ctx) return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 })
 
   const body = await request.json()
-  const { assistant_id, date, start_time, end_time, activity_id, description } = body
+  const { assistant_id, date, start_time, end_time, activity_id, description, is_private } = body
 
   if (!assistant_id || !date || !start_time || !end_time) {
     return NextResponse.json({ error: 'Pflichtfelder fehlen' }, { status: 400 })
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
       end_time,
       activity_id: activity_id || null,
       description: description || null,
+      is_private: is_private === true,
       month_status: 'draft',
       updated_at: new Date().toISOString(),
     })

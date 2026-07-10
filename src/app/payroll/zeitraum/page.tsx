@@ -62,6 +62,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     supabase
       .from('time_entries')
       .select('assistant_id, start_time, end_time')
+      .eq('is_private', false)
       .gte('date', from)
       .lte('date', to),
   ])
@@ -74,12 +75,14 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     payroll_count_mode?: string
     uv_rate?: number
     monthly_budget?: number
+    reserve_months?: number
     employer_name?: string
     employer_address?: string
     employer_tax_number?: string
     mj_kv_ag?: number | null
     mj_rv_ag?: number | null
     mj_pauschsteuer?: number | null
+    mj_u1?: number | null
     mj_u2?: number | null
     mj_insolvenzgeld?: number | null
     mj_rv_an?: number | null
@@ -106,6 +109,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
   const bezirkMode = settings?.bezirk_mode ?? false
   const uvRate = settings?.uv_rate ?? 1.6
   const monthlyBudget = settings?.monthly_budget ?? 0
+  const reserveMonths = settings?.reserve_months ?? 2
   const countMode = normalizeCountMode(settings?.payroll_count_mode)
   const rates = ratesFromSettings(settings)
 
@@ -158,6 +162,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       acc.kvAG += r.minijob?.kvAGAmount ?? 0
       acc.rvAG += r.minijob?.rvAGAmount ?? 0
       acc.pauschsteuer += r.minijob?.pauschsteuerAmount ?? 0
+      acc.u1 += r.minijob?.u1Amount ?? 0
       acc.u2 += r.minijob?.u2Amount ?? 0
       acc.insolvenz += r.minijob?.insolvenzgeldAmount ?? 0
       acc.uv += r.minijob?.uvAmount ?? 0
@@ -174,6 +179,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       kvAG: 0,
       rvAG: 0,
       pauschsteuer: 0,
+      u1: 0,
       u2: 0,
       insolvenz: 0,
       uv: 0,
@@ -213,6 +219,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
           currency={currency}
           monthlyBudget={monthlyBudget}
           agAbgabenPeriod={round2(totals.agAbgaben)}
+          defaultReserveMonths={reserveMonths}
         />
       )}
 
@@ -344,23 +351,27 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <div className="bg-slate-50 rounded p-3">
-              <p className="text-xs text-slate-500">KV-Pauschalbeitrag (13%)</p>
+              <p className="text-xs text-slate-500">KV-Pauschalbeitrag ({rates.kvAG.toFixed(2)}%)</p>
               <p className="font-bold text-slate-900">{formatCurrency(round2(totals.kvAG), currency)}</p>
             </div>
             <div className="bg-slate-50 rounded p-3">
-              <p className="text-xs text-slate-500">RV-Pauschalbeitrag (15%)</p>
+              <p className="text-xs text-slate-500">RV-Pauschalbeitrag ({rates.rvAG.toFixed(2)}%)</p>
               <p className="font-bold text-slate-900">{formatCurrency(round2(totals.rvAG), currency)}</p>
             </div>
             <div className="bg-slate-50 rounded p-3">
-              <p className="text-xs text-slate-500">Lohnsteuerpauschale (2%)</p>
+              <p className="text-xs text-slate-500">Lohnsteuerpauschale ({rates.pauschsteuer.toFixed(2)}%)</p>
               <p className="font-bold text-slate-900">{formatCurrency(round2(totals.pauschsteuer), currency)}</p>
             </div>
             <div className="bg-slate-50 rounded p-3">
-              <p className="text-xs text-slate-500">Umlage 2 Mutterschaft (0,24%)</p>
+              <p className="text-xs text-slate-500">Umlage 1 Krankheit ({rates.u1.toFixed(2)}%)</p>
+              <p className="font-bold text-slate-900">{formatCurrency(round2(totals.u1), currency)}</p>
+            </div>
+            <div className="bg-slate-50 rounded p-3">
+              <p className="text-xs text-slate-500">Umlage 2 Mutterschaft ({rates.u2.toFixed(2)}%)</p>
               <p className="font-bold text-slate-900">{formatCurrency(round2(totals.u2), currency)}</p>
             </div>
             <div className="bg-slate-50 rounded p-3">
-              <p className="text-xs text-slate-500">Insolvenzgeldumlage (0,06%)</p>
+              <p className="text-xs text-slate-500">Insolvenzgeldumlage ({rates.insolvenzgeld.toFixed(2)}%)</p>
               <p className="font-bold text-slate-900">{formatCurrency(round2(totals.insolvenz), currency)}</p>
             </div>
             <div className="bg-slate-50 rounded p-3">

@@ -10,7 +10,7 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!ctx) return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 })
 
   const body = await request.json()
-  const { date, start_time, end_time, activity_id, description } = body
+  const { date, start_time, end_time, activity_id, description, is_private } = body
 
   if (!date || !start_time || !end_time) {
     return NextResponse.json({ error: 'Pflichtfelder fehlen' }, { status: 400 })
@@ -28,6 +28,7 @@ export async function PATCH(request: Request, { params }: Params) {
       end_time,
       activity_id: activity_id || null,
       description: description || null,
+      is_private: is_private === true,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

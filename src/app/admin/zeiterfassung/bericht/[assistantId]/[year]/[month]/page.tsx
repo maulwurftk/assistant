@@ -25,6 +25,7 @@ export default async function BerichtPage({ params }: Props) {
       .from('time_entries')
       .select('id, date, start_time, end_time, activity_id, description')
       .eq('assistant_id', assistantId)
+      .eq('is_private', false)
       .gte('date', dateFrom).lt('date', dateTo)
       .order('date').order('start_time'),
     supabase

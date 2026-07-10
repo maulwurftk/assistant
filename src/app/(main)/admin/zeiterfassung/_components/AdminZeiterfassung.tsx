@@ -50,7 +50,7 @@ interface Props { assistants: Assistant[] }
 
 interface EntryForm {
   date: string; start_time: string; end_time: string
-  activity_id: string; description: string
+  activity_id: string; description: string; is_private: boolean
 }
 interface SlotForm {
   title: string; date: string; start_time: string; end_time: string
@@ -59,7 +59,7 @@ interface SlotForm {
 const emptyForm: EntryForm = {
   date: format(new Date(), 'yyyy-MM-dd'),
   start_time: '08:00', end_time: '12:00',
-  activity_id: '', description: '',
+  activity_id: '', description: '', is_private: false,
 }
 const emptySlotForm: SlotForm = { title: '', date: format(new Date(), 'yyyy-MM-dd'), start_time: '08:00', end_time: '10:00' }
 
@@ -113,6 +113,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   const [savingSlot, setSavingSlot] = useState(false)
   const [creatingTemplate, setCreatingTemplate] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
+  const [privateHoursBudget, setPrivateHoursBudget] = useState(0)
 
   useEffect(() => {
     supabase.from('activities').select('*').eq('active', true).order('sort_order')
@@ -121,6 +122,8 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       .then((r) => r.json())
       .then(({ template: t }) => { if (t) { setTemplate(t); setEditingTemplate(t) } })
       .catch(() => {})
+    supabase.from('payroll_settings').select('private_hours_budget').limit(1).single()
+      .then(({ data }) => setPrivateHoursBudget(data?.private_hours_budget ?? 0))
   }, [])
 
   const loadEntries = useCallback(async () => {
@@ -173,6 +176,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       end_time: entry.end_time.slice(0, 5),
       activity_id: entry.activity_id ?? '',
       description: entry.description ?? '',
+      is_private: entry.is_private ?? false,
     })
     setDialogOpen(true)
   }
@@ -193,8 +197,8 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     setSaving(true)
     const url = editId ? `/api/admin/time-entries/${editId}` : '/api/admin/time-entries'
     const body = editId
-      ? { date: form.date, start_time: form.start_time, end_time: form.end_time, activity_id: form.activity_id || null, description: form.description || null }
-      : { assistant_id: selectedId, date: form.date, start_time: form.start_time, end_time: form.end_time, activity_id: form.activity_id || null, description: form.description || null }
+      ? { date: form.date, start_time: form.start_time, end_time: form.end_time, activity_id: form.activity_id || null, description: form.description || null, is_private: form.is_private }
+      : { assistant_id: selectedId, date: form.date, start_time: form.start_time, end_time: form.end_time, activity_id: form.activity_id || null, description: form.description || null, is_private: form.is_private }
     const res = await fetch(url, { method: editId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) toast.error(data.error ?? 'Fehler beim Speichern')
@@ -260,9 +264,10 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   function removeRow(i: number) { setEditingTemplate((prev) => prev.filter((_, idx) => idx !== i)) }
   function addRow() { setEditingTemplate((prev) => [...prev, { jsDay: 1, start: '08:00', end: '10:00', activityName: activities[0]?.name ?? '' }]) }
 
-  const totalEntryHours = entries.reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0)
+  const totalEntryHours = entries.filter(e => !e.is_private).reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0)
   const totalSlotHours = slots.reduce((acc, s) => acc + durationHours(s.start_time, s.end_time), 0)
   const totalHours = totalEntryHours + totalSlotHours
+  const totalPrivateHours = entries.filter(e => e.is_private).reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0)
 
   const selectedAssistant = assistants.find((a) => a.id === selectedId)
   const year = currentMonth.getFullYear()
@@ -325,7 +330,12 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-gray-500">
-          {totalHours.toFixed(1)} Std. · {entries.length} Einträge · {slots.length} Slots
+          {totalHours.toFixed(1)} Std. · {entries.filter(e => !e.is_private).length} Einträge · {slots.length} Slots
+          {(totalPrivateHours > 0 || privateHoursBudget > 0) && (
+            <span className="text-gray-400">
+              {' '}· {totalPrivateHours.toFixed(1)}{privateHoursBudget > 0 ? ` / ${privateHoursBudget.toFixed(1)}` : ''} Std. privat
+            </span>
+          )}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(template); setConfigDialogOpen(true) }}>
@@ -486,6 +496,20 @@ export default function AdminZeiterfassung({ assistants }: Props) {
               <Label>Beschreibung <span className="text-gray-400 font-normal">(optional)</span></Label>
               <Textarea placeholder="Weitere Details..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
             </div>
+            <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_private}
+                onChange={(e) => setForm({ ...form, is_private: e.target.checked })}
+                className="mt-0.5 rounded border-gray-300"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-gray-700">Privat (unbezahlt)</span>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Zählt nicht zu Lohn, Anwesenheitsnachweis oder Bezirks-Budget – nur intern sichtbar.
+                </p>
+              </span>
+            </label>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Abbrechen</Button>
               <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? 'Speichern…' : 'Speichern'}</Button>
@@ -575,6 +599,9 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                       <span className="text-gray-500 text-sm">{entry.start_time.slice(0, 5)} – {entry.end_time.slice(0, 5)} Uhr</span>
                       <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
                       <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500">Eintrag</Badge>
+                      {entry.is_private && (
+                        <Badge className="text-xs bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
+                      )}
                     </div>
                     <div className="mt-0.5 text-xs text-gray-500">
                       {(entry.activity as any)?.name ?? <span className="italic">Keine Tätigkeit</span>}
