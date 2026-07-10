@@ -222,7 +222,17 @@ export default async function DashboardPage() {
   const budgetPct = monthlyBudget > 0 ? Math.round((monthCost / monthlyBudget) * 100) : 0
 
   const hoursRows = (assistants ?? [])
-    .map((a) => ({ name: a.full_name as string, minutes: minutesByAssistant.get(a.id) ?? 0 }))
+    .map((a) => {
+      const minutes = minutesByAssistant.get(a.id) ?? 0
+      const cost = calculatePay(minutes, hourlyRate)
+      const limit = a.minijob_limit
+      const hasLimit = typeof limit === 'number' && limit > 0 && hourlyRate > 0
+      const limitMinutes = hasLimit ? (limit! / hourlyRate) * 60 : null
+      const remainingMinutes = hasLimit ? Math.max(0, limitMinutes! - minutes) : null
+      const remainingBudget = hasLimit ? Math.max(0, limit! - cost) : null
+      const limitPct = hasLimit ? Math.round((minutes / limitMinutes!) * 100) : null
+      return { name: a.full_name as string, minutes, cost, limit: hasLimit ? limit! : null, limitMinutes, remainingMinutes, remainingBudget, limitPct }
+    })
     .sort((x, y) => y.minutes - x.minutes)
   const maxMinutes = Math.max(60, ...hoursRows.map((r) => r.minutes))
   const monthLabel = format(now, 'MMMM', { locale: de })
@@ -267,12 +277,12 @@ export default async function DashboardPage() {
         />
         <KpiTile
           href="/payroll/konto"
-          tone={budgetPct > 100 ? 'rose' : 'violet'}
+          tone={budgetPct > 100 ? 'rose' : budgetPct >= 85 ? 'amber' : 'violet'}
           icon={<Wallet className="h-4 w-4" />}
           label="Budget genutzt"
           value={`${budgetPct}%`}
           sub={`${formatCurrency(monthCost, currency)} / ${formatCurrency(monthlyBudget, currency)}`}
-          subTone={budgetPct > 100 ? 'down' : 'muted'}
+          subTone={budgetPct > 100 ? 'down' : budgetPct >= 85 ? 'warn' : 'muted'}
         />
         <KpiTile
           href="/kalender"
@@ -298,19 +308,50 @@ export default async function DashboardPage() {
               </p>
             ) : (
               <div className="space-y-3">
-                {hoursRows.map((r) => (
-                  <div key={r.name} className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3 text-sm">
-                    <span className="truncate text-slate-700">{r.name}</span>
-                    <span className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                      <span
-                        className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600"
-                        style={{ width: `${Math.round((r.minutes / maxMinutes) * 100)}%` }}
-                      />
-                    </span>
-                    <span className="text-right tabular-nums text-slate-600">{(r.minutes / 60).toFixed(1)}</span>
-                  </div>
-                ))}
-                <div className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3 text-xs pt-2 border-t border-slate-100 text-slate-400">
+                {hoursRows.map((r) => {
+                  const hours = r.minutes / 60
+                  const limitHours = r.limitMinutes != null ? r.limitMinutes / 60 : null
+                  const barPct = r.limitPct != null
+                    ? Math.min(100, r.limitPct)
+                    : Math.round((r.minutes / maxMinutes) * 100)
+                  const barColor = r.limitPct == null
+                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                    : r.limitPct >= 100
+                      ? 'bg-gradient-to-r from-red-500 to-red-600'
+                      : r.limitPct >= 85
+                        ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                        : 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                  return (
+                    <div key={r.name} className="space-y-0.5">
+                      <div className="grid grid-cols-[7rem_1fr_5.5rem] items-center gap-3 text-sm">
+                        <span className="truncate text-slate-700">{r.name}</span>
+                        <span className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                          <span
+                            className={`block h-full rounded-full ${barColor}`}
+                            style={{ width: `${barPct}%` }}
+                          />
+                        </span>
+                        <span className="text-right tabular-nums text-slate-600">
+                          {limitHours != null
+                            ? `${hours.toFixed(1)} / ${limitHours.toFixed(1)}`
+                            : hours.toFixed(1)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-[7rem_1fr_5.5rem] gap-3">
+                        <span />
+                        <span />
+                        <span className={`text-right text-[11px] ${r.limitPct != null && r.limitPct >= 100 ? 'text-red-500 font-medium' : r.limitPct != null && r.limitPct >= 85 ? 'text-amber-600' : 'text-slate-400'}`}>
+                          {r.remainingMinutes != null
+                            ? r.limitPct != null && r.limitPct >= 100
+                              ? 'Minijobgrenze erreicht'
+                              : `noch ${(r.remainingMinutes / 60).toFixed(1)} h`
+                            : 'kein Limit gesetzt'}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div className="grid grid-cols-[7rem_1fr_5.5rem] items-center gap-3 text-xs pt-2 border-t border-slate-100 text-slate-400">
                   <span>Gesamt</span>
                   <span />
                   <span className="text-right tabular-nums font-semibold text-slate-600">{totalHours.toFixed(1)}</span>

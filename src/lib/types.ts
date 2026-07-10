@@ -10,6 +10,9 @@ export interface Profile {
   color?: string
   ical_token?: string | null
   iban?: string | null
+  rv_pflicht?: boolean
+  kv_pflicht?: boolean
+  minijob_limit?: number | null
   created_at: string
 }
 

@@ -113,6 +113,19 @@ export default function BenutzerPage() {
     setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, color } : p))
   }
 
+  async function updateMinijobLimit(profileId: string, value: number | null) {
+    setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, minijob_limit: value } : p))
+    const res = await fetch('/api/payroll/assistant-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assistantId: profileId, minijob_limit: value }),
+    })
+    if (!res.ok) {
+      toast.error('Fehler beim Speichern der Minijobgrenze')
+      loadProfiles()
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -173,6 +186,7 @@ export default function BenutzerPage() {
                 <TableHead>E-Mail</TableHead>
                 <TableHead>Rolle</TableHead>
                 <TableHead>Farbe</TableHead>
+                <TableHead>Minijobgrenze</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Erstellt</TableHead>
                 <TableHead className="text-right">Aktionen</TableHead>
@@ -200,6 +214,16 @@ export default function BenutzerPage() {
                         />
                         <span className="text-xs text-gray-400 font-mono">{p.color ?? '#6366f1'}</span>
                       </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {p.role === 'assistant' ? (
+                      <MinijobLimitInput
+                        value={p.minijob_limit ?? null}
+                        onSave={(v) => updateMinijobLimit(p.id, v)}
+                      />
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
@@ -259,6 +283,52 @@ export default function BenutzerPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+function MinijobLimitInput({
+  value,
+  onSave,
+}: {
+  value: number | null
+  onSave: (value: number | null) => void
+}) {
+  const [text, setText] = useState(value != null ? String(value).replace('.', ',') : '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setText(value != null ? String(value).replace('.', ',') : '')
+  }, [value])
+
+  async function commit() {
+    const trimmed = text.trim()
+    const next = trimmed === '' ? null : parseFloat(trimmed.replace(',', '.'))
+    if (next !== null && (isNaN(next) || next < 0)) {
+      toast.error('Bitte einen gültigen Betrag eingeben')
+      setText(value != null ? String(value).replace('.', ',') : '')
+      return
+    }
+    if (next === value) return
+    setSaving(true)
+    await onSave(next)
+    setSaving(false)
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <Input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        }}
+        placeholder="kein Limit"
+        disabled={saving}
+        className="w-24 h-8 text-xs tabular-nums"
+      />
+      <span className="text-xs text-gray-400">€</span>
     </div>
   )
 }

@@ -53,6 +53,7 @@ export type Database = {
           rv_pflicht: boolean
           kv_pflicht: boolean
           iban: string | null
+          minijob_limit: number | null
         }
         Insert: {
           id: string
@@ -66,6 +67,7 @@ export type Database = {
           rv_pflicht?: boolean
           kv_pflicht?: boolean
           iban?: string | null
+          minijob_limit?: number | null
         }
         Update: {
           email?: string
@@ -77,6 +79,7 @@ export type Database = {
           rv_pflicht?: boolean
           kv_pflicht?: boolean
           iban?: string | null
+          minijob_limit?: number | null
         }
         Relationships: Rel[]
       }
