@@ -60,6 +60,51 @@ export default async function DashboardPage() {
       return acc + (eh * 60 + em - sh * 60 - sm) / 60
     }, 0)
 
+    // Minijob-Status – dieselbe Rechnung wie im Admin-Dashboard (zugewiesene
+    // Slots diesen Monat × Stundensatz), aber nur für die eigene Person.
+    let minijobStatus: {
+      minutes: number
+      limit: number
+      limitMinutes: number
+      remainingMinutes: number
+      remainingBudget: number
+      limitPct: number
+      currency: string
+    } | null = null
+
+    const limit = profile.minijob_limit as number | null | undefined
+    if (typeof limit === 'number' && limit > 0) {
+      const [{ data: ownMonthSlots }, { data: settingsRow }] = await Promise.all([
+        supabase
+          .from('calendar_slots')
+          .select('start_time, end_time')
+          .eq('status', 'assigned')
+          .eq('assigned_to', user.id)
+          .gte('date', monthStart)
+          .lte('date', monthEnd),
+        supabase.from('payroll_settings').select('hourly_rate, currency').limit(1).single(),
+      ])
+      const hourlyRate = (settingsRow as any)?.hourly_rate ?? 0
+      const currency = (settingsRow as any)?.currency ?? 'EUR'
+      if (hourlyRate > 0) {
+        const minutes = (ownMonthSlots ?? []).reduce(
+          (sum, s) => sum + entryDurationMinutes(s.start_time, s.end_time),
+          0
+        )
+        const cost = calculatePay(minutes, hourlyRate)
+        const limitMinutes = (limit / hourlyRate) * 60
+        minijobStatus = {
+          minutes,
+          limit,
+          limitMinutes,
+          remainingMinutes: Math.max(0, limitMinutes - minutes),
+          remainingBudget: Math.max(0, limit - cost),
+          limitPct: Math.round((minutes / limitMinutes) * 100),
+          currency,
+        }
+      }
+    }
+
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Begrüßungs-Banner */}
@@ -103,6 +148,26 @@ export default async function DashboardPage() {
             hint={format(now, 'MMMM yyyy', { locale: de })}
           />
         </div>
+
+        {minijobStatus && (
+          <StatCard
+            icon={<Wallet className="h-5 w-5" />}
+            label="Minijobgrenze"
+            tone={
+              minijobStatus.limitPct >= 100
+                ? 'rose'
+                : minijobStatus.limitPct >= 85
+                ? 'amber'
+                : 'emerald'
+            }
+            value={`${(minijobStatus.minutes / 60).toFixed(1)} / ${(minijobStatus.limitMinutes / 60).toFixed(1)} h`}
+            hint={
+              minijobStatus.limitPct >= 100
+                ? `Minijobgrenze erreicht (${formatCurrency(minijobStatus.limit, minijobStatus.currency)})`
+                : `noch ${(minijobStatus.remainingMinutes / 60).toFixed(1)} h bzw. ${formatCurrency(minijobStatus.remainingBudget, minijobStatus.currency)} frei`
+            }
+          />
+        )}
 
         {report?.status !== 'sent' && (entries ?? []).length > 0 && (
           <Card className="border-amber-200 bg-amber-50">
