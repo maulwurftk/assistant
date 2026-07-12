@@ -60,7 +60,7 @@ async function generateSuggestions(tenantId: string, userId: string) {
   const [settingsRes, assistantsRes, slotsRes, entriesRes] = await Promise.all([
     db.from('payroll_settings').select('*').eq('tenant_id', tenantId).single(),
     db.from('profiles').select('id, rv_pflicht, kv_pflicht').eq('tenant_id', tenantId).eq('role', 'assistant').eq('active', true),
-    db.from('calendar_slots').select('assigned_to, date, start_time, end_time').eq('tenant_id', tenantId).eq('status', 'assigned'),
+    db.from('calendar_slots').select('assigned_to, date, start_time, end_time').eq('tenant_id', tenantId).eq('status', 'assigned').eq('is_private', false),
     db.from('time_entries').select('assistant_id, date, start_time, end_time').eq('tenant_id', tenantId).eq('is_private', false),
   ])
 

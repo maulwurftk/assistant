@@ -57,6 +57,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       .from('calendar_slots')
       .select('id, assigned_to, date, start_time, end_time')
       .eq('status', 'assigned')
+      .eq('is_private', false)
       .gte('date', from)
       .lte('date', to),
     supabase

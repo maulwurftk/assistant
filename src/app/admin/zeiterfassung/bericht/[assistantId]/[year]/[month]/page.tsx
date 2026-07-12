@@ -31,7 +31,7 @@ export default async function BerichtPage({ params }: Props) {
     supabase
       .from('calendar_slots')
       .select('id, date, start_time, end_time, title')
-      .eq('assigned_to', assistantId).eq('status', 'assigned')
+      .eq('assigned_to', assistantId).eq('status', 'assigned').eq('is_private', false)
       .gte('date', dateFrom).lt('date', dateTo)
       .order('date').order('start_time'),
     supabase.from('activities').select('id, name'),

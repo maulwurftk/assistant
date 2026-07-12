@@ -62,6 +62,7 @@ export async function POST(request: Request) {
       .select('date, start_time, end_time, title')
       .eq('assigned_to', assistantId)
       .eq('status', 'assigned')
+      .eq('is_private', false)
       .gte('date', dateFrom)
       .lt('date', dateTo)
       .order('date')

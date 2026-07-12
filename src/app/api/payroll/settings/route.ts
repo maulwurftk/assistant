@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     account_fee,
     weekly_hours_target,
     private_hours_budget,
+    private_slot_color,
     mj_kv_ag,
     mj_rv_ag,
     mj_pauschsteuer,
@@ -72,6 +73,9 @@ export async function POST(request: Request) {
     account_fee: typeof account_fee === 'number' ? account_fee : 10,
     weekly_hours_target: typeof weekly_hours_target === 'number' ? weekly_hours_target : 15,
     private_hours_budget: typeof private_hours_budget === 'number' ? private_hours_budget : 0,
+    private_slot_color: typeof private_slot_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(private_slot_color)
+      ? private_slot_color
+      : '#a855f7',
     mj_kv_ag: rate(mj_kv_ag),
     mj_rv_ag: rate(mj_rv_ag),
     mj_pauschsteuer: rate(mj_pauschsteuer),

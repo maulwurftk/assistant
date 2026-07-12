@@ -10,7 +10,7 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
 
   const { id } = await params
   const body = await request.json()
-  const { title, date, start_time, end_time } = body
+  const { title, date, start_time, end_time, is_private } = body
 
   if (start_time && end_time && start_time >= end_time) {
     return NextResponse.json({ error: 'Endzeit muss nach der Startzeit liegen' }, { status: 400 })
@@ -21,6 +21,7 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
   if (date !== undefined) patch.date = date
   if (start_time !== undefined) patch.start_time = start_time
   if (end_time !== undefined) patch.end_time = end_time
+  if (is_private !== undefined) patch.is_private = is_private
 
   const service = await createServiceClient()
   const { data, error } = await service

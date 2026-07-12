@@ -67,6 +67,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .from('calendar_slots')
       .select('id, assigned_to, date, start_time, end_time, title')
       .eq('status', 'assigned')
+      .eq('is_private', false)
       .gte('date', dateFrom)
       .lt('date', dateTo),
   ])

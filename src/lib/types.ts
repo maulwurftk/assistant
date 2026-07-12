@@ -54,6 +54,7 @@ export interface CalendarSlot {
   assigned_to: string | null
   created_by: string
   status: SlotStatus
+  is_private: boolean
   created_at: string
   assigned_profile?: Profile
   pending_request_by?: string | null

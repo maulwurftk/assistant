@@ -52,6 +52,7 @@ interface SlotForm {
   title: string
   description: string
   assigned_to: string
+  is_private: boolean
 }
 
 const emptyForm: SlotForm = {
@@ -61,6 +62,7 @@ const emptyForm: SlotForm = {
   title: '',
   description: '',
   assigned_to: '',
+  is_private: false,
 }
 
 const statusColors: Record<string, string> = {
@@ -87,6 +89,7 @@ export default function KalenderPage() {
   const [showOwnEntries, setShowOwnEntries] = useState(true)
   const [googleEvents, setGoogleEvents] = useState<object[]>([])
   const [isMobile, setIsMobile] = useState(false)
+  const [privateColor, setPrivateColor] = useState('#a855f7')
   const calendarRef = useRef<any>(null)
 
   useEffect(() => {
@@ -116,6 +119,9 @@ export default function KalenderPage() {
     setAssistants((asst ?? []) as unknown as Profile[])
 
     loadSlots()
+
+    supabase.from('payroll_settings').select('private_slot_color').limit(1).single()
+      .then(({ data }) => { if (data?.private_slot_color) setPrivateColor(data.private_slot_color) })
 
     // Load own time entries for assistants – shown in calendar to detect conflicts
     if ((p as any)?.role === 'assistant') {
@@ -169,6 +175,7 @@ export default function KalenderPage() {
       title: slot.title,
       description: slot.description ?? '',
       assigned_to: slot.assigned_to ?? '',
+      is_private: slot.is_private ?? false,
     })
     setDialogOpen(true)
   }
@@ -187,6 +194,7 @@ export default function KalenderPage() {
       description: form.description || null,
       assigned_to: form.assigned_to || null,
       status: form.assigned_to ? 'assigned' : 'open',
+      is_private: form.is_private,
     }
 
     let error
@@ -266,13 +274,14 @@ export default function KalenderPage() {
       ? (assistantColorMap[slot.assigned_to] ?? statusColors.assigned)
       : statusColors[slot.status]
     const assignedName = slot.assigned_to ? (assistantNameMap[slot.assigned_to] ?? null) : null
+    const privateSuffix = slot.is_private ? ' 🔒 Privat' : ''
     return {
       id: slot.id,
-      title: slot.title + (assignedName ? ` (${assignedName})` : ''),
+      title: slot.title + (assignedName ? ` (${assignedName})` : '') + privateSuffix,
       start: `${slot.date}T${slot.start_time}`,
       end: `${slot.date}T${slot.end_time}`,
-      backgroundColor: bgColor,
-      borderColor: bgColor,
+      backgroundColor: slot.is_private ? privateColor : bgColor,
+      borderColor: slot.is_private ? privateColor : bgColor,
       textColor: '#fff',
     }
   })]
@@ -313,6 +322,9 @@ export default function KalenderPage() {
         )}
         {googleEvents.length > 0 && (
           <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4285F4' }} /> Google Kalender</div>
+        )}
+        {slots.some(s => s.is_private) && (
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: privateColor }} /> Privat</div>
         )}
         {profile?.role === 'assistant' && (
           <label className="flex items-center gap-1.5 cursor-pointer select-none">
@@ -411,6 +423,21 @@ export default function KalenderPage() {
                 <Label>Notizen <span className="text-gray-400 font-normal">(optional)</span></Label>
                 <Textarea placeholder="Zusätzliche Informationen..." value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} />
               </div>
+              <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.is_private}
+                  onChange={e => setForm({ ...form, is_private: e.target.checked })}
+                  className="mt-0.5 rounded border-gray-300"
+                />
+                <span className="text-sm">
+                  <span className="font-medium text-gray-700">Privat (unbezahlt)</span>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Zählt nicht zu Lohn, Anwesenheitsnachweis oder Bezirks-Budget – bleibt aber für
+                    beide Seiten im Kalender sichtbar.
+                  </p>
+                </span>
+              </label>
               <div className="flex gap-2 pt-2">
                 {editSlot && (
                   <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
@@ -440,10 +467,13 @@ export default function KalenderPage() {
                     <p className="text-sm">{editSlot.description}</p>
                   </div>
                 )}
-                <div>
+                <div className="flex gap-2">
                   <Badge style={{ backgroundColor: (editSlot.assigned_profile as any)?.color ?? statusColors[editSlot.status] }} className="text-white">
                     {editSlot.status === 'open' ? 'Offen' : 'Besetzt'}
                   </Badge>
+                  {editSlot.is_private && (
+                    <Badge className="bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
+                  )}
                 </div>
                 <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full">Schließen</Button>
               </div>

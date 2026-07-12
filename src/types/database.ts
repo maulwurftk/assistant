@@ -205,6 +205,7 @@ export type Database = {
           weekly_hours_target: number
           reserve_months: number
           private_hours_budget: number
+          private_slot_color: string
           mj_kv_ag: number
           mj_rv_ag: number
           mj_pauschsteuer: number
@@ -234,6 +235,7 @@ export type Database = {
           weekly_hours_target?: number
           reserve_months?: number
           private_hours_budget?: number
+          private_slot_color?: string
           mj_kv_ag?: number
           mj_rv_ag?: number
           mj_pauschsteuer?: number
@@ -259,6 +261,7 @@ export type Database = {
           weekly_hours_target?: number
           reserve_months?: number
           private_hours_budget?: number
+          private_slot_color?: string
           mj_kv_ag?: number
           mj_rv_ag?: number
           mj_pauschsteuer?: number
@@ -344,6 +347,7 @@ export type Database = {
           status: 'open' | 'pending' | 'assigned' | 'cancelled'
           pending_request_by: string | null
           reminder_sent_at: string | null
+          is_private: boolean
           created_at: string
         }
         Insert: {
@@ -359,6 +363,7 @@ export type Database = {
           status?: 'open' | 'pending' | 'assigned' | 'cancelled'
           pending_request_by?: string | null
           reminder_sent_at?: string | null
+          is_private?: boolean
         }
         Update: {
           date?: string
@@ -370,6 +375,7 @@ export type Database = {
           status?: 'open' | 'pending' | 'assigned' | 'cancelled'
           pending_request_by?: string | null
           reminder_sent_at?: string | null
+          is_private?: boolean
         }
         Relationships: [
           { foreignKeyName: 'calendar_slots_assigned_to_fkey', columns: ['assigned_to'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },

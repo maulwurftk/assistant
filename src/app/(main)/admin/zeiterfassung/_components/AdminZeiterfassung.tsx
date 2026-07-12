@@ -45,7 +45,7 @@ const WEEKDAY_SHORT: Record<number, string> = { 0: 'So', 1: 'Mo', 2: 'Di', 3: 'M
 
 interface Assistant { id: string; full_name: string; email: string }
 interface MonthlyReport { status: string; sent_at: string | null }
-interface CalendarSlot { id: string; date: string; start_time: string; end_time: string; title: string; status: string }
+interface CalendarSlot { id: string; date: string; start_time: string; end_time: string; title: string; status: string; is_private?: boolean }
 interface Props { assistants: Assistant[] }
 
 interface EntryForm {
@@ -53,7 +53,7 @@ interface EntryForm {
   activity_id: string; description: string; is_private: boolean
 }
 interface SlotForm {
-  title: string; date: string; start_time: string; end_time: string
+  title: string; date: string; start_time: string; end_time: string; is_private: boolean
 }
 
 const emptyForm: EntryForm = {
@@ -61,7 +61,7 @@ const emptyForm: EntryForm = {
   start_time: '08:00', end_time: '12:00',
   activity_id: '', description: '', is_private: false,
 }
-const emptySlotForm: SlotForm = { title: '', date: format(new Date(), 'yyyy-MM-dd'), start_time: '08:00', end_time: '10:00' }
+const emptySlotForm: SlotForm = { title: '', date: format(new Date(), 'yyyy-MM-dd'), start_time: '08:00', end_time: '10:00', is_private: false }
 
 function generatePreview(year: number, month: number, entries: TimeEntry[], template: TemplateRow[]) {
   const existingKeys = new Set(entries.map((e) => `${e.date}|${e.start_time.slice(0, 5)}`))
@@ -140,7 +140,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         .order('date').order('start_time'),
       supabase
         .from('calendar_slots')
-        .select('id, date, start_time, end_time, title, status')
+        .select('id, date, start_time, end_time, title, status, is_private')
         .eq('assigned_to', selectedId)
         .gte('date', dateFrom).lte('date', dateTo)
         .order('date').order('start_time'),
@@ -188,6 +188,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       date: slot.date,
       start_time: slot.start_time.slice(0, 5),
       end_time: slot.end_time.slice(0, 5),
+      is_private: slot.is_private ?? false,
     })
     setSlotDialogOpen(true)
   }
@@ -265,9 +266,11 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   function addRow() { setEditingTemplate((prev) => [...prev, { jsDay: 1, start: '08:00', end: '10:00', activityName: activities[0]?.name ?? '' }]) }
 
   const totalEntryHours = entries.filter(e => !e.is_private).reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0)
-  const totalSlotHours = slots.reduce((acc, s) => acc + durationHours(s.start_time, s.end_time), 0)
+  const totalSlotHours = slots.filter(s => !s.is_private).reduce((acc, s) => acc + durationHours(s.start_time, s.end_time), 0)
   const totalHours = totalEntryHours + totalSlotHours
-  const totalPrivateHours = entries.filter(e => e.is_private).reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0)
+  const totalPrivateHours =
+    entries.filter(e => e.is_private).reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0) +
+    slots.filter(s => s.is_private).reduce((acc, s) => acc + durationHours(s.start_time, s.end_time), 0)
 
   const selectedAssistant = assistants.find((a) => a.id === selectedId)
   const year = currentMonth.getFullYear()
@@ -558,6 +561,20 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                 ))}
               </div>
             </div>
+            <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={slotForm.is_private}
+                onChange={(e) => setSlotForm({ ...slotForm, is_private: e.target.checked })}
+                className="mt-0.5 rounded border-gray-300"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-gray-700">Privat (unbezahlt)</span>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Zählt nicht zu Lohn, Anwesenheitsnachweis oder Bezirks-Budget.
+                </p>
+              </span>
+            </label>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" onClick={() => setSlotDialogOpen(false)} className="flex-1">Abbrechen</Button>
               <Button onClick={handleSaveSlot} disabled={savingSlot} className="flex-1">{savingSlot ? 'Speichern…' : 'Speichern'}</Button>
@@ -629,6 +646,9 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                       <span className="text-gray-500 text-sm">{slot.start_time.slice(0, 5)} – {slot.end_time.slice(0, 5)} Uhr</span>
                       <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
                       <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">Kalender-Slot</Badge>
+                      {slot.is_private && (
+                        <Badge className="text-xs bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
+                      )}
                     </div>
                     <div className="mt-0.5 text-xs text-blue-700 font-medium">{slot.title}</div>
                   </div>

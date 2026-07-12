@@ -24,6 +24,7 @@ type Props = {
   currentAccountFee: number
   currentWeeklyHoursTarget: number
   currentPrivateHoursBudget: number
+  currentPrivateSlotColor: string
   currentRates: MinijobRates
   hasSettings: boolean
 }
@@ -53,6 +54,7 @@ export default function SettingsForm({
   currentAccountFee,
   currentWeeklyHoursTarget,
   currentPrivateHoursBudget,
+  currentPrivateSlotColor,
   currentRates,
   hasSettings,
 }: Props) {
@@ -70,6 +72,7 @@ export default function SettingsForm({
   const [accountFee, setAccountFee] = useState(currentAccountFee.toString())
   const [weeklyHoursTarget, setWeeklyHoursTarget] = useState(currentWeeklyHoursTarget.toString())
   const [privateHoursBudget, setPrivateHoursBudget] = useState(currentPrivateHoursBudget.toString())
+  const [privateSlotColor, setPrivateSlotColor] = useState(currentPrivateSlotColor)
   const [rateFields, setRateFields] = useState<Record<keyof MinijobRates, string>>({
     kvAG: currentRates.kvAG.toString(),
     rvAG: currentRates.rvAG.toString(),
@@ -136,6 +139,7 @@ export default function SettingsForm({
           account_fee: num(accountFee),
           weekly_hours_target: num(weeklyHoursTarget, 15),
           private_hours_budget: num(privateHoursBudget, 0),
+          private_slot_color: privateSlotColor || '#a855f7',
           mj_kv_ag: liveRates.kvAG,
           mj_rv_ag: liveRates.rvAG,
           mj_pauschsteuer: liveRates.pauschsteuer,
@@ -332,6 +336,19 @@ export default function SettingsForm({
           className="w-36 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="z.B. 4"
         />
+
+        <label className="block text-xs font-medium text-slate-600 mt-4 mb-1">
+          Kalenderfarbe für private Termine
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={privateSlotColor}
+            onChange={(e) => setPrivateSlotColor(e.target.value)}
+            className="h-9 w-14 border border-slate-300 rounded-lg cursor-pointer"
+          />
+          <span className="text-xs font-mono text-slate-500">{privateSlotColor}</span>
+        </div>
       </div>
 
       {/* Minijob-Modus */}
