@@ -118,6 +118,17 @@ export default function RegistrierenPage() {
     }
 
     if (!data.session) {
+      // Supabase-Falle: Bei bereits registrierter (bestätigter) E-Mail liefert
+      // signUp aus Anti-Enumeration-Gründen KEINEN Fehler, sondern ein
+      // User-Objekt mit leerem identities-Array und session: null — sieht
+      // identisch aus wie "Bestätigungsmail wurde verschickt", obwohl real
+      // nichts passiert (keine Mail, kein neuer Account, Code nicht verbraucht).
+      const isMaskedDuplicate = (data.user?.identities?.length ?? 0) === 0
+      if (isMaskedDuplicate) {
+        setError('Diese E-Mail-Adresse ist bereits registriert.')
+        setLoading(false)
+        return
+      }
       // E-Mail-Bestätigung aktiv: Einrichtung wird beim ersten Login abgeschlossen.
       setInfo(
         'Fast geschafft! Bitte bestätigen Sie Ihre E-Mail-Adresse über den zugesandten Link und melden Sie sich danach an — die Einrichtung wird dann automatisch abgeschlossen.'
