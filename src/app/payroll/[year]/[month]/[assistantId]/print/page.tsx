@@ -5,12 +5,15 @@ import {
   formatMinutes,
   calculatePay,
   calculateMinijob,
+  calculateGeringfuegigAT,
   formatCurrency,
   formatDate,
   monthName,
   grossFromBezirkRate,
   ratesFromSettings,
+  atRatesFromSettings,
   normalizeCountMode,
+  normalizeCountryMode,
 } from '@/lib/payroll'
 import PrintButton from './_components/PrintButton'
 
@@ -78,6 +81,16 @@ export default async function PrintPage({ params }: Props) {
     mj_u2?: number | null
     mj_insolvenzgeld?: number | null
     mj_rv_an?: number | null
+    country_mode?: 'de' | 'at'
+    at_geringfuegig_mode?: boolean
+    at_uv_beitrag?: number | null
+    at_mvk_beitrag?: number | null
+    at_dg_abgabe?: number | null
+    at_kommunalsteuer?: number | null
+    at_include_urlaubsgeld?: boolean
+    at_include_weihnachtsgeld?: boolean
+    at_dienstgeberkonto_nr?: string
+    at_kostentraeger_name?: string
   } | null
   const entries = entriesRes.data ?? []
   const calendarSlots = (slotsRes.data ?? []) as Array<{ id: string; date: string; start_time: string; end_time: string; title: string }>
@@ -122,6 +135,9 @@ export default async function PrintPage({ params }: Props) {
   const rvPflicht = assistant.rv_pflicht !== false // default true
   const kvPflicht = assistant.kv_pflicht !== false // default true
   const rates = ratesFromSettings(settings)
+  const countryMode = normalizeCountryMode(settings?.country_mode)
+  const atGeringfuegigMode = countryMode === 'at' && (settings?.at_geringfuegig_mode ?? false)
+  const atRates = atRatesFromSettings(settings)
 
   // When bezirk_mode: hourly_rate is the Bezirk flat rate; back-calculate employee brutto
   const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates) : hourlyRate
@@ -131,7 +147,17 @@ export default async function PrintPage({ params }: Props) {
     0
   )
   const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
-  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
+  const minijob = minijobMode && countryMode === 'de' ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
+  const atBreakdown = atGeringfuegigMode
+    ? calculateGeringfuegigAT(
+        brutto,
+        {
+          includeUrlaubsgeld: settings?.at_include_urlaubsgeld ?? false,
+          includeWeihnachtsgeld: settings?.at_include_weihnachtsgeld ?? false,
+        },
+        atRates
+      )
+    : null
 
   const today = new Date().toLocaleDateString('de-DE')
 
@@ -177,6 +203,16 @@ export default async function PrintPage({ params }: Props) {
                   Betriebsnr.: {settings.employer_tax_number}
                 </p>
               )}
+              {countryMode === 'at' && settings.at_dienstgeberkonto_nr && (
+                <p className="text-xs text-slate-500 mt-1">
+                  ÖGK-Beitragskontonr.: {settings.at_dienstgeberkonto_nr}
+                </p>
+              )}
+              {countryMode === 'at' && settings.at_kostentraeger_name && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Kostenträger: {settings.at_kostentraeger_name}
+                </p>
+              )}
             </div>
           )}
           <div className={`p-4 bg-slate-50 rounded-xl print:bg-white print:border print:border-slate-200 ${!settings?.employer_name ? 'col-span-2' : ''}`}>
@@ -185,9 +221,14 @@ export default async function PrintPage({ params }: Props) {
             </h2>
             <p className="text-sm font-semibold text-slate-900">{assistant.full_name}</p>
             <p className="text-xs text-slate-600">{assistant.email}</p>
-            {minijobMode && (
+            {minijobMode && countryMode === 'de' && (
               <p className="text-xs text-slate-500 mt-1">
                 Beschäftigungsart: Geringfügige Beschäftigung (Minijob)
+              </p>
+            )}
+            {atGeringfuegigMode && (
+              <p className="text-xs text-slate-500 mt-1">
+                Beschäftigungsart: Geringfügige Beschäftigung (AT)
               </p>
             )}
           </div>
@@ -245,7 +286,7 @@ export default async function PrintPage({ params }: Props) {
         </div>
 
         {/* Vergütung – Standard */}
-        {!minijob && (
+        {!minijob && !atBreakdown && (
           <div className="mb-10 border border-slate-200 rounded-xl overflow-hidden">
             <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -406,6 +447,99 @@ export default async function PrintPage({ params }: Props) {
           </div>
         )}
 
+        {/* Vergütung – Geringfügige Beschäftigung (AT) */}
+        {atBreakdown && (
+          <div className="mb-6">
+            <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
+              <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
+                <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Entgeltabrechnung (Arbeitnehmer)
+                </h2>
+              </div>
+              <div className="px-5 py-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Gearbeitete Stunden</span>
+                  <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Stundensatz</span>
+                  <span className="font-medium text-slate-800">
+                    {formatCurrency(effectiveBruttoRate, currency)}/h
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Bruttoentgelt</span>
+                  <span className="font-medium text-slate-800">
+                    {formatCurrency(atBreakdown.brutto, currency)}
+                  </span>
+                </div>
+                {atBreakdown.urlaubsgeldAnteil > 0 && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>+ Urlaubsgeld-Anteil (1/12, aliquot)</span>
+                    <span>{formatCurrency(atBreakdown.urlaubsgeldAnteil, currency)}</span>
+                  </div>
+                )}
+                {atBreakdown.weihnachtsgeldAnteil > 0 && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>+ Weihnachtsgeld-Anteil (1/12, aliquot)</span>
+                    <span>{formatCurrency(atBreakdown.weihnachtsgeldAnteil, currency)}</span>
+                  </div>
+                )}
+                <div className="border-t-2 border-slate-300 pt-3 flex justify-between items-baseline">
+                  <span className="text-lg font-bold text-slate-900">Auszahlungsbetrag (Netto)</span>
+                  <span className="text-2xl font-bold text-green-700">
+                    {formatCurrency(atBreakdown.netto, currency)}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 italic">
+                  Netto = Brutto (inkl. Sonderzahlungsanteile) — unterhalb der Geringfügigkeitsgrenze
+                  fallen i.d.R. keine Lohnsteuer-/SV-Abzüge auf Arbeitnehmerseite an. Eine freiwillige
+                  Selbstversicherung läuft separat und jährlich direkt mit der ÖGK ab.
+                </p>
+              </div>
+            </div>
+
+            {/* AG-Abgaben (Info-Box) */}
+            <div className="border border-blue-200 rounded-xl overflow-hidden bg-blue-50">
+              <div className="bg-blue-100 px-5 py-3 border-b border-blue-200">
+                <h2 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                  Arbeitgeberabgaben – zur Information
+                </h2>
+              </div>
+              <div className="px-5 py-4 space-y-1.5 text-sm">
+                <div className="flex justify-between text-blue-900">
+                  <span>Unfallversicherung ({atRates.uvBeitrag.toFixed(2)} %)</span>
+                  <span>{formatCurrency(atBreakdown.uvAmount, currency)}</span>
+                </div>
+                <div className="flex justify-between text-blue-900">
+                  <span>Betriebliche Vorsorge / MVK ({atRates.mvkBeitrag.toFixed(2)} %)</span>
+                  <span>{formatCurrency(atBreakdown.mvkAmount, currency)}</span>
+                </div>
+                {atRates.dgAbgabe > 0 && (
+                  <div className="flex justify-between text-blue-900">
+                    <span>Dienstgeberabgabe ({atRates.dgAbgabe.toFixed(2)} %)</span>
+                    <span>{formatCurrency(atBreakdown.dgAbgabeAmount, currency)}</span>
+                  </div>
+                )}
+                {atRates.kommunalsteuer > 0 && (
+                  <div className="flex justify-between text-blue-900">
+                    <span>Kommunalsteuer ({atRates.kommunalsteuer.toFixed(2)} %)</span>
+                    <span>{formatCurrency(atBreakdown.kommunalsteuerAmount, currency)}</span>
+                  </div>
+                )}
+                <div className="border-t border-blue-200 pt-2 flex justify-between font-semibold text-blue-900">
+                  <span>Summe AG-Abgaben</span>
+                  <span>{formatCurrency(atBreakdown.totalAGAbgaben, currency)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-blue-900 text-base">
+                  <span>Gesamtkosten Arbeitgeber</span>
+                  <span>{formatCurrency(atBreakdown.totalKosten, currency)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Unterschriften */}
         <div className="grid grid-cols-2 gap-12 mt-16">
           <div>
@@ -418,9 +552,15 @@ export default async function PrintPage({ params }: Props) {
           </div>
         </div>
 
-        {minijobMode && (
+        {minijobMode && countryMode === 'de' && (
           <p className="text-xs text-slate-400 mt-8 text-center">
             Beitragssätze gem. § 249b SGB V, § 168 Abs. 1 Nr. 1b SGB VI (Stand 2025)
+          </p>
+        )}
+        {atGeringfuegigMode && (
+          <p className="text-xs text-slate-400 mt-8 text-center">
+            Geringfügige Beschäftigung gem. § 5 Abs. 2 ASVG (Stand 2026, Geringfügigkeitsgrenze
+            manuell gepflegt in den Einstellungen)
           </p>
         )}
       </div>
