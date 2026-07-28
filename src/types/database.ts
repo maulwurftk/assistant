@@ -213,6 +213,17 @@ export type Database = {
           mj_u2: number
           mj_insolvenzgeld: number
           mj_rv_an: number
+          country_mode: 'de' | 'at'
+          at_geringfuegig_mode: boolean
+          at_geringfuegigkeitsgrenze: number
+          at_uv_beitrag: number
+          at_mvk_beitrag: number
+          at_dg_abgabe: number
+          at_kommunalsteuer: number
+          at_include_urlaubsgeld: boolean
+          at_include_weihnachtsgeld: boolean
+          at_dienstgeberkonto_nr: string
+          at_kostentraeger_name: string
           weekly_template: unknown | null
         }
         Insert: {
@@ -243,6 +254,17 @@ export type Database = {
           mj_u2?: number
           mj_insolvenzgeld?: number
           mj_rv_an?: number
+          country_mode?: 'de' | 'at'
+          at_geringfuegig_mode?: boolean
+          at_geringfuegigkeitsgrenze?: number
+          at_uv_beitrag?: number
+          at_mvk_beitrag?: number
+          at_dg_abgabe?: number
+          at_kommunalsteuer?: number
+          at_include_urlaubsgeld?: boolean
+          at_include_weihnachtsgeld?: boolean
+          at_dienstgeberkonto_nr?: string
+          at_kostentraeger_name?: string
         }
         Update: {
           hourly_rate?: number
@@ -269,6 +291,17 @@ export type Database = {
           mj_u2?: number
           mj_insolvenzgeld?: number
           mj_rv_an?: number
+          country_mode?: 'de' | 'at'
+          at_geringfuegig_mode?: boolean
+          at_geringfuegigkeitsgrenze?: number
+          at_uv_beitrag?: number
+          at_mvk_beitrag?: number
+          at_dg_abgabe?: number
+          at_kommunalsteuer?: number
+          at_include_urlaubsgeld?: boolean
+          at_include_weihnachtsgeld?: boolean
+          at_dienstgeberkonto_nr?: string
+          at_kostentraeger_name?: string
           weekly_template?: unknown | null
         }
         Relationships: Rel[]

@@ -6,12 +6,15 @@ import {
   formatMinutes,
   calculatePay,
   calculateMinijob,
+  calculateGeringfuegigAT,
   formatCurrency,
   formatDate,
   monthName,
   grossFromBezirkRate,
   ratesFromSettings,
+  atRatesFromSettings,
   normalizeCountMode,
+  normalizeCountryMode,
 } from '@/lib/payroll'
 import { escapeHtml } from '@/lib/utils'
 
@@ -98,6 +101,14 @@ export async function POST(request: Request) {
     mj_u2?: number | null
     mj_insolvenzgeld?: number | null
     mj_rv_an?: number | null
+    country_mode?: 'de' | 'at'
+    at_geringfuegig_mode?: boolean
+    at_uv_beitrag?: number | null
+    at_mvk_beitrag?: number | null
+    at_dg_abgabe?: number | null
+    at_kommunalsteuer?: number | null
+    at_include_urlaubsgeld?: boolean
+    at_include_weihnachtsgeld?: boolean
   } | null
   const countMode = normalizeCountMode(settings?.payroll_count_mode)
 
@@ -142,7 +153,20 @@ export async function POST(request: Request) {
     0
   )
   const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
-  const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
+  const countryMode = normalizeCountryMode(settings?.country_mode)
+  const atGeringfuegigMode = countryMode === 'at' && (settings?.at_geringfuegig_mode ?? false)
+  const atRates = atRatesFromSettings(settings)
+  const minijob = minijobMode && countryMode === 'de' ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
+  const atBreakdown = atGeringfuegigMode
+    ? calculateGeringfuegigAT(
+        brutto,
+        {
+          includeUrlaubsgeld: settings?.at_include_urlaubsgeld ?? false,
+          includeWeihnachtsgeld: settings?.at_include_weihnachtsgeld ?? false,
+        },
+        atRates
+      )
+    : null
 
   if (totalMinutes === 0) {
     return NextResponse.json({ error: 'Keine Stunden für diesen Monat erfasst' }, { status: 400 })
@@ -165,8 +189,55 @@ export async function POST(request: Request) {
     })
     .join('')
 
-  // Vergütungsbox: Standard oder Minijob
-  const payBoxHtml = minijob
+  // Vergütungsbox: Standard, Minijob (DE) oder geringfügige Beschäftigung (AT)
+  const payBoxHtml = atBreakdown
+    ? `
+    <!-- Entgeltabrechnung AT -->
+    <div style="margin:24px 32px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px">
+      <p style="margin:0 0 12px;font-size:13px;color:#15803d;text-transform:uppercase;font-weight:600;letter-spacing:.05em">Entgeltabrechnung</p>
+      <table style="width:100%;font-size:14px;border-collapse:collapse">
+        <tr>
+          <td style="color:#334155;padding:4px 0">Gearbeitete Stunden</td>
+          <td style="text-align:right;color:#0f172a;font-weight:500">${formatMinutes(totalMinutes)}</td>
+        </tr>
+        <tr>
+          <td style="color:#334155;padding:4px 0">Stundensatz</td>
+          <td style="text-align:right;color:#0f172a;font-weight:500">${formatCurrency(effectiveBruttoRate, currency)}/h</td>
+        </tr>
+        <tr>
+          <td style="color:#334155;padding:4px 0">Bruttoentgelt</td>
+          <td style="text-align:right;color:#0f172a;font-weight:500">${formatCurrency(atBreakdown.brutto, currency)}</td>
+        </tr>
+        ${atBreakdown.urlaubsgeldAnteil > 0 ? `
+        <tr>
+          <td style="color:#334155;padding:4px 0">+ Urlaubsgeld-Anteil (1/12, aliquot)</td>
+          <td style="text-align:right;color:#0f172a">${formatCurrency(atBreakdown.urlaubsgeldAnteil, currency)}</td>
+        </tr>` : ''}
+        ${atBreakdown.weihnachtsgeldAnteil > 0 ? `
+        <tr>
+          <td style="color:#334155;padding:4px 0">+ Weihnachtsgeld-Anteil (1/12, aliquot)</td>
+          <td style="text-align:right;color:#0f172a">${formatCurrency(atBreakdown.weihnachtsgeldAnteil, currency)}</td>
+        </tr>` : ''}
+        <tr style="border-top:2px solid #86efac">
+          <td style="color:#15803d;font-weight:700;padding:12px 0 4px;font-size:16px">Auszahlungsbetrag (Netto)</td>
+          <td style="text-align:right;font-weight:700;font-size:22px;color:#15803d;padding:12px 0 4px">${formatCurrency(atBreakdown.netto, currency)}</td>
+        </tr>
+      </table>
+      <p style="margin:12px 0 0;font-size:11px;color:#94a3b8;font-style:italic">Netto = Brutto (inkl. Sonderzahlungsanteile) — unterhalb der Geringfügigkeitsgrenze fallen i.d.R. keine Lohnsteuer-/SV-Abzüge auf Arbeitnehmerseite an. Eine freiwillige Selbstversicherung läuft separat und jährlich direkt mit der ÖGK ab.</p>
+    </div>
+
+    <!-- AG-Abgaben Info -->
+    <div style="margin:0 32px 24px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px">
+      <p style="margin:0 0 10px;font-size:12px;color:#1d4ed8;text-transform:uppercase;font-weight:600;letter-spacing:.05em">Arbeitgeberabgaben (Info)</p>
+      <table style="width:100%;font-size:13px;border-collapse:collapse">
+        <tr><td style="color:#1e40af;padding:2px 0">Unfallversicherung (${atRates.uvBeitrag.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(atBreakdown.uvAmount, currency)}</td></tr>
+        <tr><td style="color:#1e40af;padding:2px 0">Betriebliche Vorsorge / MVK (${atRates.mvkBeitrag.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(atBreakdown.mvkAmount, currency)}</td></tr>
+        ${atRates.dgAbgabe > 0 ? `<tr><td style="color:#1e40af;padding:2px 0">Dienstgeberabgabe (${atRates.dgAbgabe.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(atBreakdown.dgAbgabeAmount, currency)}</td></tr>` : ''}
+        ${atRates.kommunalsteuer > 0 ? `<tr><td style="color:#1e40af;padding:2px 0">Kommunalsteuer (${atRates.kommunalsteuer.toFixed(2)} %)</td><td style="text-align:right;color:#1e3a8a">${formatCurrency(atBreakdown.kommunalsteuerAmount, currency)}</td></tr>` : ''}
+        <tr style="border-top:1px solid #bfdbfe"><td style="color:#1e3a8a;font-weight:700;padding:6px 0 2px">Gesamtkosten Arbeitgeber</td><td style="text-align:right;font-weight:700;color:#1e3a8a">${formatCurrency(atBreakdown.totalKosten, currency)}</td></tr>
+      </table>
+    </div>`
+    : minijob
     ? `
     <!-- Entgeltabrechnung Minijob -->
     <div style="margin:24px 32px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px">
@@ -299,7 +370,7 @@ export async function POST(request: Request) {
     <!-- Footer -->
     <div style="padding:24px 32px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px">
       <p style="margin:0">Diese E-Mail wurde automatisch generiert. Bei Fragen wenden Sie sich bitte an Ihren Arbeitgeber.</p>
-      <p style="margin:8px 0 0">Unverbindlich und ohne Gewähr – keine Steuer- oder Lohnabrechnungsberatung. Verbindlich sind allein die Abrechnungen der Minijob-Zentrale und des Finanzamts.</p>
+      <p style="margin:8px 0 0">Unverbindlich und ohne Gewähr – keine Steuer- oder Lohnabrechnungsberatung. Verbindlich sind allein die Abrechnungen ${countryMode === 'at' ? 'der ÖGK und des Finanzamts' : 'der Minijob-Zentrale und des Finanzamts'}.</p>
     </div>
   </div>
 </body>
@@ -326,7 +397,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'E-Mail konnte nicht gesendet werden' }, { status: 500 })
   }
 
-  const totalPay = minijob ? minijob.netto : brutto
+  const totalPay = atBreakdown ? atBreakdown.netto : minijob ? minijob.netto : brutto
 
   await supabase.from('payroll_runs').upsert(
     {

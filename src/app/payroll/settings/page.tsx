@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { ratesFromSettings } from '@/lib/payroll'
+import { ratesFromSettings, atRatesFromSettings, normalizeCountryMode } from '@/lib/payroll'
 import { Settings } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import SettingsForm from './_components/SettingsForm'
@@ -8,6 +8,7 @@ export default async function SettingsPage() {
   const supabase = await createClient()
   const { data: settings } = await supabase.from('payroll_settings').select('*').limit(1).single()
   const rates = ratesFromSettings(settings)
+  const atRates = atRatesFromSettings(settings)
 
   return (
     <div className="max-w-lg">
@@ -38,6 +39,14 @@ export default async function SettingsPage() {
           currentPrivateHoursBudget={settings?.private_hours_budget ?? 0}
           currentPrivateSlotColor={settings?.private_slot_color ?? '#a855f7'}
           currentRates={rates}
+          currentCountryMode={normalizeCountryMode(settings?.country_mode)}
+          currentAtGeringfuegigMode={settings?.at_geringfuegig_mode ?? false}
+          currentAtGrenze={settings?.at_geringfuegigkeitsgrenze ?? 551.10}
+          currentAtRates={atRates}
+          currentAtIncludeUrlaubsgeld={settings?.at_include_urlaubsgeld ?? false}
+          currentAtIncludeWeihnachtsgeld={settings?.at_include_weihnachtsgeld ?? false}
+          currentAtDienstgeberkontoNr={settings?.at_dienstgeberkonto_nr ?? ''}
+          currentAtKostentraegerName={settings?.at_kostentraeger_name ?? ''}
           hasSettings={!!settings}
         />
       </div>

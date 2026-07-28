@@ -1,0 +1,11 @@
+alter table public.payroll_settings drop column if exists at_kostentraeger_name;
+alter table public.payroll_settings drop column if exists at_dienstgeberkonto_nr;
+alter table public.payroll_settings drop column if exists at_include_weihnachtsgeld;
+alter table public.payroll_settings drop column if exists at_include_urlaubsgeld;
+alter table public.payroll_settings drop column if exists at_kommunalsteuer;
+alter table public.payroll_settings drop column if exists at_dg_abgabe;
+alter table public.payroll_settings drop column if exists at_mvk_beitrag;
+alter table public.payroll_settings drop column if exists at_uv_beitrag;
+alter table public.payroll_settings drop column if exists at_geringfuegigkeitsgrenze;
+alter table public.payroll_settings drop column if exists at_geringfuegig_mode;
+alter table public.payroll_settings drop column if exists country_mode;

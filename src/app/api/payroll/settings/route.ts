@@ -33,6 +33,17 @@ export async function POST(request: Request) {
     mj_u2,
     mj_insolvenzgeld,
     mj_rv_an,
+    country_mode,
+    at_geringfuegig_mode,
+    at_geringfuegigkeitsgrenze,
+    at_uv_beitrag,
+    at_mvk_beitrag,
+    at_dg_abgabe,
+    at_kommunalsteuer,
+    at_include_urlaubsgeld,
+    at_include_weihnachtsgeld,
+    at_dienstgeberkonto_nr,
+    at_kostentraeger_name,
   } = body
 
   if (typeof hourly_rate !== 'number' || hourly_rate <= 0) {
@@ -83,6 +94,18 @@ export async function POST(request: Request) {
     mj_u2: rate(mj_u2),
     mj_insolvenzgeld: rate(mj_insolvenzgeld),
     mj_rv_an: rate(mj_rv_an),
+    country_mode: (country_mode === 'at' ? 'at' : 'de') as 'de' | 'at',
+    at_geringfuegig_mode: at_geringfuegig_mode ?? false,
+    at_geringfuegigkeitsgrenze:
+      typeof at_geringfuegigkeitsgrenze === 'number' ? at_geringfuegigkeitsgrenze : 551.10,
+    at_uv_beitrag: rate(at_uv_beitrag),
+    at_mvk_beitrag: rate(at_mvk_beitrag),
+    at_dg_abgabe: rate(at_dg_abgabe),
+    at_kommunalsteuer: rate(at_kommunalsteuer),
+    at_include_urlaubsgeld: at_include_urlaubsgeld ?? false,
+    at_include_weihnachtsgeld: at_include_weihnachtsgeld ?? false,
+    at_dienstgeberkonto_nr: at_dienstgeberkonto_nr ?? '',
+    at_kostentraeger_name: at_kostentraeger_name ?? '',
   }
 
   const { data: existing } = await supabase.from('payroll_settings').select('id').limit(1).single()
