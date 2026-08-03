@@ -190,19 +190,54 @@ async function generateSuggestions(tenantId: string, userId: string) {
     return NextResponse.json({ ok: true, inserted: 0 })
   }
 
-  // Nur einfügen was noch nicht existiert — dedup_key ist jetzt TENANT-LOKAL
-  // unique (0006: account_ledger_tenant_dedup_uk) → onConflict beide Spalten
-  const { error } = await db.from('account_ledger').upsert(
-    suggestions.map((s) => ({
-      ...s,
-      tenant_id: tenantId,
-      status: 'pending',
-      source: 'auto',
-      created_by: userId,
-    })) as never[],
-    { onConflict: 'tenant_id,dedup_key', ignoreDuplicates: true }
+  // Bereits vorhandene Zeilen (per dedup_key) nachschlagen: bestätigte Buchungen
+  // sind echtes Geld und werden nie angefasst; noch offene (pending) Vorschläge
+  // werden mit frisch berechnetem Betrag aktualisiert (nicht länger stumm
+  // übersprungen — sonst "klebt" ein einmal generierter Vorschlag für immer an
+  // seinem alten, evtl. inzwischen falschen Wert fest).
+  const dedupKeys = suggestions.map((s) => s.dedup_key)
+  const existingRes = await db
+    .from('account_ledger')
+    .select('id, dedup_key, status')
+    .eq('tenant_id', tenantId)
+    .in('dedup_key', dedupKeys)
+
+  const existingByKey = new Map(
+    (existingRes.data ?? []).map((row) => [(row as { dedup_key: string }).dedup_key, row as { id: string; status: string }])
   )
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, generated: suggestions.length })
+  const toInsert = suggestions.filter((s) => !existingByKey.has(s.dedup_key))
+  const toUpdate = suggestions.filter((s) => existingByKey.get(s.dedup_key)?.status === 'pending')
+
+  if (toInsert.length > 0) {
+    const { error } = await db.from('account_ledger').insert(
+      toInsert.map((s) => ({
+        ...s,
+        tenant_id: tenantId,
+        status: 'pending',
+        source: 'auto',
+        created_by: userId,
+      })) as never[]
+    )
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  for (const s of toUpdate) {
+    const existing = existingByKey.get(s.dedup_key)!
+    const { error } = await db
+      .from('account_ledger')
+      .update({
+        booking_date: s.booking_date,
+        amount: s.amount,
+        description: s.description,
+      } as never)
+      .eq('id', existing.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({
+    ok: true,
+    generated: toInsert.length,
+    updated: toUpdate.length,
+  })
 }
