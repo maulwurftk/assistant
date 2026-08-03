@@ -59,7 +59,7 @@ async function generateSuggestions(tenantId: string, userId: string) {
 
   const [settingsRes, assistantsRes, slotsRes, entriesRes] = await Promise.all([
     db.from('payroll_settings').select('*').eq('tenant_id', tenantId).single(),
-    db.from('profiles').select('id, rv_pflicht, kv_pflicht').eq('tenant_id', tenantId).eq('role', 'assistant').eq('active', true),
+    db.from('profiles').select('id, full_name, rv_pflicht, kv_pflicht').eq('tenant_id', tenantId).eq('role', 'assistant').eq('active', true),
     db.from('calendar_slots').select('assigned_to, date, start_time, end_time').eq('tenant_id', tenantId).eq('status', 'assigned').eq('is_private', false),
     db.from('time_entries').select('assistant_id, date, start_time, end_time').eq('tenant_id', tenantId).eq('is_private', false),
   ])
@@ -110,6 +110,9 @@ async function generateSuggestions(tenantId: string, userId: string) {
     dedup_key: string
   }> = []
 
+  // Sammelt Minijob-Arbeitgeberabgaben je Halbjahr (Schlüssel: "YYYY-07-31" / "YYYY-12-31")
+  const minijobFeesByHalf = new Map<string, number>()
+
   for (const ym of [...months].sort()) {
     const [y, m] = ym.split('-').map(Number)
     const lastDay = new Date(y, m, 0).getDate()
@@ -128,8 +131,7 @@ async function generateSuggestions(tenantId: string, userId: string) {
       })
     }
 
-    // Ausgabe: Nettolöhne des Monats (gemäß Zähl-Modus)
-    let netTotal = 0
+    // Ausgabe: Nettolohn je Assistent (getrennt, nicht mehr zusammengefasst)
     for (const a of assistants) {
       const slotMinutes = monthSlots
         .filter((s) => s.assigned_to === a.id)
@@ -143,20 +145,45 @@ async function generateSuggestions(tenantId: string, userId: string) {
       const kvPflicht = a.kv_pflicht !== false
       const bruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates) : hourlyRate
       const brutto = calculatePay(minutes, bruttoRate)
-      const netto = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates).netto : brutto
-      netTotal += netto
+      const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
+      const netto = Math.round((minijob ? minijob.netto : brutto) * 100) / 100
+      const name = (a as { full_name?: string }).full_name ?? 'Assistent'
+
+      if (netto > 0) {
+        suggestions.push({
+          booking_date: `${ym}-${lastDay.toString().padStart(2, '0')}`,
+          direction: 'out',
+          category: `Nettolohn – ${name}`,
+          amount: netto,
+          description: `Netto-Auszahlung ${ym}`,
+          dedup_key: `lohn-${ym}-${a.id}`,
+        })
+      }
+
+      // Minijob-Arbeitgeberabgaben je Halbjahr sammeln (fällig zum 31.7 / 31.12)
+      if (minijob) {
+        const halfKey = m <= 6 ? `${y}-07-31` : `${y}-12-31`
+        minijobFeesByHalf.set(
+          halfKey,
+          (minijobFeesByHalf.get(halfKey) ?? 0) + minijob.totalAGAbgaben
+        )
+      }
     }
-    netTotal = Math.round(netTotal * 100) / 100
-    if (netTotal > 0) {
-      suggestions.push({
-        booking_date: `${ym}-${lastDay.toString().padStart(2, '0')}`,
-        direction: 'out',
-        category: 'Nettolöhne',
-        amount: netTotal,
-        description: `Netto-Auszahlung ${ym}`,
-        dedup_key: `loehne-${ym}`,
-      })
-    }
+  }
+
+  // Vorschlag: Minijobgebühren (AG-Abgaben) je Halbjahr, fällig zum 31.7 / 31.12
+  for (const [bookingDate, amount] of minijobFeesByHalf) {
+    const rounded = Math.round(amount * 100) / 100
+    if (rounded <= 0) continue
+    const half = bookingDate.slice(5, 7) === '07' ? 'H1' : 'H2'
+    suggestions.push({
+      booking_date: bookingDate,
+      direction: 'out',
+      category: 'Minijobgebühren',
+      amount: rounded,
+      description: `Arbeitgeberabgaben Minijob-Zentrale ${bookingDate.slice(0, 4)} ${half}`,
+      dedup_key: `minijobgebuehren-${bookingDate}`,
+    })
   }
 
   if (suggestions.length === 0) {

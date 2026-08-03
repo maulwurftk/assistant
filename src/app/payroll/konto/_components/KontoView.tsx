@@ -419,7 +419,12 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
             </div>
             <button
               onClick={saveEntry}
-              disabled={busy === 'add' || busy === editingId || !fCat || !fAmount}
+              disabled={
+                busy === 'add' ||
+                (editingId !== null && busy === editingId) ||
+                !fCat ||
+                !fAmount
+              }
               className="px-3 py-1.5 text-sm font-medium rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               {editingId ? 'Speichern' : 'Buchen'}
