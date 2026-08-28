@@ -41,6 +41,9 @@ export async function POST(req: Request) {
   if (action === 'approve' || action === 'deny') {
     return handleAdminAction(ctx, slot_id, action, notification_id, reason ?? null)
   }
+  if (action === 'create') {
+    return handleCreateRequest(ctx, body)
+  }
   return handleRequest(ctx, slot_id)
 }
 
@@ -112,6 +115,88 @@ async function handleRequest(ctx: TenantContext, slotId: string) {
   return NextResponse.json({ ok: true })
 }
 
+async function handleCreateRequest(ctx: TenantContext, body: any) {
+  const db = adminDb()
+
+  if (ctx.role !== 'assistant') {
+    return NextResponse.json({ error: 'Nur Assistenten können neue Termine vorschlagen' }, { status: 403 })
+  }
+
+  const { date, start_time, end_time, title, description } = body
+
+  if (!date || !start_time || !end_time || !title?.trim()) {
+    return NextResponse.json({ error: 'Bitte Datum, Uhrzeit und Titel angeben' }, { status: 400 })
+  }
+  if (start_time >= end_time) {
+    return NextResponse.json({ error: 'Endzeit muss nach der Startzeit liegen' }, { status: 400 })
+  }
+
+  const { data: assistant } = await db.from('profiles')
+    .select('full_name').eq('id', ctx.userId).eq('tenant_id', ctx.tenantId).single()
+  if (!assistant) return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
+
+  const { data: slot, error: insertError } = await db
+    .from('calendar_slots')
+    .insert({
+      tenant_id: ctx.tenantId,
+      date,
+      start_time,
+      end_time,
+      title: title.trim(),
+      description: description?.trim() || null,
+      created_by: ctx.userId,
+      pending_request_by: ctx.userId,
+      status: 'pending',
+    } as never)
+    .select('*')
+    .single()
+
+  if (insertError || !slot) {
+    console.error('slot create error:', insertError)
+    return NextResponse.json({ error: 'Datenbankfehler: ' + (insertError?.message ?? 'unbekannt') }, { status: 500 })
+  }
+
+  const { data: admins } = await db.from('profiles').select('id, email')
+    .eq('tenant_id', ctx.tenantId).eq('role', 'admin').eq('active', true)
+  if (admins?.length) {
+    const dateStr = format(new Date((slot as any).date), 'EEEE, dd. MMMM', { locale: de })
+    const timeStr = `${(slot as any).start_time.slice(0, 5)}–${(slot as any).end_time.slice(0, 5)} Uhr`
+    const msg = `${assistant.full_name} schlägt einen neuen Termin „${(slot as any).title}" am ${dateStr} (${timeStr}) vor.`
+
+    await db.from('notifications').insert(
+      admins.map(a => ({
+        tenant_id: ctx.tenantId,
+        user_id: a.id,
+        title: 'Neuer Terminvorschlag',
+        message: msg,
+        type: 'warning',
+        related_type: 'slot_request',
+        related_id: (slot as any).id,
+      })) as never[]
+    )
+    await sendPushToUsers(admins.map(a => a.id), 'Neuer Terminvorschlag', msg)
+
+    for (const admin of admins) {
+      await sendEmail(
+        admin.email,
+        'Neuer Terminvorschlag',
+        `
+          <h2 style="color:#059669">Neuer Terminvorschlag</h2>
+          <p>${escapeHtml(msg)}</p>
+          <p>
+            <a href="${APP_URL}/benachrichtigungen"
+               style="display:inline-block;padding:10px 20px;background:#059669;color:#fff;border-radius:6px;text-decoration:none">
+              Jetzt genehmigen oder ablehnen
+            </a>
+          </p>
+        `
+      )
+    }
+  }
+
+  return NextResponse.json({ ok: true, slot })
+}
+
 async function handleAdminAction(
   ctx: TenantContext,
   slotId: string,
@@ -179,8 +264,11 @@ async function handleAdminAction(
       )
     }
   } else {
+    // Selbst vorgeschlagene Termine (created_by === requester) gab es vorher nicht als
+    // "offen" – bei Ablehnung werden sie storniert statt für andere freigegeben.
+    const isSelfProposed = slot.created_by === requesterId
     const { error } = await db.from('calendar_slots').update({
-      status: 'open',
+      status: isSelfProposed ? 'cancelled' : 'open',
       pending_request_by: null,
     } as never).eq('id', slotId).eq('tenant_id', ctx.tenantId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -65,6 +65,22 @@ const emptyForm: SlotForm = {
   is_private: false,
 }
 
+interface ProposeForm {
+  date: string
+  start_time: string
+  end_time: string
+  title: string
+  description: string
+}
+
+const emptyProposeForm: ProposeForm = {
+  date: format(new Date(), 'yyyy-MM-dd'),
+  start_time: '09:00',
+  end_time: '13:00',
+  title: '',
+  description: '',
+}
+
 const statusColors: Record<string, string> = {
   open: '#f59e0b',
   pending: '#8b5cf6',
@@ -82,6 +98,10 @@ export default function KalenderPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [proposeDialogOpen, setProposeDialogOpen] = useState(false)
+  const [proposeForm, setProposeForm] = useState<ProposeForm>(emptyProposeForm)
+  const [proposing, setProposing] = useState(false)
+  const [requesting, setRequesting] = useState(false)
   const [icalUrl, setIcalUrl] = useState<string | null>(null)
   const [icalDialogOpen, setIcalDialogOpen] = useState(false)
   const [icalResetting, setIcalResetting] = useState(false)
@@ -151,15 +171,68 @@ export default function KalenderPage() {
   }
 
   function handleDateSelect(info: DateSelectArg) {
-    if (profile?.role !== 'admin') return
-    setEditSlot(null)
-    setForm({
-      ...emptyForm,
-      date: info.startStr.slice(0, 10),
-      start_time: info.startStr.includes('T') ? info.startStr.slice(11, 16) : '09:00',
-      end_time: info.endStr?.includes('T') ? info.endStr.slice(11, 16) : '13:00',
-    })
-    setDialogOpen(true)
+    const date = info.startStr.slice(0, 10)
+    const start_time = info.startStr.includes('T') ? info.startStr.slice(11, 16) : '09:00'
+    const end_time = info.endStr?.includes('T') ? info.endStr.slice(11, 16) : '13:00'
+
+    if (profile?.role === 'admin') {
+      setEditSlot(null)
+      setForm({ ...emptyForm, date, start_time, end_time })
+      setDialogOpen(true)
+      return
+    }
+
+    if (profile?.role === 'assistant') {
+      setProposeForm({ ...emptyProposeForm, date, start_time, end_time })
+      setProposeDialogOpen(true)
+    }
+  }
+
+  async function handleProposeSlot() {
+    if (proposeForm.start_time >= proposeForm.end_time) { toast.error('Endzeit muss nach Startzeit liegen'); return }
+    if (!proposeForm.title.trim()) { toast.error('Bitte einen Titel eingeben'); return }
+    setProposing(true)
+    try {
+      const res = await fetch('/api/slot-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', ...proposeForm }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Fehler beim Senden des Vorschlags')
+      } else {
+        toast.success('Terminvorschlag gesendet – der Admin wird benachrichtigt')
+        setProposeDialogOpen(false)
+        loadSlots()
+      }
+    } catch {
+      toast.error('Verbindungsfehler')
+    }
+    setProposing(false)
+  }
+
+  async function handleRequestSlot() {
+    if (!editSlot) return
+    setRequesting(true)
+    try {
+      const res = await fetch('/api/slot-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot_id: editSlot.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Fehler beim Senden der Anfrage')
+      } else {
+        toast.success('Anfrage gesendet – der Admin wird benachrichtigt')
+        setDialogOpen(false)
+        loadSlots()
+      }
+    } catch {
+      toast.error('Verbindungsfehler')
+    }
+    setRequesting(false)
   }
 
   function handleEventClick(info: EventClickArg) {
@@ -303,6 +376,11 @@ export default function KalenderPage() {
               <Plus className="h-4 w-4 mr-2" /> Slot hinzufügen
             </Button>
           )}
+          {profile?.role === 'assistant' && (
+            <Button onClick={() => { setProposeForm(emptyProposeForm); setProposeDialogOpen(true) }}>
+              <Plus className="h-4 w-4 mr-2" /> Termin vorschlagen
+            </Button>
+          )}
         </div>
       </div>
 
@@ -348,7 +426,7 @@ export default function KalenderPage() {
             initialView={isMobile ? 'listWeek' : 'dayGridMonth'}
             locale="de"
             firstDay={1}
-            selectable={profile?.role === 'admin'}
+            selectable={profile?.role === 'admin' || profile?.role === 'assistant'}
             select={handleDateSelect}
             eventClick={handleEventClick}
             events={calendarEvents}
@@ -469,16 +547,91 @@ export default function KalenderPage() {
                 )}
                 <div className="flex gap-2">
                   <Badge style={{ backgroundColor: (editSlot.assigned_profile as any)?.color ?? statusColors[editSlot.status] }} className="text-white">
-                    {editSlot.status === 'open' ? 'Offen' : 'Besetzt'}
+                    {editSlot.status === 'open'
+                      ? 'Offen'
+                      : editSlot.status === 'pending'
+                        ? (editSlot.pending_request_by === profile?.id ? 'Von Ihnen vorgeschlagen / angefragt' : 'Angefragt')
+                        : 'Besetzt'}
                   </Badge>
                   {editSlot.is_private && (
                     <Badge className="bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
                   )}
                 </div>
-                <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full">Schließen</Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Schließen</Button>
+                  {editSlot.status === 'open' && (
+                    <Button onClick={handleRequestSlot} disabled={requesting} className="flex-1">
+                      {requesting ? 'Sende…' : 'Anfragen'}
+                    </Button>
+                  )}
+                </div>
               </div>
             )
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Termin vorschlagen (Assistent) */}
+      <Dialog open={proposeDialogOpen} onOpenChange={setProposeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Termin vorschlagen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-gray-500">
+              Ihr Vorschlag geht als Anfrage an den Admin und erscheint erst nach Genehmigung
+              als fester Termin.
+            </p>
+            <div className="space-y-2">
+              <Label>Titel</Label>
+              <Input
+                placeholder="z.B. Nachmittagsbetreuung"
+                value={proposeForm.title}
+                onChange={e => setProposeForm({ ...proposeForm, title: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Datum</Label>
+              <Input
+                type="date"
+                value={proposeForm.date}
+                onChange={e => setProposeForm({ ...proposeForm, date: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Von</Label>
+                <Input
+                  type="time"
+                  value={proposeForm.start_time}
+                  onChange={e => setProposeForm({ ...proposeForm, start_time: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Bis</Label>
+                <Input
+                  type="time"
+                  value={proposeForm.end_time}
+                  onChange={e => setProposeForm({ ...proposeForm, end_time: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notizen <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Textarea
+                placeholder="Zusätzliche Informationen..."
+                value={proposeForm.description}
+                onChange={e => setProposeForm({ ...proposeForm, description: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setProposeDialogOpen(false)}>Abbrechen</Button>
+              <Button onClick={handleProposeSlot} disabled={proposing}>
+                {proposing ? 'Senden...' : 'Vorschlagen'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
