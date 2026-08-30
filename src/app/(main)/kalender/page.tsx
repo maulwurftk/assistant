@@ -107,6 +107,8 @@ export default function KalenderPage() {
   const [icalResetting, setIcalResetting] = useState(false)
   const [ownTimeEntries, setOwnTimeEntries] = useState<any[]>([])
   const [showOwnEntries, setShowOwnEntries] = useState(true)
+  const [allTimeEntries, setAllTimeEntries] = useState<any[]>([])
+  const [showTimeEntries, setShowTimeEntries] = useState(true)
   const [googleEvents, setGoogleEvents] = useState<object[]>([])
   const [isMobile, setIsMobile] = useState(false)
   const [privateColor, setPrivateColor] = useState('#a855f7')
@@ -156,6 +158,12 @@ export default function KalenderPage() {
       fetch('/api/google-calendar').then(r => r.json()).then(data => {
         if (Array.isArray(data)) setGoogleEvents(data)
       }).catch(() => {})
+
+      // Zeiterfassungs-Einträge aller Assistenten laden – als Berichts-Einträge im Kalender sichtbar
+      const { data: allEntries } = await supabase
+        .from('time_entries')
+        .select('id, date, start_time, end_time, description, is_private, assistant_id, activity:activities(name)')
+      setAllTimeEntries(allEntries ?? [])
     }
 
     supabase.channel('calendar').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_slots' }, loadSlots).subscribe()
@@ -238,6 +246,7 @@ export default function KalenderPage() {
   function handleEventClick(info: EventClickArg) {
     if (info.event.extendedProps?.source === 'google') return
     if (info.event.extendedProps?.source === 'own-entry') return
+    if (info.event.extendedProps?.source === 'time-entry') return
     const slot = slots.find(s => s.id === info.event.id)
     if (!slot) return
     setEditSlot(slot)
@@ -342,7 +351,29 @@ export default function KalenderPage() {
       }))
     : []
 
-  const calendarEvents = [...googleEvents, ...ownEntryEvents, ...slots.map(slot => {
+  // Zeiterfassungs-Einträge (Berichte) aller Assistenten – als Ist-Einträge, farblich je Assistent
+  const timeEntryEvents = (profile?.role === 'admin' && showTimeEntries)
+    ? allTimeEntries
+        .filter((e: any) => !e.is_private)
+        .map((e: any) => {
+          const assistantName = assistantNameMap[e.assistant_id] ?? ''
+          const activityName = (e.activity as any)?.name
+          const color = assistantColorMap[e.assistant_id] ?? statusColors.assigned
+          return {
+            id: `entry-${e.id}`,
+            title: `Ist: ${activityName ?? 'Zeiterfassung'}${assistantName ? ' (' + assistantName + ')' : ''}`,
+            start: `${e.date}T${e.start_time}`,
+            end: `${e.date}T${e.end_time}`,
+            backgroundColor: color,
+            borderColor: color,
+            textColor: '#fff',
+            classNames: ['opacity-60', 'border-dashed'],
+            extendedProps: { source: 'time-entry' },
+          }
+        })
+    : []
+
+  const calendarEvents = [...googleEvents, ...ownEntryEvents, ...timeEntryEvents, ...slots.map(slot => {
     const bgColor = slot.assigned_to
       ? (assistantColorMap[slot.assigned_to] ?? statusColors.assigned)
       : statusColors[slot.status]
@@ -414,6 +445,18 @@ export default function KalenderPage() {
             />
             <div className="w-3 h-3 rounded-full bg-gray-400" />
             Eigene Einträge
+          </label>
+        )}
+        {profile?.role === 'admin' && (
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showTimeEntries}
+              onChange={e => setShowTimeEntries(e.target.checked)}
+              className="rounded border-gray-300 text-gray-500 focus:ring-gray-400"
+            />
+            <div className="w-3 h-3 rounded-full bg-gray-400 opacity-60" style={{ borderStyle: 'dashed', borderWidth: 1, borderColor: '#9ca3af' }} />
+            Zeiterfassung (Ist)
           </label>
         )}
       </div>

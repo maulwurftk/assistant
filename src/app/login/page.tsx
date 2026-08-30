@@ -23,7 +23,7 @@ export default function LoginPage() {
       setError('Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort prüfen.')
       setLoading(false)
     } else {
-      router.push('/payroll')
+      router.push('/dashboard')
       router.refresh()
     }
   }

@@ -33,6 +33,12 @@ export default async function PayrollLayout({ children }: { children: React.Reac
           <p className="text-slate-400 text-sm mt-1">
             Diese Seite ist nur für Administratoren zugänglich.
           </p>
+          <a
+            href="/dashboard"
+            className="inline-block mt-4 text-sm text-blue-600 hover:underline"
+          >
+            ← Zur Startseite
+          </a>
         </div>
       </div>
     )
