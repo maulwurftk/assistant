@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2, FileText, Clock } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2, FileText, Clock, ArrowRightLeft } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -114,6 +114,8 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   const [creatingTemplate, setCreatingTemplate] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
   const [privateHoursBudget, setPrivateHoursBudget] = useState(0)
+  const [countMode, setCountMode] = useState<'slots' | 'entries' | 'both'>('slots')
+  const [transferring, setTransferring] = useState(false)
 
   useEffect(() => {
     supabase.from('activities').select('*').eq('active', true).order('sort_order')
@@ -122,8 +124,12 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       .then((r) => r.json())
       .then(({ template: t }) => { if (t) { setTemplate(t); setEditingTemplate(t) } })
       .catch(() => {})
-    supabase.from('payroll_settings').select('private_hours_budget').limit(1).single()
-      .then(({ data }) => setPrivateHoursBudget(data?.private_hours_budget ?? 0))
+    supabase.from('payroll_settings').select('private_hours_budget, payroll_count_mode').limit(1).single()
+      .then(({ data }) => {
+        setPrivateHoursBudget(data?.private_hours_budget ?? 0)
+        const mode = data?.payroll_count_mode
+        setCountMode(mode === 'entries' || mode === 'both' ? mode : 'slots')
+      })
   }, [])
 
   const loadEntries = useCallback(async () => {
@@ -259,6 +265,25 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     setSavingConfig(false)
   }
 
+  async function handleTransferToSlots() {
+    if (!selectedId) return
+    setTransferring(true)
+    const res = await fetch('/api/admin/time-entries/to-slots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assistant_id: selectedId,
+        year: currentMonth.getFullYear(),
+        month: currentMonth.getMonth() + 1,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) toast.error(data.error ?? 'Fehler beim Übernehmen')
+    else if (data.created === 0) toast.info('Nichts zu übernehmen – alle Einträge haben bereits einen Slot')
+    else { toast.success(`${data.created} Eintrag${data.created === 1 ? '' : 'e'} als Kalender-Slot übernommen`); loadEntries() }
+    setTransferring(false)
+  }
+
   function updateRow(i: number, patch: Partial<TemplateRow>) {
     setEditingTemplate((prev) => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r))
   }
@@ -276,6 +301,13 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth() + 1
   const preview = selectedId ? generatePreview(year, month, entries, template) : { toCreate: 0, toSkip: 0 }
+
+  // Einträge ohne passenden Kalender-Slot (gleiches Datum + gleiche Start-/Endzeit) –
+  // diese fließen bei Zähl-Modus "Nur Kalender-Slots" nicht in die Lohnabrechnung ein.
+  const slotKeys = new Set(slots.map((s) => `${s.date}|${s.start_time}|${s.end_time}`))
+  const unmatchedEntryCount = countMode === 'entries' ? 0 : entries.filter(
+    (e) => !e.is_private && !slotKeys.has(`${e.date}|${e.start_time}|${e.end_time}`)
+  ).length
 
   // Combine and sort all items by date+start_time
   type ListItem = { kind: 'entry'; data: TimeEntry } | { kind: 'slot'; data: CalendarSlot }
@@ -354,6 +386,22 @@ export default function AdminZeiterfassung({ assistants }: Props) {
             <FileText className="h-4 w-4 mr-1.5" />
             Bericht drucken
           </Button>
+          {countMode !== 'entries' && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!selectedId || transferring || unmatchedEntryCount === 0}
+              onClick={handleTransferToSlots}
+              title="Zeiterfassungs-Einträge ohne passenden Kalender-Slot als Slot anlegen, damit sie in die Lohnabrechnung einfließen"
+            >
+              <ArrowRightLeft className="h-4 w-4 mr-1.5" />
+              {transferring
+                ? 'Übernehme…'
+                : unmatchedEntryCount > 0
+                  ? `${unmatchedEntryCount} Eintrag${unmatchedEntryCount === 1 ? '' : 'e'} als Slots übernehmen`
+                  : 'Alle Einträge haben schon einen Slot'}
+            </Button>
+          )}
           <Button onClick={openNew} size="sm" disabled={!selectedId}>
             <Plus className="h-4 w-4 mr-1.5" />
             Eintrag hinzufügen
@@ -608,6 +656,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
             if (item.kind === 'entry') {
               const entry = item.data
               const hours = durationHours(entry.start_time, entry.end_time)
+              const hasSlot = slotKeys.has(`${entry.date}|${entry.start_time}|${entry.end_time}`)
               return (
                 <div key={`e-${entry.id}`} className="bg-surface border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -618,6 +667,11 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                       <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500">Eintrag</Badge>
                       {entry.is_private && (
                         <Badge className="text-xs bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
+                      )}
+                      {!entry.is_private && !hasSlot && countMode !== 'entries' && (
+                        <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+                          Kein Slot – zählt nicht für Lohn
+                        </Badge>
                       )}
                     </div>
                     <div className="mt-0.5 text-xs text-gray-500">
