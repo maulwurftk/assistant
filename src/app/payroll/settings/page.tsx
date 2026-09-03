@@ -26,7 +26,6 @@ export default async function SettingsPage() {
           currentRate={settings?.hourly_rate ?? 20}
           currentCurrency={settings?.currency ?? 'EUR'}
           currentPayrollEnabled={settings?.payroll_enabled ?? true}
-          currentCountMode={(settings?.payroll_count_mode as 'slots' | 'entries' | 'both') ?? 'slots'}
           currentMinijobMode={settings?.minijob_mode ?? false}
           currentBezirkMode={settings?.bezirk_mode ?? false}
           currentUvRate={settings?.uv_rate ?? 1.6}

@@ -13,7 +13,6 @@ import {
   grossFromBezirkRate,
   ratesFromSettings,
   atRatesFromSettings,
-  normalizeCountMode,
   normalizeCountryMode,
 } from '@/lib/payroll'
 import { escapeHtml } from '@/lib/utils'
@@ -49,28 +48,19 @@ export async function POST(request: Request) {
   const dateFrom = `${year}-${month.toString().padStart(2, '0')}-01`
   const dateTo = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
 
-  // Einträge, Slots, Tätigkeiten, Settings und Assistent-Profil parallel laden
-  const [entriesRes, slotsRes, activitiesRes, settingsRes, assistantRes] = await Promise.all([
-    supabase
-      .from('time_entries')
-      .select('date, start_time, end_time, activity_id, description')
-      .eq('assistant_id', assistantId)
-      .eq('is_private', false)
-      .gte('date', dateFrom)
-      .lt('date', dateTo)
-      .order('date')
-      .order('start_time'),
+  // Slots, Settings und Assistent-Profil parallel laden
+  const [slotsRes, settingsRes, assistantRes] = await Promise.all([
     supabase
       .from('calendar_slots')
-      .select('date, start_time, end_time, title')
+      .select('date, start_time, end_time, title, actual_start_time, actual_end_time')
       .eq('assigned_to', assistantId)
       .eq('status', 'assigned')
       .eq('is_private', false)
+      .not('confirmed_at', 'is', null)
       .gte('date', dateFrom)
       .lt('date', dateTo)
       .order('date')
       .order('start_time'),
-    supabase.from('activities').select('id, name'),
     supabase.from('payroll_settings').select('*').limit(1).single(),
     supabase.from('profiles').select('full_name, email, rv_pflicht, kv_pflicht').eq('id', assistantId).single(),
   ])
@@ -84,14 +74,11 @@ export async function POST(request: Request) {
   const assistantName = assistantRow.full_name ?? ''
   const assistantEmail = assistantRow.email
 
-  const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.name]))
-  const timeEntries = entriesRes.data ?? []
-  const calendarSlots = (slotsRes.data ?? []) as Array<{ date: string; start_time: string; end_time: string; title: string }>
+  const calendarSlots = (slotsRes.data ?? []) as Array<{ date: string; start_time: string; end_time: string; title: string; actual_start_time: string | null; actual_end_time: string | null }>
 
   const settings = settingsRes.data as {
     minijob_mode?: boolean
     bezirk_mode?: boolean
-    payroll_count_mode?: string
     uv_rate?: number
     employer_name?: string
     mj_kv_ag?: number | null
@@ -110,32 +97,20 @@ export async function POST(request: Request) {
     at_include_urlaubsgeld?: boolean
     at_include_weihnachtsgeld?: boolean
   } | null
-  const countMode = normalizeCountMode(settings?.payroll_count_mode)
-
-  // Nur die Zeiten, die gemäß Zähl-Modus vergütet werden (Tabelle = Summe)
+  // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
+  // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
   type WorkRow = { date: string; start_time: string; end_time: string; label: string }
-  const entryRows: WorkRow[] =
-    countMode === 'slots'
-      ? []
-      : timeEntries.map((e) => ({
-          date: e.date,
-          start_time: e.start_time,
-          end_time: e.end_time,
-          label: e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–',
-        }))
-  const slotRows: WorkRow[] =
-    countMode === 'entries'
-      ? []
-      : calendarSlots.map((s) => ({
-          date: s.date,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          label: s.title,
-        }))
-  const allEntries: WorkRow[] = [...entryRows, ...slotRows].sort((a, b) => {
-    const d = a.date.localeCompare(b.date)
-    return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
-  })
+  const allEntries: WorkRow[] = calendarSlots
+    .map((s) => ({
+      date: s.date,
+      start_time: s.actual_start_time || s.start_time,
+      end_time: s.actual_end_time || s.end_time,
+      label: s.title,
+    }))
+    .sort((a, b) => {
+      const d = a.date.localeCompare(b.date)
+      return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
+    })
   const assistantProfile = assistantRes.data as { rv_pflicht?: boolean; kv_pflicht?: boolean } | null
   const rvPflicht = assistantProfile?.rv_pflicht !== false
   const kvPflicht = assistantProfile?.kv_pflicht !== false

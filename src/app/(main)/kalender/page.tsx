@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Profile, CalendarSlot } from '@/lib/types'
+import { Profile, CalendarSlot, Activity } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,10 +33,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, X, CalendarPlus, Copy, RefreshCw, CalendarDays } from 'lucide-react'
+import { Plus, X, CalendarPlus, Copy, RefreshCw, CalendarDays, CheckCircle2 } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
+import { MonthlyCloseCard } from './_components/MonthlyCloseCard'
 
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -71,6 +72,10 @@ interface ProposeForm {
   end_time: string
   title: string
   description: string
+  self_reported: boolean
+  activity_id: string
+  actual_start_time: string
+  actual_end_time: string
 }
 
 const emptyProposeForm: ProposeForm = {
@@ -79,6 +84,10 @@ const emptyProposeForm: ProposeForm = {
   end_time: '13:00',
   title: '',
   description: '',
+  self_reported: false,
+  activity_id: '',
+  actual_start_time: '',
+  actual_end_time: '',
 }
 
 const statusColors: Record<string, string> = {
@@ -105,13 +114,15 @@ export default function KalenderPage() {
   const [icalUrl, setIcalUrl] = useState<string | null>(null)
   const [icalDialogOpen, setIcalDialogOpen] = useState(false)
   const [icalResetting, setIcalResetting] = useState(false)
-  const [ownTimeEntries, setOwnTimeEntries] = useState<any[]>([])
-  const [showOwnEntries, setShowOwnEntries] = useState(true)
-  const [allTimeEntries, setAllTimeEntries] = useState<any[]>([])
-  const [showTimeEntries, setShowTimeEntries] = useState(true)
   const [googleEvents, setGoogleEvents] = useState<object[]>([])
   const [isMobile, setIsMobile] = useState(false)
   const [privateColor, setPrivateColor] = useState('#a855f7')
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [confirmActualStart, setConfirmActualStart] = useState('')
+  const [confirmActualEnd, setConfirmActualEnd] = useState('')
+  const [confirmActivityId, setConfirmActivityId] = useState('')
   const calendarRef = useRef<any>(null)
 
   useEffect(() => {
@@ -140,30 +151,18 @@ export default function KalenderPage() {
       .eq('active', true)
     setAssistants((asst ?? []) as unknown as Profile[])
 
+    const { data: acts } = await supabase.from('activities').select('*').eq('active', true).order('sort_order')
+    setActivities((acts ?? []) as unknown as Activity[])
+
     loadSlots()
 
     supabase.from('payroll_settings').select('private_slot_color').limit(1).single()
       .then(({ data }) => { if (data?.private_slot_color) setPrivateColor(data.private_slot_color) })
 
-    // Load own time entries for assistants – shown in calendar to detect conflicts
-    if ((p as any)?.role === 'assistant') {
-      const { data: entries } = await supabase
-        .from('time_entries')
-        .select('id, date, start_time, end_time')
-        .eq('assistant_id', user.id)
-      setOwnTimeEntries(entries ?? [])
-    }
-
     if ((p as any)?.role === 'admin') {
       fetch('/api/google-calendar').then(r => r.json()).then(data => {
         if (Array.isArray(data)) setGoogleEvents(data)
       }).catch(() => {})
-
-      // Zeiterfassungs-Einträge aller Assistenten laden – als Berichts-Einträge im Kalender sichtbar
-      const { data: allEntries } = await supabase
-        .from('time_entries')
-        .select('id, date, start_time, end_time, description, is_private, assistant_id, activity:activities(name)')
-      setAllTimeEntries(allEntries ?? [])
     }
 
     supabase.channel('calendar').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_slots' }, loadSlots).subscribe()
@@ -199,18 +198,26 @@ export default function KalenderPage() {
   async function handleProposeSlot() {
     if (proposeForm.start_time >= proposeForm.end_time) { toast.error('Endzeit muss nach Startzeit liegen'); return }
     if (!proposeForm.title.trim()) { toast.error('Bitte einen Titel eingeben'); return }
+    if (proposeForm.self_reported && proposeForm.actual_start_time && proposeForm.actual_end_time
+        && proposeForm.actual_start_time >= proposeForm.actual_end_time) {
+      toast.error('Ist-Endzeit muss nach Ist-Startzeit liegen'); return
+    }
     setProposing(true)
     try {
       const res = await fetch('/api/slot-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', ...proposeForm }),
+        body: JSON.stringify({ action: 'create', ...proposeForm, activity_id: proposeForm.activity_id || null }),
       })
       const data = await res.json()
       if (!res.ok) {
         toast.error(data.error ?? 'Fehler beim Senden des Vorschlags')
       } else {
-        toast.success('Terminvorschlag gesendet – der Admin wird benachrichtigt')
+        toast.success(
+          proposeForm.self_reported
+            ? 'Meldung gesendet – wartet auf Freigabe durch den Admin'
+            : 'Terminvorschlag gesendet – der Admin wird benachrichtigt'
+        )
         setProposeDialogOpen(false)
         loadSlots()
       }
@@ -243,10 +250,36 @@ export default function KalenderPage() {
     setRequesting(false)
   }
 
+  async function handleConfirmSlot() {
+    if (!editSlot) return
+    setConfirming(true)
+    try {
+      const res = await fetch(`/api/calendar-slots/${editSlot.id}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actual_start_time: confirmActualStart || null,
+          actual_end_time: confirmActualEnd || null,
+          activity_id: confirmActivityId || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Fehler beim Bestätigen')
+      } else {
+        toast.success('Termin bestätigt – zählt jetzt zur Lohnabrechnung')
+        setConfirmDialogOpen(false)
+        setDialogOpen(false)
+        loadSlots()
+      }
+    } catch {
+      toast.error('Verbindungsfehler')
+    }
+    setConfirming(false)
+  }
+
   function handleEventClick(info: EventClickArg) {
     if (info.event.extendedProps?.source === 'google') return
-    if (info.event.extendedProps?.source === 'own-entry') return
-    if (info.event.extendedProps?.source === 'time-entry') return
     const slot = slots.find(s => s.id === info.event.id)
     if (!slot) return
     setEditSlot(slot)
@@ -259,6 +292,9 @@ export default function KalenderPage() {
       assigned_to: slot.assigned_to ?? '',
       is_private: slot.is_private ?? false,
     })
+    setConfirmActualStart(slot.actual_start_time?.slice(0, 5) || slot.start_time.slice(0, 5))
+    setConfirmActualEnd(slot.actual_end_time?.slice(0, 5) || slot.end_time.slice(0, 5))
+    setConfirmActivityId(slot.activity_id ?? '')
     setDialogOpen(true)
   }
 
@@ -338,42 +374,7 @@ export default function KalenderPage() {
     assistantNameMap[a.id] = a.full_name
   })
 
-  const ownEntryEvents = (profile?.role === 'assistant' && showOwnEntries)
-    ? ownTimeEntries.map((e: any) => ({
-        id: `own-${e.id}`,
-        title: 'Eigener Eintrag',
-        start: `${e.date}T${e.start_time}`,
-        end: `${e.date}T${e.end_time}`,
-        backgroundColor: '#d1d5db',
-        borderColor: '#9ca3af',
-        textColor: '#4b5563',
-        extendedProps: { source: 'own-entry' },
-      }))
-    : []
-
-  // Zeiterfassungs-Einträge (Berichte) aller Assistenten – als Ist-Einträge, farblich je Assistent
-  const timeEntryEvents = (profile?.role === 'admin' && showTimeEntries)
-    ? allTimeEntries
-        .filter((e: any) => !e.is_private)
-        .map((e: any) => {
-          const assistantName = assistantNameMap[e.assistant_id] ?? ''
-          const activityName = (e.activity as any)?.name
-          const color = assistantColorMap[e.assistant_id] ?? statusColors.assigned
-          return {
-            id: `entry-${e.id}`,
-            title: `Ist: ${activityName ?? 'Zeiterfassung'}${assistantName ? ' (' + assistantName + ')' : ''}`,
-            start: `${e.date}T${e.start_time}`,
-            end: `${e.date}T${e.end_time}`,
-            backgroundColor: color,
-            borderColor: color,
-            textColor: '#fff',
-            classNames: ['opacity-60', 'border-dashed'],
-            extendedProps: { source: 'time-entry' },
-          }
-        })
-    : []
-
-  const calendarEvents = [...googleEvents, ...ownEntryEvents, ...timeEntryEvents, ...slots.map(slot => {
+  const calendarEvents = [...googleEvents, ...slots.map(slot => {
     const bgColor = slot.assigned_to
       ? (assistantColorMap[slot.assigned_to] ?? statusColors.assigned)
       : statusColors[slot.status]
@@ -435,30 +436,6 @@ export default function KalenderPage() {
         {slots.some(s => s.is_private) && (
           <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: privateColor }} /> Privat</div>
         )}
-        {profile?.role === 'assistant' && (
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showOwnEntries}
-              onChange={e => setShowOwnEntries(e.target.checked)}
-              className="rounded border-gray-300 text-gray-500 focus:ring-gray-400"
-            />
-            <div className="w-3 h-3 rounded-full bg-gray-400" />
-            Eigene Einträge
-          </label>
-        )}
-        {profile?.role === 'admin' && (
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showTimeEntries}
-              onChange={e => setShowTimeEntries(e.target.checked)}
-              className="rounded border-gray-300 text-gray-500 focus:ring-gray-400"
-            />
-            <div className="w-3 h-3 rounded-full bg-gray-400 opacity-60" style={{ borderStyle: 'dashed', borderWidth: 1, borderColor: '#9ca3af' }} />
-            Zeiterfassung (Ist)
-          </label>
-        )}
       </div>
 
       <Card>
@@ -493,6 +470,8 @@ export default function KalenderPage() {
           />
         </CardContent>
       </Card>
+
+      {profile?.role === 'assistant' && <MonthlyCloseCard userId={profile.id} />}
 
       {/* Slot Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -588,7 +567,7 @@ export default function KalenderPage() {
                     <p className="text-sm">{editSlot.description}</p>
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Badge style={{ backgroundColor: (editSlot.assigned_profile as any)?.color ?? statusColors[editSlot.status] }} className="text-white">
                     {editSlot.status === 'open'
                       ? 'Offen'
@@ -599,7 +578,64 @@ export default function KalenderPage() {
                   {editSlot.is_private && (
                     <Badge className="bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
                   )}
+                  {editSlot.status === 'assigned' && (
+                    editSlot.confirmed_at ? (
+                      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Bestätigt
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+                        Noch nicht bestätigt
+                      </Badge>
+                    )
+                  )}
                 </div>
+
+                {editSlot.status === 'assigned' && editSlot.assigned_to === profile?.id && !editSlot.confirmed_at && (
+                  confirmDialogOpen ? (
+                    <div className="space-y-3 bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                      <p className="text-xs text-emerald-800">
+                        Bitte die tatsächlich geleistete Zeit bestätigen – erst danach zählt der Termin
+                        zur Lohnabrechnung.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Ist-Beginn</Label>
+                          <Input type="time" value={confirmActualStart} onChange={e => setConfirmActualStart(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Ist-Ende</Label>
+                          <Input type="time" value={confirmActualEnd} onChange={e => setConfirmActualEnd(e.target.value)} />
+                        </div>
+                      </div>
+                      {activities.length > 0 && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Tätigkeit <span className="text-gray-400 font-normal">(optional)</span></Label>
+                          <Select value={confirmActivityId || 'none'} onValueChange={v => setConfirmActivityId((v === 'none' || !v) ? '' : v)}>
+                            <SelectTrigger><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— Keine Angabe —</SelectItem>
+                              {activities.map(a => (
+                                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setConfirmDialogOpen(false)}>Abbrechen</Button>
+                        <Button size="sm" onClick={handleConfirmSlot} disabled={confirming}>
+                          {confirming ? 'Bestätige…' : 'Bestätigen'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => setConfirmDialogOpen(true)} className="w-full text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Ist-Zeit bestätigen
+                    </Button>
+                  )
+                )}
+
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Schließen</Button>
                   {editSlot.status === 'open' && (
@@ -622,9 +658,32 @@ export default function KalenderPage() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <p className="text-sm text-gray-500">
-              Ihr Vorschlag geht als Anfrage an den Admin und erscheint erst nach Genehmigung
-              als fester Termin.
+              {proposeForm.self_reported
+                ? 'Sie melden einen Termin, der bereits stattgefunden hat. Er zählt erst nach Freigabe durch den Admin zur Lohnabrechnung.'
+                : 'Ihr Vorschlag geht als Anfrage an den Admin und erscheint erst nach Genehmigung als fester Termin.'}
             </p>
+            <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={proposeForm.self_reported}
+                onChange={e => {
+                  const checked = e.target.checked
+                  setProposeForm(f => ({
+                    ...f,
+                    self_reported: checked,
+                    actual_start_time: checked ? (f.actual_start_time || f.start_time) : f.actual_start_time,
+                    actual_end_time: checked ? (f.actual_end_time || f.end_time) : f.actual_end_time,
+                  }))
+                }}
+                className="mt-0.5 rounded border-gray-300"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-gray-700">Termin hat bereits stattgefunden</span>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Für nachträglich erfasste, ungeplante Einsätze – z.B. spontane Vertretung.
+                </p>
+              </span>
+            </label>
             <div className="space-y-2">
               <Label>Titel</Label>
               <Input
@@ -643,7 +702,7 @@ export default function KalenderPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Von</Label>
+                <Label>{proposeForm.self_reported ? 'Geplant von' : 'Von'}</Label>
                 <Input
                   type="time"
                   value={proposeForm.start_time}
@@ -651,7 +710,7 @@ export default function KalenderPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Bis</Label>
+                <Label>{proposeForm.self_reported ? 'Geplant bis' : 'Bis'}</Label>
                 <Input
                   type="time"
                   value={proposeForm.end_time}
@@ -659,6 +718,42 @@ export default function KalenderPage() {
                 />
               </div>
             </div>
+            {proposeForm.self_reported && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Ist-Beginn</Label>
+                    <Input
+                      type="time"
+                      value={proposeForm.actual_start_time}
+                      onChange={e => setProposeForm({ ...proposeForm, actual_start_time: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ist-Ende</Label>
+                    <Input
+                      type="time"
+                      value={proposeForm.actual_end_time}
+                      onChange={e => setProposeForm({ ...proposeForm, actual_end_time: e.target.value })}
+                    />
+                  </div>
+                </div>
+                {activities.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Tätigkeit <span className="text-gray-400 font-normal">(optional)</span></Label>
+                    <Select value={proposeForm.activity_id || 'none'} onValueChange={v => setProposeForm({ ...proposeForm, activity_id: (v === 'none' || !v) ? '' : v })}>
+                      <SelectTrigger><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Keine Angabe —</SelectItem>
+                        {activities.map(a => (
+                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
+            )}
             <div className="space-y-2">
               <Label>Notizen <span className="text-gray-400 font-normal">(optional)</span></Label>
               <Textarea
@@ -671,7 +766,7 @@ export default function KalenderPage() {
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setProposeDialogOpen(false)}>Abbrechen</Button>
               <Button onClick={handleProposeSlot} disabled={proposing}>
-                {proposing ? 'Senden...' : 'Vorschlagen'}
+                {proposing ? 'Senden...' : (proposeForm.self_reported ? 'Melden' : 'Vorschlagen')}
               </Button>
             </div>
           </div>

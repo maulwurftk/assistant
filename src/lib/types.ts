@@ -58,6 +58,12 @@ export interface CalendarSlot {
   created_at: string
   assigned_profile?: Profile
   pending_request_by?: string | null
+  confirmed_at?: string | null
+  confirmed_by?: string | null
+  actual_start_time?: string | null
+  actual_end_time?: string | null
+  activity_id?: string | null
+  self_reported?: boolean
 }
 
 export type ReportStatus = 'pending' | 'confirmed' | 'sent'

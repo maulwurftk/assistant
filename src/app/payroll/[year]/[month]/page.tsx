@@ -14,8 +14,6 @@ import {
   nextMonth,
   grossFromBezirkRate,
   ratesFromSettings,
-  normalizeCountMode,
-  countedMinutes,
 } from '@/lib/payroll'
 import PayrollActions from './_components/PayrollActions'
 import RvPflichtToggle from './_components/RvPflichtToggle'
@@ -39,7 +37,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const dateFrom = `${year}-${month.toString().padStart(2, '0')}-01`
   const dateTo = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
 
-  const [settingsRes, assistantsRes, entriesRes, reportsRes, runsRes, slotsRes] = await Promise.all([
+  const [settingsRes, assistantsRes, reportsRes, runsRes, slotsRes] = await Promise.all([
     supabase.from('payroll_settings').select('*').limit(1).single(),
     supabase
       .from('profiles')
@@ -47,12 +45,6 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .eq('role', 'assistant')
       .eq('active', true)
       .order('full_name'),
-    supabase
-      .from('time_entries')
-      .select('id, assistant_id, date, start_time, end_time, activity_id, month_status')
-      .eq('is_private', false)
-      .gte('date', dateFrom)
-      .lt('date', dateTo),
     supabase
       .from('monthly_reports')
       .select('assistant_id, status')
@@ -65,9 +57,10 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .eq('month', month),
     supabase
       .from('calendar_slots')
-      .select('id, assigned_to, date, start_time, end_time, title')
+      .select('id, assigned_to, date, start_time, end_time, title, confirmed_at, actual_start_time, actual_end_time')
       .eq('status', 'assigned')
       .eq('is_private', false)
+      .not('confirmed_at', 'is', null)
       .gte('date', dateFrom)
       .lt('date', dateTo),
   ])
@@ -77,7 +70,6 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     currency: string
     minijob_mode?: boolean
     bezirk_mode?: boolean
-    payroll_count_mode?: string
     uv_rate?: number
     monthly_budget?: number
     account_fee?: number
@@ -97,7 +89,6 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     rv_pflicht?: boolean
     kv_pflicht?: boolean
   }>
-  const entries = entriesRes.data ?? []
   const reports = reportsRes.data ?? []
   const runs = runsRes.data ?? []
   const slots = (slotsRes.data ?? []) as Array<{
@@ -107,6 +98,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     start_time: string
     end_time: string
     title: string
+    confirmed_at: string | null
+    actual_start_time: string | null
+    actual_end_time: string | null
   }>
 
   const hourlyRate = settings?.hourly_rate ?? 0
@@ -117,7 +111,6 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const monthlyBudget = settings?.monthly_budget ?? 0
   const accountFee = settings?.account_fee ?? 0
   const weeklyHoursTarget = settings?.weekly_hours_target ?? 15
-  const countMode = normalizeCountMode(settings?.payroll_count_mode)
   const rates = ratesFromSettings(settings)
 
   // When bezirk_mode: hourly_rate is the Bezirk's flat rate (incl. AG costs).
@@ -125,17 +118,13 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, true, rates) : hourlyRate
 
   const assistantData = assistants.map((a) => {
-    const myEntries = entries.filter((e) => e.assistant_id === a.id)
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
-    const entryMinutes = myEntries.reduce(
-      (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
+    // Nur bestätigte Slots zählen (siehe Migration 0024_slot_confirmation.sql) –
+    // die tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
+    const totalMinutes = mySlots.reduce(
+      (sum, s) => sum + entryDurationMinutes(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),
       0
     )
-    const slotMinutes = mySlots.reduce(
-      (sum, s) => sum + entryDurationMinutes(s.start_time, s.end_time),
-      0
-    )
-    const totalMinutes = countedMinutes(countMode, entryMinutes, slotMinutes)
     const rvPflicht = a.rv_pflicht !== false
     const kvPflicht = a.kv_pflicht !== false
     const effectiveBruttoRateForAssistant = bezirkMode
@@ -154,7 +143,6 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       rvPflicht,
       kvPflicht,
       slotCount: mySlots.length,
-      entryCount: myEntries.length,
       totalMinutes,
       brutto,
       netto,
@@ -319,13 +307,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                     <p className="text-xs text-slate-400">{a.email}</p>
                   </td>
                   <td className="px-5 py-4 text-right text-slate-500 text-xs leading-snug">
-                    {a.slotCount > 0 && (
-                      <span className="block text-blue-600 font-medium">{a.slotCount} Slot{a.slotCount !== 1 ? 's' : ''}</span>
-                    )}
-                    {a.entryCount > 0 && (
-                      <span className="block">{a.entryCount} Eintr.</span>
-                    )}
-                    {a.slotCount === 0 && a.entryCount === 0 && '–'}
+                    {a.slotCount > 0 ? (
+                      <span className="block text-blue-600 font-medium">{a.slotCount} Einsatz{a.slotCount !== 1 ? 'e' : ''}</span>
+                    ) : '–'}
                   </td>
                   <td className="px-5 py-4 text-right font-medium text-slate-800">
                     {a.totalMinutes > 0 ? formatMinutes(a.totalMinutes) : '–'}

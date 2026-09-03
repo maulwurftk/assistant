@@ -381,6 +381,12 @@ export type Database = {
           pending_request_by: string | null
           reminder_sent_at: string | null
           is_private: boolean
+          confirmed_at: string | null
+          confirmed_by: string | null
+          actual_start_time: string | null
+          actual_end_time: string | null
+          activity_id: string | null
+          self_reported: boolean
           created_at: string
         }
         Insert: {
@@ -397,6 +403,12 @@ export type Database = {
           pending_request_by?: string | null
           reminder_sent_at?: string | null
           is_private?: boolean
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          actual_start_time?: string | null
+          actual_end_time?: string | null
+          activity_id?: string | null
+          self_reported?: boolean
         }
         Update: {
           date?: string
@@ -409,11 +421,19 @@ export type Database = {
           pending_request_by?: string | null
           reminder_sent_at?: string | null
           is_private?: boolean
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          actual_start_time?: string | null
+          actual_end_time?: string | null
+          activity_id?: string | null
+          self_reported?: boolean
         }
         Relationships: [
           { foreignKeyName: 'calendar_slots_assigned_to_fkey', columns: ['assigned_to'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
           { foreignKeyName: 'calendar_slots_created_by_fkey', columns: ['created_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
           { foreignKeyName: 'calendar_slots_pending_request_by_fkey', columns: ['pending_request_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'calendar_slots_confirmed_by_fkey', columns: ['confirmed_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
+          { foreignKeyName: 'calendar_slots_activity_id_fkey', columns: ['activity_id'], isOneToOne: false, referencedRelation: 'activities', referencedColumns: ['id'] },
         ]
       }
       account_ledger: {

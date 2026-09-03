@@ -72,6 +72,13 @@ export async function POST(request: Request) {
     created_by: ctx.userId,
     status: 'assigned' as const,
     is_private: false,
+    // Slots zählen erst nach Bestätigung zur Lohnabrechnung (0024_slot_confirmation.sql).
+    // Diese Übernahme stammt aus bereits erfassten Zeiterfassungs-Einträgen – die
+    // Ist-Zeit ist identisch mit der geplanten Zeit, daher hier direkt bestätigt.
+    confirmed_at: new Date().toISOString(),
+    confirmed_by: ctx.userId,
+    actual_start_time: e.start_time,
+    actual_end_time: e.end_time,
   }))
 
   const { error: insertErr } = await service.from('calendar_slots').insert(rows as never)

@@ -9,8 +9,6 @@ import {
   formatDate,
   grossFromBezirkRate,
   ratesFromSettings,
-  normalizeCountMode,
-  countedMinutes,
 } from '@/lib/payroll'
 import { PeriodPicker } from './_components/PeriodPicker'
 import { RuecklagenRechner } from './_components/RuecklagenRechner'
@@ -45,7 +43,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
 
   const supabase = await createClient()
 
-  const [settingsRes, assistantsRes, slotsRes, entriesRes] = await Promise.all([
+  const [settingsRes, assistantsRes, slotsRes] = await Promise.all([
     supabase.from('payroll_settings').select('*').limit(1).single(),
     supabase
       .from('profiles')
@@ -55,15 +53,10 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       .order('full_name'),
     supabase
       .from('calendar_slots')
-      .select('id, assigned_to, date, start_time, end_time')
+      .select('id, assigned_to, date, start_time, end_time, actual_start_time, actual_end_time')
       .eq('status', 'assigned')
       .eq('is_private', false)
-      .gte('date', from)
-      .lte('date', to),
-    supabase
-      .from('time_entries')
-      .select('assistant_id, start_time, end_time')
-      .eq('is_private', false)
+      .not('confirmed_at', 'is', null)
       .gte('date', from)
       .lte('date', to),
   ])
@@ -73,7 +66,6 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     currency: string
     minijob_mode?: boolean
     bezirk_mode?: boolean
-    payroll_count_mode?: string
     uv_rate?: number
     monthly_budget?: number
     reserve_months?: number
@@ -98,11 +90,6 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     iban?: string | null
   }>
   const slots = slotsRes.data ?? []
-  const entries = (entriesRes.data ?? []) as Array<{
-    assistant_id: string
-    start_time: string
-    end_time: string
-  }>
 
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
@@ -111,19 +98,16 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
   const uvRate = settings?.uv_rate ?? 1.6
   const monthlyBudget = settings?.monthly_budget ?? 0
   const reserveMonths = settings?.reserve_months ?? 2
-  const countMode = normalizeCountMode(settings?.payroll_count_mode)
   const rates = ratesFromSettings(settings)
 
   const rows = assistants.map((a) => {
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
-    const slotMinutes = mySlots.reduce(
-      (sum, s) => sum + entryDurationMinutes(s.start_time, s.end_time),
+    // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
+    // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
+    const totalMinutes = mySlots.reduce(
+      (sum, s) => sum + entryDurationMinutes(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),
       0
     )
-    const entryMinutes = entries
-      .filter((e) => e.assistant_id === a.id)
-      .reduce((sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time), 0)
-    const totalMinutes = countedMinutes(countMode, entryMinutes, slotMinutes)
     const rvPflicht = a.rv_pflicht !== false
     const kvPflicht = a.kv_pflicht !== false
     const bruttoRate = bezirkMode

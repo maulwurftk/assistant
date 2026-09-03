@@ -12,7 +12,6 @@ import {
   grossFromBezirkRate,
   ratesFromSettings,
   atRatesFromSettings,
-  normalizeCountMode,
   normalizeCountryMode,
 } from '@/lib/payroll'
 import PrintButton from './_components/PrintButton'
@@ -31,7 +30,7 @@ export default async function PrintPage({ params }: Props) {
   const dateFrom = `${year}-${month.toString().padStart(2, '0')}-01`
   const dateTo = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
 
-  const [assistantRes, settingsRes, entriesRes, slotsRes, activitiesRes] = await Promise.all([
+  const [assistantRes, settingsRes, slotsRes] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, email, rv_pflicht, kv_pflicht')
@@ -40,25 +39,16 @@ export default async function PrintPage({ params }: Props) {
       .single(),
     supabase.from('payroll_settings').select('*').limit(1).single(),
     supabase
-      .from('time_entries')
-      .select('id, date, start_time, end_time, activity_id, description, month_status')
-      .eq('assistant_id', assistantId)
-      .eq('is_private', false)
-      .gte('date', dateFrom)
-      .lt('date', dateTo)
-      .order('date')
-      .order('start_time'),
-    supabase
       .from('calendar_slots')
-      .select('id, date, start_time, end_time, title')
+      .select('id, date, start_time, end_time, title, actual_start_time, actual_end_time')
       .eq('assigned_to', assistantId)
       .eq('status', 'assigned')
       .eq('is_private', false)
+      .not('confirmed_at', 'is', null)
       .gte('date', dateFrom)
       .lt('date', dateTo)
       .order('date')
       .order('start_time'),
-    supabase.from('activities').select('id, name'),
   ])
 
   if (!assistantRes.data) notFound()
@@ -69,7 +59,6 @@ export default async function PrintPage({ params }: Props) {
     currency: string
     minijob_mode?: boolean
     bezirk_mode?: boolean
-    payroll_count_mode?: string
     uv_rate?: number
     employer_name?: string
     employer_address?: string
@@ -92,40 +81,23 @@ export default async function PrintPage({ params }: Props) {
     at_dienstgeberkonto_nr?: string
     at_kostentraeger_name?: string
   } | null
-  const entries = entriesRes.data ?? []
-  const calendarSlots = (slotsRes.data ?? []) as Array<{ id: string; date: string; start_time: string; end_time: string; title: string }>
-  const activities = activitiesRes.data ?? []
+  const calendarSlots = (slotsRes.data ?? []) as Array<{ id: string; date: string; start_time: string; end_time: string; title: string; actual_start_time: string | null; actual_end_time: string | null }>
 
-  const activityMap = Object.fromEntries(activities.map((a) => [a.id, a.name]))
-
-  const countMode = normalizeCountMode(settings?.payroll_count_mode)
-
-  // Nur die Zeiten anzeigen, die gemäß Zähl-Modus auch vergütet werden
+  // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
+  // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
   type WorkRow = { id: string; date: string; start_time: string; end_time: string; label: string }
-  const entryRows: WorkRow[] =
-    countMode === 'slots'
-      ? []
-      : entries.map((e) => ({
-          id: `e-${e.id}`,
-          date: e.date,
-          start_time: e.start_time,
-          end_time: e.end_time,
-          label: e.activity_id ? (activityMap[e.activity_id] ?? '–') : '–',
-        }))
-  const slotRows: WorkRow[] =
-    countMode === 'entries'
-      ? []
-      : calendarSlots.map((s) => ({
-          id: `s-${s.id}`,
-          date: s.date,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          label: s.title,
-        }))
-  const allRows: WorkRow[] = [...entryRows, ...slotRows].sort((a, b) => {
-    const d = a.date.localeCompare(b.date)
-    return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
-  })
+  const allRows: WorkRow[] = calendarSlots
+    .map((s) => ({
+      id: `s-${s.id}`,
+      date: s.date,
+      start_time: s.actual_start_time || s.start_time,
+      end_time: s.actual_end_time || s.end_time,
+      label: s.title,
+    }))
+    .sort((a, b) => {
+      const d = a.date.localeCompare(b.date)
+      return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
+    })
 
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'

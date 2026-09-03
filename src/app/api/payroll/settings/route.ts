@@ -14,7 +14,6 @@ export async function POST(request: Request) {
     hourly_rate,
     currency,
     payroll_enabled,
-    payroll_count_mode,
     minijob_mode,
     bezirk_mode,
     uv_rate,
@@ -70,10 +69,6 @@ export async function POST(request: Request) {
     currency: currency ?? 'EUR',
     updated_by: user.id,
     payroll_enabled: payroll_enabled !== false,
-    payroll_count_mode:
-      payroll_count_mode === 'entries' || payroll_count_mode === 'both'
-        ? payroll_count_mode
-        : 'slots',
     minijob_mode: minijob_mode ?? false,
     bezirk_mode: bezirk_mode ?? false,
     uv_rate: typeof uv_rate === 'number' ? uv_rate : 1.6,

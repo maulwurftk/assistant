@@ -48,7 +48,6 @@ interface NavProps {
 
 const navItems = (role: string, isPlatformAdmin?: boolean) => [
   { href: '/dashboard', label: 'Übersicht', icon: LayoutDashboard },
-  { href: '/zeiterfassung', label: 'Zeiterfassung', icon: Clock },
   { href: '/kalender', label: 'Kalender', icon: CalendarDays },
   { href: '/aufgaben', label: 'Aufgaben', icon: ListTodo },
   { href: '/verfuegbarkeit', label: 'Sperrzeiten', icon: CalendarOff },
@@ -57,7 +56,7 @@ const navItems = (role: string, isPlatformAdmin?: boolean) => [
     { href: '/admin/benutzer', label: 'Benutzer', icon: Users },
     { href: '/admin/taetigkeiten', label: 'Tätigkeiten', icon: Tag },
     { href: '/admin/aufgaben', label: 'Aufgaben', icon: ListTodo },
-    { href: '/admin/zeiterfassung', label: 'Zeiterfassung', icon: Clock },
+    { href: '/admin/zeiterfassung', label: 'Einsätze verwalten', icon: Clock },
     { href: '/admin/verfuegbarkeit', label: 'Sperrzeiten', icon: CalendarOff },
     { href: '/payroll', label: 'Abrechnung', icon: Banknote },
     { href: '/admin/sicherung', label: 'Datensicherung', icon: Save },

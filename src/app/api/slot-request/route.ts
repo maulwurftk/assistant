@@ -122,7 +122,10 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
     return NextResponse.json({ error: 'Nur Assistenten können neue Termine vorschlagen' }, { status: 403 })
   }
 
-  const { date, start_time, end_time, title, description } = body
+  const {
+    date, start_time, end_time, title, description,
+    self_reported, activity_id, actual_start_time, actual_end_time,
+  } = body
 
   if (!date || !start_time || !end_time || !title?.trim()) {
     return NextResponse.json({ error: 'Bitte Datum, Uhrzeit und Titel angeben' }, { status: 400 })
@@ -134,6 +137,13 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
   const { data: assistant } = await db.from('profiles')
     .select('full_name').eq('id', ctx.userId).eq('tenant_id', ctx.tenantId).single()
   if (!assistant) return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
+
+  // Nachträglich gemeldete, bereits geleistete Termine (self_reported): die
+  // Assistentin bestätigt die Ist-Zeit direkt bei der Meldung – der Slot ist
+  // damit schon "confirmed", zählt aber erst nach Admin-Freigabe (status
+  // 'pending' -> 'assigned') zur Lohnabrechnung, da payroll nur assigned+
+  // confirmed Slots berücksichtigt.
+  const isSelfReported = self_reported === true
 
   const { data: slot, error: insertError } = await db
     .from('calendar_slots')
@@ -147,6 +157,16 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
       created_by: ctx.userId,
       pending_request_by: ctx.userId,
       status: 'pending',
+      self_reported: isSelfReported,
+      activity_id: activity_id || null,
+      ...(isSelfReported
+        ? {
+            confirmed_at: new Date().toISOString(),
+            confirmed_by: ctx.userId,
+            actual_start_time: actual_start_time || start_time,
+            actual_end_time: actual_end_time || end_time,
+          }
+        : {}),
     } as never)
     .select('*')
     .single()
@@ -161,27 +181,30 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
   if (admins?.length) {
     const dateStr = format(new Date((slot as any).date), 'EEEE, dd. MMMM', { locale: de })
     const timeStr = `${(slot as any).start_time.slice(0, 5)}–${(slot as any).end_time.slice(0, 5)} Uhr`
-    const msg = `${assistant.full_name} schlägt einen neuen Termin „${(slot as any).title}" am ${dateStr} (${timeStr}) vor.`
+    const msg = isSelfReported
+      ? `${assistant.full_name} meldet einen bereits geleisteten Termin „${(slot as any).title}" am ${dateStr} (${timeStr}) – wartet auf Freigabe.`
+      : `${assistant.full_name} schlägt einen neuen Termin „${(slot as any).title}" am ${dateStr} (${timeStr}) vor.`
+    const notifTitle = isSelfReported ? 'Nachträgliche Meldung wartet auf Freigabe' : 'Neuer Terminvorschlag'
 
     await db.from('notifications').insert(
       admins.map(a => ({
         tenant_id: ctx.tenantId,
         user_id: a.id,
-        title: 'Neuer Terminvorschlag',
+        title: notifTitle,
         message: msg,
         type: 'warning',
         related_type: 'slot_request',
         related_id: (slot as any).id,
       })) as never[]
     )
-    await sendPushToUsers(admins.map(a => a.id), 'Neuer Terminvorschlag', msg)
+    await sendPushToUsers(admins.map(a => a.id), notifTitle, msg)
 
     for (const admin of admins) {
       await sendEmail(
         admin.email,
-        'Neuer Terminvorschlag',
+        notifTitle,
         `
-          <h2 style="color:#059669">Neuer Terminvorschlag</h2>
+          <h2 style="color:#059669">${notifTitle}</h2>
           <p>${escapeHtml(msg)}</p>
           <p>
             <a href="${APP_URL}/benachrichtigungen"

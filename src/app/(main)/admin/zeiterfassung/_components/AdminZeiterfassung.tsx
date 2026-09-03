@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Activity, TimeEntry } from '@/lib/types'
+import { Activity } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, CalendarPlus, Settings2, FileText, Clock, ArrowRightLeft } from 'lucide-react'
+import { Plus, Pencil, X, Check, ChevronLeft, ChevronRight, CalendarPlus, Settings2, Clock, ArrowRightLeft, CheckCircle2 } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -44,27 +44,45 @@ const TIME_PRESETS = ['07:00','07:30','08:00','08:30','09:00','09:30','10:00','1
 const WEEKDAY_SHORT: Record<number, string> = { 0: 'So', 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa' }
 
 interface Assistant { id: string; full_name: string; email: string }
-interface MonthlyReport { status: string; sent_at: string | null }
-interface CalendarSlot { id: string; date: string; start_time: string; end_time: string; title: string; status: string; is_private?: boolean }
 interface Props { assistants: Assistant[] }
 
-interface EntryForm {
-  date: string; start_time: string; end_time: string
-  activity_id: string; description: string; is_private: boolean
-}
-interface SlotForm {
-  title: string; date: string; start_time: string; end_time: string; is_private: boolean
+interface Slot {
+  id: string
+  date: string
+  start_time: string
+  end_time: string
+  title: string
+  description: string | null
+  status: 'open' | 'pending' | 'assigned' | 'cancelled'
+  is_private: boolean
+  assigned_to: string | null
+  pending_request_by: string | null
+  confirmed_at: string | null
+  actual_start_time: string | null
+  actual_end_time: string | null
+  activity_id: string | null
+  self_reported: boolean | null
+  activity?: { name: string } | null
 }
 
-const emptyForm: EntryForm = {
-  date: format(new Date(), 'yyyy-MM-dd'),
-  start_time: '08:00', end_time: '12:00',
+interface SlotForm {
+  title: string
+  date: string
+  start_time: string
+  end_time: string
+  activity_id: string
+  description: string
+  is_private: boolean
+}
+
+const emptySlotForm: SlotForm = {
+  title: '', date: format(new Date(), 'yyyy-MM-dd'),
+  start_time: '08:00', end_time: '10:00',
   activity_id: '', description: '', is_private: false,
 }
-const emptySlotForm: SlotForm = { title: '', date: format(new Date(), 'yyyy-MM-dd'), start_time: '08:00', end_time: '10:00', is_private: false }
 
-function generatePreview(year: number, month: number, entries: TimeEntry[], template: TemplateRow[]) {
-  const existingKeys = new Set(entries.map((e) => `${e.date}|${e.start_time.slice(0, 5)}`))
+function generatePreview(year: number, month: number, existingSlots: Slot[], template: TemplateRow[]) {
+  const existingKeys = new Set(existingSlots.map((s) => `${s.date}|${s.start_time.slice(0, 5)}`))
   const daysInMonth = new Date(year, month, 0).getDate()
   let toCreate = 0, toSkip = 0
   for (let day = 1; day <= daysInMonth; day++) {
@@ -86,154 +104,188 @@ function durationHours(start: string, end: string) {
 
 export default function AdminZeiterfassung({ assistants }: Props) {
   const supabase = createClient()
+  const [adminId, setAdminId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState(assistants[0]?.id ?? '')
-  const [entries, setEntries] = useState<TimeEntry[]>([])
-  const [slots, setSlots] = useState<CalendarSlot[]>([])
+  const [slots, setSlots] = useState<Slot[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
-  const [report, setReport] = useState<MonthlyReport | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [unmatchedEntryCount, setUnmatchedEntryCount] = useState(0)
 
-  // Entry form state
-  const [form, setForm] = useState<EntryForm>(emptyForm)
+  // Slot form (Anlegen/Bearbeiten)
+  const [form, setForm] = useState<SlotForm>(emptySlotForm)
   const [editId, setEditId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
-
-  // Slot edit state
-  const [slotForm, setSlotForm] = useState<SlotForm>(emptySlotForm)
-  const [editSlotId, setEditSlotId] = useState<string | null>(null)
-  const [slotDialogOpen, setSlotDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   // Template state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [configDialogOpen, setConfigDialogOpen] = useState(false)
   const [template, setTemplate] = useState<TemplateRow[]>(DEFAULT_TEMPLATE)
   const [editingTemplate, setEditingTemplate] = useState<TemplateRow[]>(DEFAULT_TEMPLATE)
-  const [saving, setSaving] = useState(false)
-  const [savingSlot, setSavingSlot] = useState(false)
   const [creatingTemplate, setCreatingTemplate] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
-  const [privateHoursBudget, setPrivateHoursBudget] = useState(0)
-  const [countMode, setCountMode] = useState<'slots' | 'entries' | 'both'>('slots')
   const [transferring, setTransferring] = useState(false)
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setAdminId(user.id) })
     supabase.from('activities').select('*').eq('active', true).order('sort_order')
       .then(({ data }) => setActivities(data ?? []))
     fetch('/api/admin/time-entries/template-config')
       .then((r) => r.json())
       .then(({ template: t }) => { if (t) { setTemplate(t); setEditingTemplate(t) } })
       .catch(() => {})
-    supabase.from('payroll_settings').select('private_hours_budget, payroll_count_mode').limit(1).single()
-      .then(({ data }) => {
-        setPrivateHoursBudget(data?.private_hours_budget ?? 0)
-        const mode = data?.payroll_count_mode
-        setCountMode(mode === 'entries' || mode === 'both' ? mode : 'slots')
-      })
   }, [])
 
-  const loadEntries = useCallback(async () => {
+  const loadSlots = useCallback(async () => {
     if (!selectedId) return
     const dateFrom = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const dateTo = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
 
-    const [entriesRes, slotsRes] = await Promise.all([
-      supabase
-        .from('time_entries')
-        .select('*, activity:activities(name)')
-        .eq('assistant_id', selectedId)
-        .gte('date', dateFrom).lte('date', dateTo)
-        .order('date').order('start_time'),
+    const [slotsRes, entriesRes] = await Promise.all([
       supabase
         .from('calendar_slots')
-        .select('id, date, start_time, end_time, title, status, is_private')
-        .eq('assigned_to', selectedId)
+        .select('id, date, start_time, end_time, title, description, status, is_private, assigned_to, pending_request_by, confirmed_at, actual_start_time, actual_end_time, activity_id, self_reported, activity:activities(name)')
+        .or(`assigned_to.eq.${selectedId},pending_request_by.eq.${selectedId}`)
+        .neq('status', 'cancelled')
         .gte('date', dateFrom).lte('date', dateTo)
         .order('date').order('start_time'),
+      supabase
+        .from('time_entries')
+        .select('date, start_time, end_time, is_private')
+        .eq('assistant_id', selectedId)
+        .eq('is_private', false)
+        .gte('date', dateFrom).lte('date', dateTo),
     ])
-    setEntries(entriesRes.data ?? [])
-    setSlots(slotsRes.data ?? [])
+    const slotRows = (slotsRes.data ?? []) as unknown as Slot[]
+    setSlots(slotRows)
+
+    // Legacy-Zeiterfassungseinträge ohne passenden Slot (gleiches Datum + Zeit) –
+    // Altdaten aus der Zeit vor dem Slot-Bestätigungssystem, die noch übernommen werden können.
+    const ownSlotKeys = new Set(
+      slotRows.filter((s) => s.assigned_to === selectedId).map((s) => `${s.date}|${s.start_time}|${s.end_time}`)
+    )
+    const unmatched = (entriesRes.data ?? []).filter(
+      (e) => !ownSlotKeys.has(`${e.date}|${e.start_time}|${e.end_time}`)
+    ).length
+    setUnmatchedEntryCount(unmatched)
   }, [selectedId, currentMonth])
 
-  const loadReport = useCallback(async () => {
-    if (!selectedId) return
-    const { data } = await supabase
-      .from('monthly_reports').select('status, sent_at')
-      .eq('assistant_id', selectedId)
-      .eq('year', currentMonth.getFullYear())
-      .eq('month', currentMonth.getMonth() + 1)
-      .single()
-    setReport(data)
-  }, [selectedId, currentMonth])
-
-  useEffect(() => { loadEntries(); loadReport() }, [loadEntries, loadReport])
+  useEffect(() => { loadSlots() }, [loadSlots])
 
   function openNew() {
     setEditId(null)
-    setForm({ ...emptyForm, date: format(startOfMonth(currentMonth), 'yyyy-MM-dd') })
+    setForm({ ...emptySlotForm, date: format(startOfMonth(currentMonth), 'yyyy-MM-dd') })
     setDialogOpen(true)
   }
 
-  function openEdit(entry: TimeEntry) {
-    setEditId(entry.id)
+  function openEdit(slot: Slot) {
+    setEditId(slot.id)
     setForm({
-      date: entry.date,
-      start_time: entry.start_time.slice(0, 5),
-      end_time: entry.end_time.slice(0, 5),
-      activity_id: entry.activity_id ?? '',
-      description: entry.description ?? '',
-      is_private: entry.is_private ?? false,
-    })
-    setDialogOpen(true)
-  }
-
-  function openEditSlot(slot: CalendarSlot) {
-    setEditSlotId(slot.id)
-    setSlotForm({
       title: slot.title,
       date: slot.date,
       start_time: slot.start_time.slice(0, 5),
       end_time: slot.end_time.slice(0, 5),
-      is_private: slot.is_private ?? false,
+      activity_id: slot.activity_id ?? '',
+      description: slot.description ?? '',
+      is_private: slot.is_private,
     })
-    setSlotDialogOpen(true)
+    setDialogOpen(true)
   }
 
   async function handleSave() {
     if (form.start_time >= form.end_time) { toast.error('Endzeit muss nach der Startzeit liegen'); return }
+    if (!form.title.trim()) { toast.error('Bitte eine Bezeichnung eingeben'); return }
     setSaving(true)
-    const url = editId ? `/api/admin/time-entries/${editId}` : '/api/admin/time-entries'
-    const body = editId
-      ? { date: form.date, start_time: form.start_time, end_time: form.end_time, activity_id: form.activity_id || null, description: form.description || null, is_private: form.is_private }
-      : { assistant_id: selectedId, date: form.date, start_time: form.start_time, end_time: form.end_time, activity_id: form.activity_id || null, description: form.description || null, is_private: form.is_private }
-    const res = await fetch(url, { method: editId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) toast.error(data.error ?? 'Fehler beim Speichern')
-    else { toast.success(editId ? 'Eintrag aktualisiert' : 'Eintrag hinzugefügt'); setDialogOpen(false); loadEntries() }
+
+    if (editId) {
+      const res = await fetch(`/api/admin/calendar-slots/${editId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.title, date: form.date, start_time: form.start_time, end_time: form.end_time,
+          is_private: form.is_private,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) toast.error(data.error ?? 'Fehler beim Speichern')
+      else { toast.success('Einsatz aktualisiert'); setDialogOpen(false); loadSlots() }
+    } else {
+      if (!adminId) { toast.error('Bitte kurz warten und erneut versuchen'); setSaving(false); return }
+      const now = new Date().toISOString()
+      const { error } = await supabase.from('calendar_slots').insert({
+        date: form.date,
+        start_time: form.start_time,
+        end_time: form.end_time,
+        title: form.title.trim(),
+        description: form.description || null,
+        activity_id: form.activity_id || null,
+        assigned_to: selectedId,
+        created_by: adminId,
+        status: 'assigned',
+        is_private: form.is_private,
+        // Manuell vom Admin erfasste Einsätze gelten als bereits geleistet und bestätigt.
+        confirmed_at: now,
+        confirmed_by: adminId,
+        actual_start_time: form.start_time,
+        actual_end_time: form.end_time,
+      } as never)
+      if (error) toast.error('Fehler beim Speichern: ' + error.message)
+      else { toast.success('Einsatz hinzugefügt'); setDialogOpen(false); loadSlots() }
+    }
     setSaving(false)
   }
 
-  async function handleSaveSlot() {
-    if (!editSlotId) return
-    if (slotForm.start_time >= slotForm.end_time) { toast.error('Endzeit muss nach der Startzeit liegen'); return }
-    setSavingSlot(true)
-    const res = await fetch(`/api/admin/calendar-slots/${editSlotId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(slotForm),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) toast.error(data.error ?? 'Fehler beim Speichern')
-    else { toast.success('Slot aktualisiert'); setSlotDialogOpen(false); loadEntries() }
-    setSavingSlot(false)
+  async function handleCancelSlot() {
+    if (!cancelTargetId) return
+    const { error } = await supabase.from('calendar_slots').update({ status: 'cancelled' } as never).eq('id', cancelTargetId)
+    if (error) toast.error('Fehler beim Entfernen')
+    else { toast.success('Einsatz entfernt'); loadSlots() }
+    setCancelTargetId(null)
   }
 
-  async function handleDelete() {
-    if (!deleteTargetId) return
-    const res = await fetch(`/api/admin/time-entries/${deleteTargetId}`, { method: 'DELETE' })
-    if (!res.ok) toast.error('Fehler beim Löschen')
-    else { toast.success('Eintrag gelöscht'); loadEntries() }
-    setDeleteTargetId(null)
+  async function handleToggleConfirm(slot: Slot) {
+    setBusyId(slot.id)
+    try {
+      if (slot.confirmed_at) {
+        const res = await fetch(`/api/calendar-slots/${slot.id}/confirm`, { method: 'DELETE' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) toast.error(data.error ?? 'Fehler')
+        else { toast.success('Bestätigung zurückgenommen'); loadSlots() }
+      } else {
+        const res = await fetch(`/api/calendar-slots/${slot.id}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            actual_start_time: slot.actual_start_time || slot.start_time,
+            actual_end_time: slot.actual_end_time || slot.end_time,
+            activity_id: slot.activity_id,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) toast.error(data.error ?? 'Fehler')
+        else { toast.success('Bestätigt – zählt jetzt zur Lohnabrechnung'); loadSlots() }
+      }
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleApproveDeny(slot: Slot, action: 'approve' | 'deny') {
+    setBusyId(slot.id)
+    try {
+      const res = await fetch('/api/slot-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot_id: slot.id, action }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) toast.error(data.error ?? 'Fehler')
+      else { toast.success(action === 'approve' ? 'Genehmigt' : 'Abgelehnt'); loadSlots() }
+    } finally {
+      setBusyId(null)
+    }
   }
 
   async function handleCreateTemplate() {
@@ -246,8 +298,8 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) toast.error(data.error ?? 'Fehler')
     else {
-      toast.success(data.skipped > 0 ? `${data.created} Einträge angelegt, ${data.skipped} übersprungen` : `${data.created} Einträge angelegt`)
-      setTemplateDialogOpen(false); loadEntries()
+      toast.success(data.skipped > 0 ? `${data.created} Einsätze angelegt, ${data.skipped} übersprungen` : `${data.created} Einsätze angelegt`)
+      setTemplateDialogOpen(false); loadSlots()
     }
     setCreatingTemplate(false)
   }
@@ -280,7 +332,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) toast.error(data.error ?? 'Fehler beim Übernehmen')
     else if (data.created === 0) toast.info('Nichts zu übernehmen – alle Einträge haben bereits einen Slot')
-    else { toast.success(`${data.created} Eintrag${data.created === 1 ? '' : 'e'} als Kalender-Slot übernommen`); loadEntries() }
+    else { toast.success(`${data.created} Alteintrag${data.created === 1 ? '' : 'e'} als Einsatz übernommen`); loadSlots() }
     setTransferring(false)
   }
 
@@ -290,41 +342,30 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   function removeRow(i: number) { setEditingTemplate((prev) => prev.filter((_, idx) => idx !== i)) }
   function addRow() { setEditingTemplate((prev) => [...prev, { jsDay: 1, start: '08:00', end: '10:00', activityName: activities[0]?.name ?? '' }]) }
 
-  const totalEntryHours = entries.filter(e => !e.is_private).reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0)
-  const totalSlotHours = slots.filter(s => !s.is_private).reduce((acc, s) => acc + durationHours(s.start_time, s.end_time), 0)
-  const totalHours = totalEntryHours + totalSlotHours
-  const totalPrivateHours =
-    entries.filter(e => e.is_private).reduce((acc, e) => acc + durationHours(e.start_time, e.end_time), 0) +
-    slots.filter(s => s.is_private).reduce((acc, s) => acc + durationHours(s.start_time, s.end_time), 0)
+  const relevantSlots = slots.filter((s) => s.status !== 'pending' && !s.is_private)
+  const confirmedSlots = relevantSlots.filter((s) => s.confirmed_at)
+  const totalHours = confirmedSlots.reduce(
+    (acc, s) => acc + durationHours(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),
+    0
+  )
+  const pendingSlots = slots.filter((s) => s.status === 'pending')
 
   const selectedAssistant = assistants.find((a) => a.id === selectedId)
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth() + 1
-  const preview = selectedId ? generatePreview(year, month, entries, template) : { toCreate: 0, toSkip: 0 }
+  const preview = selectedId ? generatePreview(year, month, slots.filter((s) => s.assigned_to === selectedId), template) : { toCreate: 0, toSkip: 0 }
 
-  // Einträge ohne passenden Kalender-Slot (gleiches Datum + gleiche Start-/Endzeit) –
-  // diese fließen bei Zähl-Modus "Nur Kalender-Slots" nicht in die Lohnabrechnung ein.
-  const slotKeys = new Set(slots.map((s) => `${s.date}|${s.start_time}|${s.end_time}`))
-  const unmatchedEntryCount = countMode === 'entries' ? 0 : entries.filter(
-    (e) => !e.is_private && !slotKeys.has(`${e.date}|${e.start_time}|${e.end_time}`)
-  ).length
-
-  // Combine and sort all items by date+start_time
-  type ListItem = { kind: 'entry'; data: TimeEntry } | { kind: 'slot'; data: CalendarSlot }
-  const allItems: ListItem[] = [
-    ...entries.map((e): ListItem => ({ kind: 'entry', data: e })),
-    ...slots.map((s): ListItem => ({ kind: 'slot', data: s })),
-  ].sort((a, b) => {
-    const d = a.data.date.localeCompare(b.data.date)
-    return d !== 0 ? d : a.data.start_time.localeCompare(b.data.start_time)
+  const sortedSlots = [...slots].sort((a, b) => {
+    const d = a.date.localeCompare(b.date)
+    return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
   })
 
   return (
     <div className="max-w-2xl space-y-5">
       <PageHeader
         icon={<Clock className="h-5 w-5" />}
-        title="Zeiterfassung verwalten"
-        subtitle="Einträge und Kalender-Slots von Assistentinnen einsehen und bearbeiten"
+        title="Einsätze verwalten"
+        subtitle="Kalender-Slots von Assistentinnen einsehen, bestätigen und bearbeiten"
         tone="sky"
       />
 
@@ -353,24 +394,10 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         </div>
       </div>
 
-      {report?.status === 'sent' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center justify-between">
-          <span className="text-blue-800 text-sm font-medium">
-            Monat wurde von {selectedAssistant?.full_name} eingereicht
-            {report.sent_at && ` am ${format(new Date(report.sent_at), 'dd.MM.yyyy', { locale: de })}`}
-          </span>
-          <span className="text-blue-600 text-xs">Bearbeitung trotzdem möglich</span>
-        </div>
-      )}
-
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-gray-500">
-          {totalHours.toFixed(1)} Std. · {entries.filter(e => !e.is_private).length} Einträge · {slots.length} Slots
-          {(totalPrivateHours > 0 || privateHoursBudget > 0) && (
-            <span className="text-gray-400">
-              {' '}· {totalPrivateHours.toFixed(1)}{privateHoursBudget > 0 ? ` / ${privateHoursBudget.toFixed(1)}` : ''} Std. privat
-            </span>
-          )}
+          {totalHours.toFixed(1)} Std. bestätigt · {confirmedSlots.length}/{relevantSlots.length} Einsätze
+          {pendingSlots.length > 0 && <span className="text-violet-600"> · {pendingSlots.length} wartend</span>}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(template); setConfigDialogOpen(true) }}>
@@ -381,30 +408,21 @@ export default function AdminZeiterfassung({ assistants }: Props) {
             <CalendarPlus className="h-4 w-4 mr-1.5" />
             Vorlage erstellen
           </Button>
-          <Button variant="outline" size="sm" disabled={!selectedId}
-            onClick={() => selectedId && window.open(`/admin/zeiterfassung/bericht/${selectedId}/${year}/${month}`, '_blank')}>
-            <FileText className="h-4 w-4 mr-1.5" />
-            Bericht drucken
-          </Button>
-          {countMode !== 'entries' && (
+          {unmatchedEntryCount > 0 && (
             <Button
               variant="outline"
               size="sm"
-              disabled={!selectedId || transferring || unmatchedEntryCount === 0}
+              disabled={!selectedId || transferring}
               onClick={handleTransferToSlots}
-              title="Zeiterfassungs-Einträge ohne passenden Kalender-Slot als Slot anlegen, damit sie in die Lohnabrechnung einfließen"
+              title="Alte Zeiterfassungs-Einträge ohne passenden Einsatz übernehmen (Altdaten vor dem Slot-System)"
             >
               <ArrowRightLeft className="h-4 w-4 mr-1.5" />
-              {transferring
-                ? 'Übernehme…'
-                : unmatchedEntryCount > 0
-                  ? `${unmatchedEntryCount} Eintrag${unmatchedEntryCount === 1 ? '' : 'e'} als Slots übernehmen`
-                  : 'Alle Einträge haben schon einen Slot'}
+              {transferring ? 'Übernehme…' : `${unmatchedEntryCount} Alteintrag${unmatchedEntryCount === 1 ? '' : 'e'} übernehmen`}
             </Button>
           )}
           <Button onClick={openNew} size="sm" disabled={!selectedId}>
             <Plus className="h-4 w-4 mr-1.5" />
-            Eintrag hinzufügen
+            Einsatz hinzufügen
           </Button>
         </div>
       </div>
@@ -414,7 +432,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Wöchentliche Vorlage anpassen</DialogTitle>
-            <DialogDescription>Legt fest, welche Einträge beim Klick auf „Vorlage erstellen" angelegt werden.</DialogDescription>
+            <DialogDescription>Legt fest, welche Einsätze beim Klick auf „Vorlage erstellen" angelegt werden.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             {editingTemplate.map((row, i) => (
@@ -442,7 +460,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                     </SelectContent>
                   </Select>
                   <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeRow(i)}>
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -481,27 +499,37 @@ export default function AdminZeiterfassung({ assistants }: Props) {
           </div>
           <div className={`rounded-lg px-4 py-3 text-sm ${preview.toCreate > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
             {preview.toCreate > 0 ? (
-              <p className="text-emerald-800"><strong>{preview.toCreate} Einträge</strong> werden angelegt{preview.toSkip > 0 && <span className="text-emerald-600"> · {preview.toSkip} bereits vorhanden</span>}</p>
+              <p className="text-emerald-800"><strong>{preview.toCreate} Einsätze</strong> werden angelegt{preview.toSkip > 0 && <span className="text-emerald-600"> · {preview.toSkip} bereits vorhanden</span>}</p>
             ) : (
-              <p className="text-gray-500">Alle Einträge für diesen Monat sind bereits vorhanden.</p>
+              <p className="text-gray-500">Alle Einsätze für diesen Monat sind bereits vorhanden.</p>
             )}
           </div>
+          <p className="text-xs text-gray-400">
+            Neu angelegte Einsätze sind noch nicht bestätigt – die Assistentin bestätigt die Ist-Zeit im Kalender.
+          </p>
           <div className="flex gap-2 pt-1">
             <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} className="flex-1">Abbrechen</Button>
             <Button onClick={handleCreateTemplate} disabled={creatingTemplate || preview.toCreate === 0} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-              {creatingTemplate ? 'Wird erstellt…' : `${preview.toCreate} Einträge anlegen`}
+              {creatingTemplate ? 'Wird erstellt…' : `${preview.toCreate} Einsätze anlegen`}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Entry Edit/Add Dialog */}
+      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editId ? 'Eintrag bearbeiten' : `Neuer Eintrag für ${selectedAssistant?.full_name ?? ''}`}</DialogTitle>
+            <DialogTitle>{editId ? 'Einsatz bearbeiten' : `Neuer Einsatz für ${selectedAssistant?.full_name ?? ''}`}</DialogTitle>
+            {!editId && (
+              <DialogDescription>Wird direkt als bestätigt angelegt (bereits geleistete Zeit).</DialogDescription>
+            )}
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Bezeichnung</Label>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="z.B. Nachmittagsbetreuung" />
+            </div>
             <div className="space-y-2">
               <Label>Datum</Label>
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
@@ -530,21 +558,23 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                 ))}
               </div>
             </div>
+            {!editId && (
+              <div className="space-y-2">
+                <Label>Tätigkeit</Label>
+                <Select value={form.activity_id || undefined} onValueChange={(v) => setForm({ ...form, activity_id: v ?? '' })}>
+                  <SelectTrigger>
+                    <span className={cn('flex-1 text-left text-sm truncate', !form.activity_id && 'text-muted-foreground')}>
+                      {form.activity_id ? (activities.find((a) => a.id === form.activity_id)?.name ?? '–') : 'Tätigkeit wählen...'}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
-              <Label>Tätigkeit</Label>
-              <Select value={form.activity_id || undefined} onValueChange={(v) => setForm({ ...form, activity_id: v ?? '' })}>
-                <SelectTrigger>
-                  <span className={cn('flex-1 text-left text-sm truncate', !form.activity_id && 'text-muted-foreground')}>
-                    {form.activity_id ? (activities.find((a) => a.id === form.activity_id)?.name ?? '–') : 'Tätigkeit wählen...'}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {activities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Beschreibung <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Label>Notizen <span className="text-gray-400 font-normal">(optional)</span></Label>
               <Textarea placeholder="Weitere Details..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
             </div>
             <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer">
@@ -569,151 +599,95 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Slot Edit Dialog */}
-      <Dialog open={slotDialogOpen} onOpenChange={setSlotDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Kalender-Slot bearbeiten</DialogTitle>
-            <DialogDescription>Änderungen betreffen nur Datum, Zeit und Bezeichnung — der Slot bleibt der Assistentin zugewiesen.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>Bezeichnung</Label>
-              <Input value={slotForm.title} onChange={(e) => setSlotForm({ ...slotForm, title: e.target.value })} placeholder="Slot-Bezeichnung..." />
-            </div>
-            <div className="space-y-2">
-              <Label>Datum</Label>
-              <Input type="date" value={slotForm.date} onChange={(e) => setSlotForm({ ...slotForm, date: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Startzeit</Label>
-              <Input type="time" value={slotForm.start_time} onChange={(e) => setSlotForm({ ...slotForm, start_time: e.target.value })} />
-              <div className="flex flex-wrap gap-1">
-                {TIME_PRESETS.map((t) => (
-                  <button key={t} type="button" onClick={() => setSlotForm((f) => ({ ...f, start_time: t }))}
-                    className={cn('px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
-                      slotForm.start_time === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    )}>{t}</button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Endzeit</Label>
-              <Input type="time" value={slotForm.end_time} onChange={(e) => setSlotForm({ ...slotForm, end_time: e.target.value })} />
-              <div className="flex flex-wrap gap-1">
-                {TIME_PRESETS.map((t) => (
-                  <button key={t} type="button" onClick={() => setSlotForm((f) => ({ ...f, end_time: t }))}
-                    className={cn('px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
-                      slotForm.end_time === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    )}>{t}</button>
-                ))}
-              </div>
-            </div>
-            <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={slotForm.is_private}
-                onChange={(e) => setSlotForm({ ...slotForm, is_private: e.target.checked })}
-                className="mt-0.5 rounded border-gray-300"
-              />
-              <span className="text-sm">
-                <span className="font-medium text-gray-700">Privat (unbezahlt)</span>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Zählt nicht zu Lohn, Anwesenheitsnachweis oder Bezirks-Budget.
-                </p>
-              </span>
-            </label>
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" onClick={() => setSlotDialogOpen(false)} className="flex-1">Abbrechen</Button>
-              <Button onClick={handleSaveSlot} disabled={savingSlot} className="flex-1">{savingSlot ? 'Speichern…' : 'Speichern'}</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteTargetId} onOpenChange={(o) => !o && setDeleteTargetId(null)}>
+      {/* Cancel Confirmation */}
+      <AlertDialog open={!!cancelTargetId} onOpenChange={(o) => !o && setCancelTargetId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
-            <AlertDialogDescription>Dieser Eintrag wird unwiderruflich gelöscht.</AlertDialogDescription>
+            <AlertDialogTitle>Einsatz entfernen?</AlertDialogTitle>
+            <AlertDialogDescription>Dieser Einsatz wird storniert und zählt nicht mehr zur Lohnabrechnung.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Löschen</AlertDialogAction>
+            <AlertDialogAction onClick={handleCancelSlot} className="bg-red-600 hover:bg-red-700">Entfernen</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Combined List */}
+      {/* List */}
       <div className="space-y-2">
-        {allItems.length === 0 ? (
+        {sortedSlots.length === 0 ? (
           <div className="bg-surface border border-gray-200 rounded-xl py-10 text-center text-gray-400 text-sm">
-            {selectedId ? `Keine Einträge für ${format(currentMonth, 'MMMM yyyy', { locale: de })}` : 'Bitte Assistentin wählen'}
+            {selectedId ? `Keine Einsätze für ${format(currentMonth, 'MMMM yyyy', { locale: de })}` : 'Bitte Assistentin wählen'}
           </div>
         ) : (
-          allItems.map((item) => {
-            if (item.kind === 'entry') {
-              const entry = item.data
-              const hours = durationHours(entry.start_time, entry.end_time)
-              const hasSlot = slotKeys.has(`${entry.date}|${entry.start_time}|${entry.end_time}`)
-              return (
-                <div key={`e-${entry.id}`} className="bg-surface border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm text-gray-900">{format(new Date(entry.date), 'dd.MM.yyyy')}</span>
-                      <span className="text-gray-500 text-sm">{entry.start_time.slice(0, 5)} – {entry.end_time.slice(0, 5)} Uhr</span>
-                      <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
-                      <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500">Eintrag</Badge>
-                      {entry.is_private && (
-                        <Badge className="text-xs bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
-                      )}
-                      {!entry.is_private && !hasSlot && countMode !== 'entries' && (
-                        <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
-                          Kein Slot – zählt nicht für Lohn
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-0.5 text-xs text-gray-500">
-                      {(entry.activity as any)?.name ?? <span className="italic">Keine Tätigkeit</span>}
-                      {entry.description && <span> · {entry.description}</span>}
-                    </div>
+          sortedSlots.map((slot) => {
+            const hours = durationHours(slot.actual_start_time || slot.start_time, slot.actual_end_time || slot.end_time)
+            const isPending = slot.status === 'pending'
+            return (
+              <div key={slot.id} className={cn(
+                'border rounded-xl px-4 py-3 flex items-center justify-between gap-3',
+                isPending ? 'bg-violet-50 border-violet-200' : 'bg-surface border-gray-200'
+              )}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm text-gray-900">{format(new Date(slot.date), 'dd.MM.yyyy')}</span>
+                    <span className="text-gray-500 text-sm">{slot.start_time.slice(0, 5)} – {slot.end_time.slice(0, 5)} Uhr</span>
+                    <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
+                    {slot.is_private && (
+                      <Badge className="text-xs bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
+                    )}
+                    {isPending ? (
+                      <Badge className="text-xs bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-100">
+                        {slot.self_reported ? 'Meldung – wartet auf Freigabe' : 'Anfrage – wartet auf Freigabe'}
+                      </Badge>
+                    ) : slot.confirmed_at ? (
+                      <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Bestätigt
+                      </Badge>
+                    ) : (
+                      <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+                        Nicht bestätigt
+                      </Badge>
+                    )}
                   </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(entry)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteTargetId(entry.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )
-            } else {
-              const slot = item.data
-              const hours = durationHours(slot.start_time, slot.end_time)
-              return (
-                <div key={`s-${slot.id}`} className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm text-gray-900">{format(new Date(slot.date), 'dd.MM.yyyy')}</span>
-                      <span className="text-gray-500 text-sm">{slot.start_time.slice(0, 5)} – {slot.end_time.slice(0, 5)} Uhr</span>
-                      <Badge variant="outline" className="text-xs">{hours.toFixed(1)} h</Badge>
-                      <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">Kalender-Slot</Badge>
-                      {slot.is_private && (
-                        <Badge className="text-xs bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-200">Privat</Badge>
-                      )}
-                    </div>
-                    <div className="mt-0.5 text-xs text-blue-700 font-medium">{slot.title}</div>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-100" onClick={() => openEditSlot(slot)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="mt-0.5 text-xs text-gray-500">
+                    {slot.title}
+                    {(slot.activity as any)?.name && <span> · {(slot.activity as any).name}</span>}
+                    {slot.description && <span> · {slot.description}</span>}
                   </div>
                 </div>
-              )
-            }
+                <div className="flex gap-1 shrink-0">
+                  {isPending ? (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100" disabled={busyId === slot.id} onClick={() => handleApproveDeny(slot, 'approve')} title="Genehmigen">
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" disabled={busyId === slot.id} onClick={() => handleApproveDeny(slot, 'deny')} title="Ablehnen">
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(slot)} title="Bearbeiten">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon"
+                        className={cn('h-8 w-8', slot.confirmed_at ? 'text-amber-600 hover:text-amber-800 hover:bg-amber-50' : 'text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50')}
+                        disabled={busyId === slot.id}
+                        onClick={() => handleToggleConfirm(slot)}
+                        title={slot.confirmed_at ? 'Bestätigung zurücknehmen' : 'Bestätigen'}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setCancelTargetId(slot.id)} title="Entfernen">
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )
           })
         )}
       </div>
