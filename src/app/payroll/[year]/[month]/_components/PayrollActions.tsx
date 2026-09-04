@@ -73,6 +73,14 @@ export default function PayrollActions({
         Lohnzettel
       </Link>
 
+      <Link
+        href={`/admin/zeiterfassung/bericht/${assistantId}/${year}/${month}`}
+        target="_blank"
+        className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors text-slate-700 whitespace-nowrap"
+      >
+        Tätigkeitsbericht
+      </Link>
+
       <div className="flex flex-col items-end">
         <button
           onClick={sendEmail}

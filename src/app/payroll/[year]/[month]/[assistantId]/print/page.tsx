@@ -147,7 +147,7 @@ export default async function PrintPage({ params }: Props) {
 
       <div className="max-w-3xl mx-auto p-12 print:p-8">
         {/* Kopfzeile */}
-        <div className="flex justify-between items-start mb-10">
+        <div className="flex justify-between items-start mb-10 print:break-inside-avoid">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Lohnabrechnung</h1>
             <p className="text-lg text-slate-600 mt-1">
@@ -160,7 +160,7 @@ export default async function PrintPage({ params }: Props) {
         </div>
 
         {/* Arbeitgeber / Arbeitnehmer */}
-        <div className="grid grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-2 gap-6 mb-8 print:break-inside-avoid">
           {settings?.employer_name && (
             <div className="p-4 bg-slate-50 rounded-xl print:bg-white print:border print:border-slate-200">
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
@@ -259,7 +259,7 @@ export default async function PrintPage({ params }: Props) {
 
         {/* Vergütung – Standard */}
         {!minijob && !atBreakdown && (
-          <div className="mb-10 border border-slate-200 rounded-xl overflow-hidden">
+          <div className="mb-10 border border-slate-200 rounded-xl overflow-hidden print:break-inside-avoid">
             <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Vergütung
@@ -305,7 +305,7 @@ export default async function PrintPage({ params }: Props) {
 
         {/* Vergütung – Minijob */}
         {minijob && (
-          <div className="mb-6">
+          <div className="mb-6 print:break-inside-avoid">
             {/* Brutto → Netto */}
             <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
               <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
@@ -421,7 +421,7 @@ export default async function PrintPage({ params }: Props) {
 
         {/* Vergütung – Geringfügige Beschäftigung (AT) */}
         {atBreakdown && (
-          <div className="mb-6">
+          <div className="mb-6 print:break-inside-avoid">
             <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
               <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
                 <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -513,7 +513,7 @@ export default async function PrintPage({ params }: Props) {
         )}
 
         {/* Unterschriften */}
-        <div className="grid grid-cols-2 gap-12 mt-16">
+        <div className="grid grid-cols-2 gap-12 mt-16 print:break-inside-avoid">
           <div>
             <div className="border-b border-slate-400 mb-2" style={{ height: '40px' }} />
             <p className="text-xs text-slate-500">Datum, Unterschrift Arbeitnehmer</p>

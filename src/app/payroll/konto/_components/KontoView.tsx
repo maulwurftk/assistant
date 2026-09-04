@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import { formatCurrency, formatDate } from '@/lib/payroll'
 import { Wallet, Pencil, Trash2, FileDown, Printer } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
+import { toast } from 'sonner'
 
 type Entry = {
   id: string
@@ -85,13 +86,25 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
 
   async function generate() {
     setBusy('generate')
-    const res = await fetch('/api/payroll/konto', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'generate' }),
-    })
+    try {
+      const res = await fetch('/api/payroll/konto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data.error ?? 'Vorschläge konnten nicht generiert werden')
+      } else if ((data.generated ?? 0) === 0 && (data.updated ?? 0) === 0) {
+        toast.info('Keine neuen Vorschläge – keine bestätigten Termine gefunden')
+        refresh()
+      } else {
+        refresh()
+      }
+    } catch {
+      toast.error('Verbindungsfehler')
+    }
     setBusy(null)
-    if (res.ok) refresh()
   }
 
   function resetForm() {

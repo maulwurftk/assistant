@@ -232,9 +232,15 @@ body {
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 1.5cm;
+  }
   body {
     background: white;
     font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .no-print {
     display: none !important;
