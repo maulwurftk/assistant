@@ -64,7 +64,7 @@ export default function PayrollActions({
   }
 
   return (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex items-center justify-end gap-2 flex-wrap">
       <Link
         href={`/payroll/${year}/${month}/${assistantId}/print`}
         target="_blank"

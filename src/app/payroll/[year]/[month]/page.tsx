@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Banknote, Users, Clock, Wallet } from 'lucide-react'
+import { Banknote, Users, Clock, Wallet, Printer } from 'lucide-react'
 import { StatCard } from '@/components/stat-card'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -221,6 +221,17 @@ export default async function MonthlyPayrollPage({ params }: Props) {
           >
             {monthName(next.month)} →
           </Link>
+          {assistants.length > 0 && (
+            <Link
+              href={`/admin/zeiterfassung/bericht-alle/${year}/${month}`}
+              target="_blank"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors text-slate-700 whitespace-nowrap"
+              title="Tätigkeitsberichte aller Assistenten für diesen Monat auf einmal öffnen und drucken"
+            >
+              <Printer className="h-4 w-4" />
+              Alle Tätigkeitsberichte drucken
+            </Link>
+          )}
         </div>
       </div>
 
@@ -275,7 +286,8 @@ export default async function MonthlyPayrollPage({ params }: Props) {
         </div>
       ) : (
         <div className="bg-surface border border-slate-200 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="text-left px-5 py-3 font-medium text-slate-600">Assistent</th>
@@ -351,6 +363,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
