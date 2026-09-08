@@ -6,6 +6,14 @@ type Rel = {
   referencedColumns: string[]
 }
 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
 export type Database = {
   public: {
     Tables: {
@@ -54,6 +62,9 @@ export type Database = {
           kv_pflicht: boolean
           iban: string | null
           minijob_limit: number | null
+          leave_reason: string | null
+          leave_from: string | null
+          leave_until: string | null
         }
         Insert: {
           id: string
@@ -68,6 +79,9 @@ export type Database = {
           kv_pflicht?: boolean
           iban?: string | null
           minijob_limit?: number | null
+          leave_reason?: string | null
+          leave_from?: string | null
+          leave_until?: string | null
         }
         Update: {
           email?: string
@@ -79,6 +93,9 @@ export type Database = {
           rv_pflicht?: boolean
           kv_pflicht?: boolean
           iban?: string | null
+          leave_reason?: string | null
+          leave_from?: string | null
+          leave_until?: string | null
           minijob_limit?: number | null
         }
         Relationships: Rel[]
@@ -319,6 +336,12 @@ export type Database = {
           email_sent_at: string | null
           created_at: string
           updated_at: string
+          brutto: number | null
+          netto: number | null
+          rv_pflicht: boolean | null
+          kv_pflicht: boolean | null
+          snapshot: Json | null
+          sent_by: string | null
         }
         Insert: {
           id?: string
@@ -330,12 +353,24 @@ export type Database = {
           hourly_rate: number
           total_pay: number
           email_sent_at?: string | null
+          brutto?: number | null
+          netto?: number | null
+          rv_pflicht?: boolean | null
+          kv_pflicht?: boolean | null
+          snapshot?: Json | null
+          sent_by?: string | null
         }
         Update: {
           total_minutes?: number
           hourly_rate?: number
           total_pay?: number
           email_sent_at?: string | null
+          brutto?: number | null
+          netto?: number | null
+          rv_pflicht?: boolean | null
+          kv_pflicht?: boolean | null
+          snapshot?: Json | null
+          sent_by?: string | null
         }
         Relationships: Rel[]
       }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import type { Json } from '@/types/database'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -411,7 +412,7 @@ export async function POST(request: Request) {
       netto: totalPay,
       rv_pflicht: rvPflicht,
       kv_pflicht: kvPflicht,
-      snapshot,
+      snapshot: snapshot as unknown as Json,
       sent_by: user.id,
       email_sent_at: new Date().toISOString(),
     },
