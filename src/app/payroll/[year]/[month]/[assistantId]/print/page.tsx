@@ -30,7 +30,7 @@ export default async function PrintPage({ params }: Props) {
   const dateFrom = `${year}-${month.toString().padStart(2, '0')}-01`
   const dateTo = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`
 
-  const [assistantRes, settingsRes, slotsRes] = await Promise.all([
+  const [assistantRes, settingsRes, slotsRes, runRes] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, email, rv_pflicht, kv_pflicht')
@@ -49,6 +49,13 @@ export default async function PrintPage({ params }: Props) {
       .lt('date', dateTo)
       .order('date')
       .order('start_time'),
+    supabase
+      .from('payroll_runs')
+      .select('email_sent_at, snapshot, rv_pflicht, kv_pflicht')
+      .eq('year', year)
+      .eq('month', month)
+      .eq('assistant_id', assistantId)
+      .maybeSingle(),
   ])
 
   if (!assistantRes.data) notFound()
@@ -86,7 +93,7 @@ export default async function PrintPage({ params }: Props) {
   // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
   // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
   type WorkRow = { id: string; date: string; start_time: string; end_time: string; label: string }
-  const allRows: WorkRow[] = calendarSlots
+  let allRows: WorkRow[] = calendarSlots
     .map((s) => ({
       id: `s-${s.id}`,
       date: s.date,
@@ -99,28 +106,28 @@ export default async function PrintPage({ params }: Props) {
       return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
     })
 
-  const hourlyRate = settings?.hourly_rate ?? 0
+  let hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
-  const minijobMode = settings?.minijob_mode ?? false
-  const bezirkMode = settings?.bezirk_mode ?? false
-  const uvRate = settings?.uv_rate ?? 1.6
-  const rvPflicht = assistant.rv_pflicht !== false // default true
-  const kvPflicht = assistant.kv_pflicht !== false // default true
-  const rates = ratesFromSettings(settings)
-  const countryMode = normalizeCountryMode(settings?.country_mode)
-  const atGeringfuegigMode = countryMode === 'at' && (settings?.at_geringfuegig_mode ?? false)
-  const atRates = atRatesFromSettings(settings)
+  let minijobMode = settings?.minijob_mode ?? false
+  let bezirkMode = settings?.bezirk_mode ?? false
+  let uvRate = settings?.uv_rate ?? 1.6
+  let rvPflicht = assistant.rv_pflicht !== false // default true
+  let kvPflicht = assistant.kv_pflicht !== false // default true
+  let rates = ratesFromSettings(settings)
+  let countryMode = normalizeCountryMode(settings?.country_mode)
+  let atGeringfuegigMode = countryMode === 'at' && (settings?.at_geringfuegig_mode ?? false)
+  let atRates = atRatesFromSettings(settings)
 
   // When bezirk_mode: hourly_rate is the Bezirk flat rate; back-calculate employee brutto
-  const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates) : hourlyRate
+  let effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates) : hourlyRate
 
-  const totalMinutes = allRows.reduce(
+  let totalMinutes = allRows.reduce(
     (sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time),
     0
   )
-  const brutto = calculatePay(totalMinutes, effectiveBruttoRate)
-  const minijob = minijobMode && countryMode === 'de' ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
-  const atBreakdown = atGeringfuegigMode
+  let brutto = calculatePay(totalMinutes, effectiveBruttoRate)
+  let minijob = minijobMode && countryMode === 'de' ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
+  let atBreakdown = atGeringfuegigMode
     ? calculateGeringfuegigAT(
         brutto,
         {
@@ -130,6 +137,33 @@ export default async function PrintPage({ params }: Props) {
         atRates
       )
     : null
+
+  // Bereits versendete Monate: eingefrorene Berechnungsgrundlage aus
+  // payroll_runs.snapshot verwenden statt live neu zu rechnen (Migration
+  // 0025) – sonst driftet der gedruckte Lohnzettel von dem ab, was
+  // tatsächlich per E-Mail verschickt/gemeldet wurde.
+  const frozenSnapshot = runRes.data?.email_sent_at ? (runRes.data.snapshot as any) : null
+  const isFrozen = !!frozenSnapshot
+  if (frozenSnapshot) {
+    hourlyRate = frozenSnapshot.hourlyRate
+    effectiveBruttoRate = frozenSnapshot.effectiveBruttoRate
+    bezirkMode = frozenSnapshot.bezirkMode
+    minijobMode = frozenSnapshot.minijobMode
+    countryMode = frozenSnapshot.countryMode
+    uvRate = frozenSnapshot.uvRate
+    rates = frozenSnapshot.rates
+    atRates = frozenSnapshot.atRates
+    atGeringfuegigMode = frozenSnapshot.atGeringfuegigMode
+    minijob = frozenSnapshot.minijob
+    atBreakdown = frozenSnapshot.atBreakdown
+    if (runRes.data?.rv_pflicht != null) rvPflicht = runRes.data.rv_pflicht
+    if (runRes.data?.kv_pflicht != null) kvPflicht = runRes.data.kv_pflicht
+    allRows = (frozenSnapshot.entries as Array<{ date: string; start_time: string; end_time: string; label: string }>).map(
+      (e, i) => ({ id: `f-${i}`, ...e })
+    )
+    totalMinutes = allRows.reduce((sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time), 0)
+    brutto = atBreakdown ? atBreakdown.brutto : minijob ? minijob.brutto : calculatePay(totalMinutes, effectiveBruttoRate)
+  }
 
   const today = new Date().toLocaleDateString('de-DE')
 
@@ -156,6 +190,11 @@ export default async function PrintPage({ params }: Props) {
           </div>
           <div className="text-right text-sm text-slate-500">
             <p>Erstellt am {today}</p>
+            {isFrozen && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                🔒 Werte wie am {runRes.data?.email_sent_at ? new Date(runRes.data.email_sent_at).toLocaleDateString('de-DE') : ''} versendet
+              </p>
+            )}
           </div>
         </div>
 

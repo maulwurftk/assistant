@@ -43,6 +43,7 @@ import { toast } from 'sonner'
 import { Plus, UserCheck, UserX, Users } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { format } from 'date-fns'
+import { isOnLeaveNow, formatLeaveBadge } from '@/lib/leave'
 
 interface NewUserForm {
   email: string
@@ -126,6 +127,16 @@ export default function BenutzerPage() {
     }
   }
 
+  async function updateLeave(profileId: string, leave: { leave_reason: string | null; leave_from: string | null; leave_until: string | null }) {
+    const { error } = await supabase.from('profiles').update(leave as any).eq('id', profileId)
+    if (error) {
+      toast.error('Fehler beim Speichern der Abwesenheit')
+    } else {
+      toast.success(leave.leave_from ? 'Abwesenheit gespeichert' : 'Abwesenheit beendet')
+      loadProfiles()
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -187,6 +198,7 @@ export default function BenutzerPage() {
                 <TableHead>Rolle</TableHead>
                 <TableHead>Farbe</TableHead>
                 <TableHead>Minijobgrenze</TableHead>
+                <TableHead>Abwesenheit</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Erstellt</TableHead>
                 <TableHead className="text-right">Aktionen</TableHead>
@@ -229,9 +241,23 @@ export default function BenutzerPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={p.active ? 'outline' : 'secondary'} className={p.active ? 'text-green-700 border-green-300 bg-green-50' : 'text-gray-500'}>
-                      {p.active ? 'Aktiv' : 'Inaktiv'}
-                    </Badge>
+                    {p.role === 'assistant' ? (
+                      <LeaveEditor profile={p} onSave={(leave) => updateLeave(p.id, leave)} />
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant={p.active ? 'outline' : 'secondary'} className={p.active ? 'text-green-700 border-green-300 bg-green-50' : 'text-gray-500'}>
+                        {p.active ? 'Aktiv' : 'Inaktiv'}
+                      </Badge>
+                      {isOnLeaveNow(p) && (
+                        <Badge className="bg-pink-100 text-pink-700 border-pink-200 text-[10px] whitespace-nowrap">
+                          {formatLeaveBadge(p)}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-sm text-gray-500">
                     {format(new Date(p.created_at), 'dd.MM.yyyy')}
@@ -283,6 +309,81 @@ export default function BenutzerPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+function LeaveEditor({
+  profile,
+  onSave,
+}: {
+  profile: Profile
+  onSave: (leave: { leave_reason: string | null; leave_from: string | null; leave_until: string | null }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState(profile.leave_reason ?? 'Mutterschutz')
+  const [from, setFrom] = useState(profile.leave_from ?? '')
+  const [until, setUntil] = useState(profile.leave_until ?? '')
+
+  useEffect(() => {
+    setReason(profile.leave_reason ?? 'Mutterschutz')
+    setFrom(profile.leave_from ?? '')
+    setUntil(profile.leave_until ?? '')
+  }, [profile.leave_reason, profile.leave_from, profile.leave_until])
+
+  if (!open) {
+    return profile.leave_from ? (
+      <button
+        type="button"
+        className="text-xs text-pink-700 hover:underline text-left"
+        onClick={() => setOpen(true)}
+      >
+        {profile.leave_reason || 'Abwesend'} seit {profile.leave_from.split('-').reverse().join('.')}
+        {profile.leave_until ? ` bis ${profile.leave_until.split('-').reverse().join('.')}` : ''}
+      </button>
+    ) : (
+      <Button variant="ghost" size="sm" className="h-7 text-xs text-gray-500" onClick={() => setOpen(true)}>
+        + Abwesenheit
+      </Button>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 min-w-[190px] bg-slate-50 border border-slate-200 rounded-lg p-2">
+      <Input
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Grund (z.B. Mutterschutz)"
+        className="h-7 text-xs"
+      />
+      <div className="flex gap-1">
+        <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-7 text-xs" />
+        <Input type="date" value={until} onChange={(e) => setUntil(e.target.value)} className="h-7 text-xs" placeholder="offen" />
+      </div>
+      <div className="flex gap-1 justify-end">
+        {profile.leave_from && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs text-red-600"
+            onClick={() => { onSave({ leave_reason: null, leave_from: null, leave_until: null }); setOpen(false) }}
+          >
+            Beenden
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setOpen(false)}>Abbrechen</Button>
+        <Button
+          size="sm"
+          className="h-6 text-xs"
+          onClick={() => {
+            if (!from) { toast.error('Bitte ein Startdatum angeben'); return }
+            onSave({ leave_reason: reason.trim() || 'Abwesend', leave_from: from, leave_until: until || null })
+            setOpen(false)
+          }}
+        >
+          Speichern
+        </Button>
+      </div>
     </div>
   )
 }

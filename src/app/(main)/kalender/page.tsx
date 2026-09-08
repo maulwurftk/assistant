@@ -38,6 +38,7 @@ import { PageHeader } from '@/components/page-header'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { MonthlyCloseCard } from './_components/MonthlyCloseCard'
+import { isOnLeaveAt, formatLeaveBadge } from '@/lib/leave'
 
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -146,7 +147,7 @@ export default function KalenderPage() {
     // Assistenten für alle laden (für Farben im Kalender)
     const { data: asst } = await supabase
       .from('profiles')
-      .select('id, full_name, color')
+      .select('id, full_name, color, leave_reason, leave_from, leave_until')
       .eq('role', 'assistant')
       .eq('active', true)
     setAssistants((asst ?? []) as unknown as Profile[])
@@ -302,6 +303,13 @@ export default function KalenderPage() {
     if (!profile) return
     if (form.start_time >= form.end_time) { toast.error('Endzeit muss nach Startzeit liegen'); return }
     if (!form.title.trim()) { toast.error('Bitte einen Titel eingeben'); return }
+    if (form.assigned_to) {
+      const assignee = assistants.find(a => a.id === form.assigned_to)
+      if (assignee && isOnLeaveAt(assignee, form.date)) {
+        toast.error(`${assignee.full_name} ist am ${form.date.split('-').reverse().join('.')} nicht verfügbar: ${formatLeaveBadge(assignee)}`)
+        return
+      }
+    }
     setLoading(true)
 
     const payload = {
@@ -509,10 +517,13 @@ export default function KalenderPage() {
                   <SelectContent>
                     <SelectItem value="none">— Noch offen —</SelectItem>
                     {assistants.map(a => (
-                      <SelectItem key={a.id} value={a.id}>
+                      <SelectItem key={a.id} value={a.id} disabled={isOnLeaveAt(a, form.date)}>
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: (a as any).color ?? '#6366f1' }} />
                           {a.full_name}
+                          {isOnLeaveAt(a, form.date) && (
+                            <span className="text-xs text-pink-600">({formatLeaveBadge(a)})</span>
+                          )}
                         </div>
                       </SelectItem>
                     ))}

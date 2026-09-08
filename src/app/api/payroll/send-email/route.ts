@@ -147,6 +147,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Keine Stunden für diesen Monat erfasst' }, { status: 400 })
   }
 
+  // Snapshot der kompletten Berechnungsgrundlage zum Versandzeitpunkt.
+  // Übersicht und Lohnzettel verwenden für bereits versendete Monate NUR
+  // diesen Snapshot statt live mit den dann aktuellen Einstellungen /
+  // KV-RV-Flags neu zu rechnen (siehe Migration 0025).
+  const snapshot = {
+    hourlyRate,
+    effectiveBruttoRate,
+    currency,
+    bezirkMode,
+    minijobMode,
+    countryMode,
+    uvRate,
+    rates,
+    atRates,
+    atGeringfuegigMode,
+    atOptions: {
+      includeUrlaubsgeld: settings?.at_include_urlaubsgeld ?? false,
+      includeWeihnachtsgeld: settings?.at_include_weihnachtsgeld ?? false,
+    },
+    minijob,
+    atBreakdown,
+    entries: allEntries,
+  }
+
   const fromEmail = process.env.FROM_EMAIL ?? 'noreply@charmely.cloud'
 
   const rowsHtml = allEntries
@@ -373,6 +397,7 @@ export async function POST(request: Request) {
   }
 
   const totalPay = atBreakdown ? atBreakdown.netto : minijob ? minijob.netto : brutto
+  const bruttoTotal = atBreakdown ? atBreakdown.bruttoGesamt : minijob ? minijob.brutto : brutto
 
   await supabase.from('payroll_runs').upsert(
     {
@@ -382,6 +407,12 @@ export async function POST(request: Request) {
       total_minutes: totalMinutes,
       hourly_rate: hourlyRate,
       total_pay: totalPay,
+      brutto: bruttoTotal,
+      netto: totalPay,
+      rv_pflicht: rvPflicht,
+      kv_pflicht: kvPflicht,
+      snapshot,
+      sent_by: user.id,
       email_sent_at: new Date().toISOString(),
     },
     { onConflict: 'year,month,assistant_id' }

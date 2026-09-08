@@ -52,7 +52,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .eq('month', month),
     supabase
       .from('payroll_runs')
-      .select('assistant_id, email_sent_at, total_pay, total_minutes')
+      .select('assistant_id, email_sent_at, total_pay, total_minutes, brutto, netto')
       .eq('year', year)
       .eq('month', month),
     supabase
@@ -90,7 +90,14 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     kv_pflicht?: boolean
   }>
   const reports = reportsRes.data ?? []
-  const runs = runsRes.data ?? []
+  const runs = (runsRes.data ?? []) as Array<{
+    assistant_id: string
+    email_sent_at: string | null
+    total_pay: number
+    total_minutes: number
+    brutto: number | null
+    netto: number | null
+  }>
   const slots = (slotsRes.data ?? []) as Array<{
     id: string
     assigned_to: string | null
@@ -119,14 +126,37 @@ export default async function MonthlyPayrollPage({ params }: Props) {
 
   const assistantData = assistants.map((a) => {
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
+    const rvPflicht = a.rv_pflicht !== false
+    const kvPflicht = a.kv_pflicht !== false
+    const report = reports.find((r) => r.assistant_id === a.id)
+    const run = runs.find((r) => r.assistant_id === a.id)
+
+    // Bereits versendete Monate: eingefrorene Werte aus payroll_runs
+    // verwenden (Migration 0025) statt live mit ggf. inzwischen geänderten
+    // Einstellungen/KV-RV-Flags neu zu rechnen – sonst driftet die Anzeige
+    // vom tatsächlich gemeldeten/ausgezahlten Betrag weg.
+    if (run?.email_sent_at && run.brutto != null && run.netto != null) {
+      return {
+        ...a,
+        rvPflicht,
+        kvPflicht,
+        slotCount: mySlots.length,
+        totalMinutes: run.total_minutes,
+        brutto: run.brutto,
+        netto: run.netto,
+        minijob: null,
+        reportStatus: report?.status ?? null,
+        emailSentAt: run.email_sent_at,
+        frozen: true,
+      }
+    }
+
     // Nur bestätigte Slots zählen (siehe Migration 0024_slot_confirmation.sql) –
     // die tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
     const totalMinutes = mySlots.reduce(
       (sum, s) => sum + entryDurationMinutes(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),
       0
     )
-    const rvPflicht = a.rv_pflicht !== false
-    const kvPflicht = a.kv_pflicht !== false
     const effectiveBruttoRateForAssistant = bezirkMode
       ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates)
       : hourlyRate
@@ -135,8 +165,6 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates)
       : null
     const netto = minijob ? minijob.netto : brutto
-    const report = reports.find((r) => r.assistant_id === a.id)
-    const run = runs.find((r) => r.assistant_id === a.id)
 
     return {
       ...a,
@@ -149,6 +177,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       minijob,
       reportStatus: report?.status ?? null,
       emailSentAt: run?.email_sent_at ?? null,
+      frozen: false,
     }
   })
 
@@ -328,6 +357,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                   </td>
                   <td className="px-5 py-4 text-right font-semibold text-slate-900">
                     {a.totalMinutes > 0 ? formatCurrency(a.brutto, currency) : '–'}
+                    {a.frozen && (
+                      <span title="Bereits versendet – Wert eingefroren, wird nicht neu berechnet" className="ml-1 text-xs text-slate-400">🔒</span>
+                    )}
                   </td>
                   {minijobMode && (
                     <>

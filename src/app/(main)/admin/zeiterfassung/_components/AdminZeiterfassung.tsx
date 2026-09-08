@@ -39,11 +39,12 @@ import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns
 import { de } from 'date-fns/locale'
 import type { TemplateRow } from '@/lib/time-entry-template'
 import { DEFAULT_TEMPLATE } from '@/lib/time-entry-template'
+import { isOnLeaveAt, formatLeaveBadge } from '@/lib/leave'
 
 const TIME_PRESETS = ['07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','16:00','17:00']
 const WEEKDAY_SHORT: Record<number, string> = { 0: 'So', 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa' }
 
-interface Assistant { id: string; full_name: string; email: string }
+interface Assistant { id: string; full_name: string; email: string; leave_reason?: string | null; leave_from?: string | null; leave_until?: string | null }
 interface Props { assistants: Assistant[] }
 
 interface Slot {
@@ -197,6 +198,13 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   async function handleSave() {
     if (form.start_time >= form.end_time) { toast.error('Endzeit muss nach der Startzeit liegen'); return }
     if (!form.title.trim()) { toast.error('Bitte eine Bezeichnung eingeben'); return }
+    if (!editId) {
+      const assignee = assistants.find((a) => a.id === selectedId)
+      if (assignee && isOnLeaveAt(assignee, form.date)) {
+        toast.error(`${assignee.full_name} ist am ${form.date.split('-').reverse().join('.')} nicht verfügbar: ${formatLeaveBadge(assignee)}`)
+        return
+      }
+    }
     setSaving(true)
 
     if (editId) {
@@ -378,7 +386,12 @@ export default function AdminZeiterfassung({ assistants }: Props) {
             </span>
           </SelectTrigger>
           <SelectContent>
-            {assistants.map((a) => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+            {assistants.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.full_name}
+                {a.leave_from ? ` (${formatLeaveBadge(a)})` : ''}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2 ml-auto">

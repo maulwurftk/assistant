@@ -13,6 +13,9 @@ export interface Profile {
   rv_pflicht?: boolean
   kv_pflicht?: boolean
   minijob_limit?: number | null
+  leave_reason?: string | null
+  leave_from?: string | null
+  leave_until?: string | null
   created_at: string
 }
 

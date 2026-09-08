@@ -12,7 +12,7 @@ export default async function AdminZeiterfassungPage() {
 
   const { data: assistants } = await supabase
     .from('profiles')
-    .select('id, full_name, email')
+    .select('id, full_name, email, leave_reason, leave_from, leave_until')
     .eq('role', 'assistant')
     .eq('active', true)
     .order('full_name')
