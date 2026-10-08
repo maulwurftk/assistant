@@ -15,6 +15,7 @@ import {
   grossFromBezirkRate,
   ratesFromSettings,
 } from '@/lib/payroll'
+import { vacationPayrollRows, rowMinutes, type Db } from '@/lib/vacation-server'
 import PayrollActions from './_components/PayrollActions'
 import RvPflichtToggle from './_components/RvPflichtToggle'
 import KvPflichtToggle from './_components/KvPflichtToggle'
@@ -110,6 +111,10 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     actual_end_time: string | null
   }>
 
+  // Urlaubsentgelt (genehmigter Urlaub/Abgeltung, docs/urlaub-architektur.md):
+  // zählt voll in Brutto/Minijob, aber NICHT als geleistete Assistenzstunden.
+  const vacationRows = await vacationPayrollRows(supabase as unknown as Db, dateFrom, dateTo)
+
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
   const minijobMode = settings?.minijob_mode ?? false
@@ -126,6 +131,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
 
   const assistantData = assistants.map((a) => {
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
+    const vacationMinutes = vacationRows
+      .filter((r) => r.assistant_id === a.id)
+      .reduce((sum, r) => sum + rowMinutes(r), 0)
     const rvPflicht = a.rv_pflicht !== false
     const kvPflicht = a.kv_pflicht !== false
     const report = reports.find((r) => r.assistant_id === a.id)
@@ -142,6 +150,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
         kvPflicht,
         slotCount: mySlots.length,
         totalMinutes: run.total_minutes,
+        vacationMinutes: 0,
         brutto: run.brutto,
         netto: run.netto,
         minijob: null,
@@ -156,7 +165,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     const totalMinutes = mySlots.reduce(
       (sum, s) => sum + entryDurationMinutes(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),
       0
-    )
+    ) + vacationMinutes
     const effectiveBruttoRateForAssistant = bezirkMode
       ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates)
       : hourlyRate
@@ -172,6 +181,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       kvPflicht,
       slotCount: mySlots.length,
       totalMinutes,
+      vacationMinutes,
       brutto,
       netto,
       minijob,
@@ -182,6 +192,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   })
 
   const totalAllMinutes = assistantData.reduce((s, a) => s + a.totalMinutes, 0)
+  const totalVacationMinutes = assistantData.reduce((s, a) => s + a.vacationMinutes, 0)
   const totalAllBrutto = assistantData.reduce((s, a) => s + a.brutto, 0)
   const totalAllNetto = assistantData.reduce((s, a) => s + a.netto, 0)
 
@@ -300,7 +311,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
           monthlyBudget={monthlyBudget}
           accountFee={accountFee}
           weeklyHoursTarget={weeklyHoursTarget}
-          totalAllMinutes={totalAllMinutes}
+          totalAllMinutes={totalAllMinutes - totalVacationMinutes}
           totalAllBrutto={totalAllBrutto}
           currency={currency}
           year={year}
@@ -354,6 +365,11 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                   </td>
                   <td className="px-5 py-4 text-right font-medium text-slate-800">
                     {a.totalMinutes > 0 ? formatMinutes(a.totalMinutes) : '–'}
+                    {a.vacationMinutes > 0 && (
+                      <span className="block text-xs font-normal text-amber-600" title="Urlaubsentgelt – zählt zum Lohn, nicht zu den geleisteten Stunden">
+                        inkl. Urlaub {formatMinutes(a.vacationMinutes)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-4 text-right font-semibold text-slate-900">
                     {a.totalMinutes > 0 ? formatCurrency(a.brutto, currency) : '–'}

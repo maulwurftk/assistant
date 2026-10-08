@@ -16,6 +16,7 @@ import {
   atRatesFromSettings,
   normalizeCountryMode,
 } from '@/lib/payroll'
+import { vacationPayrollRows, type Db } from '@/lib/vacation-server'
 import { escapeHtml } from '@/lib/utils'
 
 type Body = {
@@ -101,13 +102,18 @@ export async function POST(request: Request) {
   // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
   // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
   type WorkRow = { date: string; start_time: string; end_time: string; label: string }
-  const allEntries: WorkRow[] = calendarSlots
-    .map((s) => ({
+  // Urlaubsentgelt (genehmigter Urlaub/Abgeltung) als eigene Zeilen –
+  // landet damit auch im eingefrorenen Snapshot.
+  const vacationRows = await vacationPayrollRows(supabase as unknown as Db, dateFrom, dateTo, assistantId)
+  const allEntries: WorkRow[] = [
+    ...calendarSlots.map((s) => ({
       date: s.date,
       start_time: s.actual_start_time || s.start_time,
       end_time: s.actual_end_time || s.end_time,
       label: s.title,
-    }))
+    })),
+    ...vacationRows.map((r) => ({ date: r.date, start_time: r.start_time, end_time: r.end_time, label: r.label })),
+  ]
     .sort((a, b) => {
       const d = a.date.localeCompare(b.date)
       return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
@@ -152,6 +158,7 @@ export async function POST(request: Request) {
   // Übersicht und Lohnzettel verwenden für bereits versendete Monate NUR
   // diesen Snapshot statt live mit den dann aktuellen Einstellungen /
   // KV-RV-Flags neu zu rechnen (siehe Migration 0025).
+  const hoursLabel = vacationRows.length ? 'Bezahlte Stunden (inkl. Urlaub)' : 'Gearbeitete Stunden'
   const snapshot = {
     hourlyRate,
     effectiveBruttoRate,
@@ -181,8 +188,8 @@ export async function POST(request: Request) {
         <tr style="border-bottom:1px solid #e2e8f0">
           <td style="padding:8px 12px;color:#334155">${formatDate(e.date)}</td>
           <td style="padding:8px 12px;color:#334155">${escapeHtml(e.label)}</td>
-          <td style="padding:8px 12px;color:#64748b;font-family:monospace">${e.start_time.slice(0, 5)}</td>
-          <td style="padding:8px 12px;color:#64748b;font-family:monospace">${e.end_time.slice(0, 5)}</td>
+          <td style="padding:8px 12px;color:#64748b;font-family:monospace">${e.label.startsWith('Urlaub') ? '–' : e.start_time.slice(0, 5)}</td>
+          <td style="padding:8px 12px;color:#64748b;font-family:monospace">${e.label.startsWith('Urlaub') ? '–' : e.end_time.slice(0, 5)}</td>
           <td style="padding:8px 12px;text-align:right;color:#0f172a;font-weight:500">${formatMinutes(minutes)}</td>
         </tr>
       `
@@ -197,7 +204,7 @@ export async function POST(request: Request) {
       <p style="margin:0 0 12px;font-size:13px;color:#15803d;text-transform:uppercase;font-weight:600;letter-spacing:.05em">Entgeltabrechnung</p>
       <table style="width:100%;font-size:14px;border-collapse:collapse">
         <tr>
-          <td style="color:#334155;padding:4px 0">Gearbeitete Stunden</td>
+          <td style="color:#334155;padding:4px 0">${hoursLabel}</td>
           <td style="text-align:right;color:#0f172a;font-weight:500">${formatMinutes(totalMinutes)}</td>
         </tr>
         <tr>
@@ -244,7 +251,7 @@ export async function POST(request: Request) {
       <p style="margin:0 0 12px;font-size:13px;color:#15803d;text-transform:uppercase;font-weight:600;letter-spacing:.05em">Entgeltabrechnung</p>
       <table style="width:100%;font-size:14px;border-collapse:collapse">
         <tr>
-          <td style="color:#334155;padding:4px 0">Gearbeitete Stunden</td>
+          <td style="color:#334155;padding:4px 0">${hoursLabel}</td>
           <td style="text-align:right;color:#0f172a;font-weight:500">${formatMinutes(totalMinutes)}</td>
         </tr>
         ${bezirkMode ? `
@@ -301,7 +308,7 @@ export async function POST(request: Request) {
       <p style="margin:0 0 8px;font-size:13px;color:#0369a1;text-transform:uppercase;font-weight:600;letter-spacing:.05em">Vergütung</p>
       <table style="width:100%;font-size:14px">
         <tr>
-          <td style="color:#334155;padding:4px 0">Gearbeitete Stunden</td>
+          <td style="color:#334155;padding:4px 0">${hoursLabel}</td>
           <td style="text-align:right;color:#0f172a;font-weight:500">${formatMinutes(totalMinutes)}</td>
         </tr>
         ${bezirkMode ? `

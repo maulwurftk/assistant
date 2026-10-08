@@ -14,6 +14,7 @@ import {
   atRatesFromSettings,
   normalizeCountryMode,
 } from '@/lib/payroll'
+import { vacationPayrollRows, type Db } from '@/lib/vacation-server'
 import PrintButton from './_components/PrintButton'
 
 type Props = {
@@ -106,6 +107,18 @@ export default async function PrintPage({ params }: Props) {
       return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
     })
 
+  // Urlaubsentgelt als eigene Zeilen (zählt zum Lohn, nicht zum Tätigkeitsbericht)
+  const vacationRows = await vacationPayrollRows(supabase as unknown as Db, dateFrom, dateTo, assistantId)
+  if (vacationRows.length) {
+    allRows = [
+      ...allRows,
+      ...vacationRows.map((r, i) => ({ id: `v-${i}`, date: r.date, start_time: r.start_time, end_time: r.end_time, label: r.label })),
+    ].sort((a, b) => {
+      const d = a.date.localeCompare(b.date)
+      return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
+    })
+  }
+
   let hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
   let minijobMode = settings?.minijob_mode ?? false
@@ -166,6 +179,9 @@ export default async function PrintPage({ params }: Props) {
   }
 
   const today = new Date().toLocaleDateString('de-DE')
+  const hoursLabel = allRows.some((r) => r.label.startsWith('Urlaub'))
+    ? 'Bezahlte Stunden (inkl. Urlaub)'
+    : 'Gearbeitete Stunden'
 
   return (
     <div className="min-h-screen bg-surface">
@@ -272,10 +288,10 @@ export default async function PrintPage({ params }: Props) {
                       <td className="py-2 pr-4 text-slate-800">{formatDate(e.date)}</td>
                       <td className="py-2 pr-4 text-slate-700">{e.label}</td>
                       <td className="py-2 pr-4 text-slate-600 font-mono text-xs">
-                        {e.start_time.slice(0, 5)}
+                        {e.label.startsWith('Urlaub') ? '–' : e.start_time.slice(0, 5)}
                       </td>
                       <td className="py-2 pr-4 text-slate-600 font-mono text-xs">
-                        {e.end_time.slice(0, 5)}
+                        {e.label.startsWith('Urlaub') ? '–' : e.end_time.slice(0, 5)}
                       </td>
                       <td className="py-2 text-right text-slate-800">{formatMinutes(minutes)}</td>
                     </tr>
@@ -306,7 +322,7 @@ export default async function PrintPage({ params }: Props) {
             </div>
             <div className="px-5 py-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Gearbeitete Stunden</span>
+                <span className="text-slate-600">{hoursLabel}</span>
                 <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
               </div>
               {bezirkMode ? (
@@ -354,7 +370,7 @@ export default async function PrintPage({ params }: Props) {
               </div>
               <div className="px-5 py-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Gearbeitete Stunden</span>
+                  <span className="text-slate-600">{hoursLabel}</span>
                   <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
                 </div>
                 {bezirkMode && (
@@ -469,7 +485,7 @@ export default async function PrintPage({ params }: Props) {
               </div>
               <div className="px-5 py-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Gearbeitete Stunden</span>
+                  <span className="text-slate-600">{hoursLabel}</span>
                   <span className="font-medium text-slate-800">{formatMinutes(totalMinutes)}</span>
                 </div>
                 <div className="flex justify-between">

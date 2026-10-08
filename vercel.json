@@ -11,6 +11,10 @@
     {
       "path": "/api/send-monthly-reminders",
       "schedule": "0 8 28-31 * *"
+    },
+    {
+      "path": "/api/urlaub/cron",
+      "schedule": "15 5 * * *"
     }
   ]
 }

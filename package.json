@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:rls": "node __tests__/rls-cross-tenant/calendar-slots.test.mjs && node __tests__/rls-cross-tenant/all-tables.test.mjs && node __tests__/rls-cross-tenant/rpc.test.mjs && node __tests__/rls-cross-tenant/backup.test.mjs && node __tests__/rls-cross-tenant/todos.test.mjs && node __tests__/rls-cross-tenant/org-suspend.test.mjs",
-    "db:migrate": "node scripts/db-migrate.mjs"
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "test:vacation": "node --experimental-strip-types __tests__/vacation/vacation.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

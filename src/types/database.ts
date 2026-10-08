@@ -14,6 +14,11 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type AbsenceType = 'vacation' | 'vacation_payout' | 'sick' | 'sick_child' | 'special' | 'unpaid'
+export type AbsenceStatus = 'requested' | 'approved' | 'rejected' | 'cancelled'
+export type LeaveLedgerKind =
+  | 'entitlement' | 'opening_balance' | 'taken' | 'expired' | 'payout' | 'parental_reduction' | 'correction'
+
 export type Database = {
   public: {
     Tables: {
@@ -65,6 +70,8 @@ export type Database = {
           leave_reason: string | null
           leave_from: string | null
           leave_until: string | null
+          employment_start: string | null
+          employment_end: string | null
         }
         Insert: {
           id: string
@@ -82,6 +89,8 @@ export type Database = {
           leave_reason?: string | null
           leave_from?: string | null
           leave_until?: string | null
+          employment_start?: string | null
+          employment_end?: string | null
         }
         Update: {
           email?: string
@@ -96,6 +105,8 @@ export type Database = {
           leave_reason?: string | null
           leave_from?: string | null
           leave_until?: string | null
+          employment_start?: string | null
+          employment_end?: string | null
           minijob_limit?: number | null
         }
         Relationships: Rel[]
@@ -241,6 +252,12 @@ export type Database = {
           at_include_weihnachtsgeld: boolean
           at_dienstgeberkonto_nr: string
           at_kostentraeger_name: string
+          vacation_enabled: boolean
+          vacation_base_days: number
+          vacation_holiday_region: 'BY' | 'DE' | 'AT'
+          vacation_carryover_until: string
+          vacation_reference_weeks: number
+          vacation_notice_month: number
           weekly_template: unknown | null
         }
         Insert: {
@@ -282,6 +299,12 @@ export type Database = {
           at_include_weihnachtsgeld?: boolean
           at_dienstgeberkonto_nr?: string
           at_kostentraeger_name?: string
+          vacation_enabled?: boolean
+          vacation_base_days?: number
+          vacation_holiday_region?: 'BY' | 'DE' | 'AT'
+          vacation_carryover_until?: string
+          vacation_reference_weeks?: number
+          vacation_notice_month?: number
         }
         Update: {
           hourly_rate?: number
@@ -319,6 +342,12 @@ export type Database = {
           at_include_weihnachtsgeld?: boolean
           at_dienstgeberkonto_nr?: string
           at_kostentraeger_name?: string
+          vacation_enabled?: boolean
+          vacation_base_days?: number
+          vacation_holiday_region?: 'BY' | 'DE' | 'AT'
+          vacation_carryover_until?: string
+          vacation_reference_weeks?: number
+          vacation_notice_month?: number
           weekly_template?: unknown | null
         }
         Relationships: Rel[]
@@ -714,6 +743,171 @@ export type Database = {
           { foreignKeyName: 'todo_checks_confirmed_by_fkey', columns: ['confirmed_by'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
         ]
       }
+      employment_terms: {
+        Row: {
+          id: string
+          tenant_id: string
+          assistant_id: string
+          valid_from: string
+          valid_until: string | null
+          days_per_week: number | null
+          weekly_hours: number | null
+          base_days: number | null
+          extra_days: number
+          job_title: string | null
+          note: string | null
+          notice_sent_at: string | null
+          notice_confirmed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          assistant_id: string
+          valid_from: string
+          valid_until?: string | null
+          days_per_week?: number | null
+          weekly_hours?: number | null
+          base_days?: number | null
+          extra_days?: number
+          job_title?: string | null
+          note?: string | null
+          notice_sent_at?: string | null
+          notice_confirmed_at?: string | null
+        }
+        Update: {
+          valid_from?: string
+          valid_until?: string | null
+          days_per_week?: number | null
+          weekly_hours?: number | null
+          base_days?: number | null
+          extra_days?: number
+          job_title?: string | null
+          note?: string | null
+          notice_sent_at?: string | null
+          notice_confirmed_at?: string | null
+        }
+        Relationships: Rel[]
+      }
+      absences: {
+        Row: {
+          id: string
+          tenant_id: string
+          assistant_id: string
+          type: AbsenceType
+          date_from: string
+          date_to: string
+          workdays: string[]
+          days: number
+          status: AbsenceStatus
+          minutes_per_day: number | null
+          paid_minutes: number | null
+          calc_snapshot: Json | null
+          note: string | null
+          decision_note: string | null
+          requested_by: string | null
+          decided_by: string | null
+          decided_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          assistant_id: string
+          type: AbsenceType
+          date_from: string
+          date_to: string
+          workdays?: string[]
+          days?: number
+          status?: AbsenceStatus
+          minutes_per_day?: number | null
+          paid_minutes?: number | null
+          calc_snapshot?: Json | null
+          note?: string | null
+          decision_note?: string | null
+          requested_by?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
+        }
+        Update: {
+          type?: AbsenceType
+          date_from?: string
+          date_to?: string
+          workdays?: string[]
+          days?: number
+          status?: AbsenceStatus
+          minutes_per_day?: number | null
+          paid_minutes?: number | null
+          calc_snapshot?: Json | null
+          note?: string | null
+          decision_note?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
+        }
+        Relationships: Rel[]
+      }
+      leave_ledger: {
+        Row: {
+          id: string
+          tenant_id: string
+          assistant_id: string
+          leave_year: number
+          kind: LeaveLedgerKind
+          days: number
+          absence_id: string | null
+          note: string | null
+          dedup_key: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          assistant_id: string
+          leave_year: number
+          kind: LeaveLedgerKind
+          days: number
+          absence_id?: string | null
+          note?: string | null
+          dedup_key?: string | null
+          created_by?: string | null
+        }
+        Update: {
+          days?: number
+          note?: string | null
+        }
+        Relationships: Rel[]
+      }
+      vacation_notices: {
+        Row: {
+          id: string
+          tenant_id: string
+          assistant_id: string
+          leave_year: number
+          remaining_days: number
+          expires_on: string
+          sent_at: string
+          channel: string
+          message: string
+          read_at: string | null
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          assistant_id: string
+          leave_year: number
+          remaining_days: number
+          expires_on: string
+          sent_at?: string
+          channel?: string
+          message: string
+          read_at?: string | null
+        }
+        Update: {
+          read_at?: string | null
+        }
+        Relationships: Rel[]
+      }
       todos: {
         Row: {
           id: string
@@ -770,7 +964,19 @@ export type Database = {
         ]
       }
     }
-    Views: Record<string, never>
+    Views: {
+      leave_balances: {
+        Row: {
+          tenant_id: string
+          assistant_id: string
+          leave_year: number
+          credited: number
+          taken: number
+          balance: number
+        }
+        Relationships: Rel[]
+      }
+    }
     Functions: {
       current_tenant: {
         Args: Record<string, never>
@@ -811,3 +1017,7 @@ export type PayrollRun = Database['public']['Tables']['payroll_runs']['Row']
 export type TodoTemplate = Database['public']['Tables']['todo_templates']['Row']
 export type TodoCheck = Database['public']['Tables']['todo_checks']['Row']
 export type Todo = Database['public']['Tables']['todos']['Row']
+export type EmploymentTerm = Database['public']['Tables']['employment_terms']['Row']
+export type Absence = Database['public']['Tables']['absences']['Row']
+export type LeaveLedgerEntry = Database['public']['Tables']['leave_ledger']['Row']
+export type VacationNotice = Database['public']['Tables']['vacation_notices']['Row']

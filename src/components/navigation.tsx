@@ -36,6 +36,7 @@ import {
   ListTodo,
   Building2,
   UserPlus,
+  TreePalm,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -51,6 +52,7 @@ const navItems = (role: string, isPlatformAdmin?: boolean) => [
   { href: '/kalender', label: 'Kalender', icon: CalendarDays },
   { href: '/aufgaben', label: 'Aufgaben', icon: ListTodo },
   { href: '/verfuegbarkeit', label: 'Sperrzeiten', icon: CalendarOff },
+  ...(role !== 'admin' ? [{ href: '/urlaub', label: 'Urlaub', icon: TreePalm }] : []),
   ...(role === 'admin' ? [
     { href: '/admin/berichte', label: 'Berichte', icon: FileText, section: 'Admin' },
     { href: '/admin/benutzer', label: 'Benutzer', icon: Users },
@@ -58,6 +60,7 @@ const navItems = (role: string, isPlatformAdmin?: boolean) => [
     { href: '/admin/aufgaben', label: 'Aufgaben', icon: ListTodo },
     { href: '/admin/zeiterfassung', label: 'Einsätze verwalten', icon: Clock },
     { href: '/admin/verfuegbarkeit', label: 'Sperrzeiten', icon: CalendarOff },
+    { href: '/admin/urlaub', label: 'Urlaub', icon: TreePalm },
     { href: '/payroll', label: 'Abrechnung', icon: Banknote },
     { href: '/admin/sicherung', label: 'Datensicherung', icon: Save },
   ] : []),

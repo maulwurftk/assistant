@@ -39,6 +39,9 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { MonthlyCloseCard } from './_components/MonthlyCloseCard'
 import { isOnLeaveAt, formatLeaveBadge } from '@/lib/leave'
+import { addDays, ABSENCE_TYPE_LABELS } from '@/lib/vacation'
+
+type CalendarAbsence = { id: string; assistant_id: string; type: string; status: string; date_from: string; date_to: string }
 
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -125,6 +128,12 @@ export default function KalenderPage() {
   const [confirmActualEnd, setConfirmActualEnd] = useState('')
   const [confirmActivityId, setConfirmActivityId] = useState('')
   const calendarRef = useRef<any>(null)
+  const [absences, setAbsences] = useState<CalendarAbsence[]>([])
+
+  // Genehmigte/beantragte Abwesenheiten (Urlaub, Krank …) – Urlaubsmodul
+  function absenceOn(assistantId: string, date: string) {
+    return absences.find((a) => a.assistant_id === assistantId && a.status === 'approved' && a.date_from <= date && a.date_to >= date)
+  }
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -156,6 +165,12 @@ export default function KalenderPage() {
     setActivities((acts ?? []) as unknown as Activity[])
 
     loadSlots()
+
+    const today = new Date().toISOString().slice(0, 10)
+    fetch(`/api/urlaub/absences?from=${addDays(today, -120)}&to=${addDays(today, 400)}`)
+      .then((r) => (r.ok ? r.json() : { absences: [] }))
+      .then((d) => setAbsences(Array.isArray(d.absences) ? d.absences : []))
+      .catch(() => {})
 
     supabase.from('payroll_settings').select('private_slot_color').limit(1).single()
       .then(({ data }) => { if (data?.private_slot_color) setPrivateColor(data.private_slot_color) })
@@ -280,7 +295,7 @@ export default function KalenderPage() {
   }
 
   function handleEventClick(info: EventClickArg) {
-    if (info.event.extendedProps?.source === 'google') return
+    if (info.event.extendedProps?.source === 'google' || info.event.extendedProps?.source === 'absence') return
     const slot = slots.find(s => s.id === info.event.id)
     if (!slot) return
     setEditSlot(slot)
@@ -307,6 +322,11 @@ export default function KalenderPage() {
       const assignee = assistants.find(a => a.id === form.assigned_to)
       if (assignee && isOnLeaveAt(assignee, form.date)) {
         toast.error(`${assignee.full_name} ist am ${form.date.split('-').reverse().join('.')} nicht verfügbar: ${formatLeaveBadge(assignee)}`)
+        return
+      }
+      const abs = assignee ? absenceOn(assignee.id, form.date) : undefined
+      if (assignee && abs) {
+        toast.error(`${assignee.full_name} ist am ${form.date.split('-').reverse().join('.')} abwesend (${ABSENCE_TYPE_LABELS[abs.type] ?? 'abwesend'})`)
         return
       }
     }
@@ -396,6 +416,22 @@ export default function KalenderPage() {
       backgroundColor: slot.is_private ? privateColor : bgColor,
       borderColor: slot.is_private ? privateColor : bgColor,
       textColor: '#fff',
+    }
+  }), ...absences.map((a) => {
+    const name = assistantNameMap[a.assistant_id] ?? ''
+    const label = a.type === 'absent' ? 'Abwesend' : (ABSENCE_TYPE_LABELS[a.type] ?? 'Abwesend')
+    const color = assistantColorMap[a.assistant_id] ?? '#94a3b8'
+    return {
+      id: `absence-${a.id}`,
+      title: `${a.type === 'vacation' ? '🌴 ' : ''}${label}: ${name}${a.status === 'requested' ? ' (beantragt)' : ''}`,
+      start: a.date_from,
+      end: addDays(a.date_to, 1),
+      allDay: true,
+      backgroundColor: a.status === 'requested' ? 'transparent' : color,
+      borderColor: color,
+      textColor: a.status === 'requested' ? color : '#fff',
+      editable: false,
+      extendedProps: { source: 'absence' },
     }
   })]
 
@@ -517,12 +553,15 @@ export default function KalenderPage() {
                   <SelectContent>
                     <SelectItem value="none">— Noch offen —</SelectItem>
                     {assistants.map(a => (
-                      <SelectItem key={a.id} value={a.id} disabled={isOnLeaveAt(a, form.date)}>
+                      <SelectItem key={a.id} value={a.id} disabled={isOnLeaveAt(a, form.date) || !!absenceOn(a.id, form.date)}>
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: (a as any).color ?? '#6366f1' }} />
                           {a.full_name}
                           {isOnLeaveAt(a, form.date) && (
                             <span className="text-xs text-pink-600">({formatLeaveBadge(a)})</span>
+                          )}
+                          {!isOnLeaveAt(a, form.date) && absenceOn(a.id, form.date) && (
+                            <span className="text-xs text-amber-600">(abwesend)</span>
                           )}
                         </div>
                       </SelectItem>

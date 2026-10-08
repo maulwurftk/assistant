@@ -10,6 +10,8 @@ import {
   grossFromBezirkRate,
   ratesFromSettings,
 } from '@/lib/payroll'
+import { vacationPayrollRows, rowMinutes, type Db } from '@/lib/vacation-server'
+import { addDays } from '@/lib/vacation'
 import { PeriodPicker } from './_components/PeriodPicker'
 import { RuecklagenRechner } from './_components/RuecklagenRechner'
 import { BarChart3 } from 'lucide-react'
@@ -90,6 +92,8 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     iban?: string | null
   }>
   const slots = slotsRes.data ?? []
+  // Urlaubsentgelt zählt zu Lohn/Kosten des Zeitraums (nicht zu geleisteten Stunden)
+  const vacationRows = await vacationPayrollRows(supabase as unknown as Db, from, addDays(to, 1))
 
   const hourlyRate = settings?.hourly_rate ?? 0
   const currency = settings?.currency ?? 'EUR'
@@ -104,10 +108,13 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
     // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
     // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
+    const vacationMinutes = vacationRows
+      .filter((r) => r.assistant_id === a.id)
+      .reduce((sum, r) => sum + rowMinutes(r), 0)
     const totalMinutes = mySlots.reduce(
       (sum, s) => sum + entryDurationMinutes(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),
       0
-    )
+    ) + vacationMinutes
     const rvPflicht = a.rv_pflicht !== false
     const kvPflicht = a.kv_pflicht !== false
     const bruttoRate = bezirkMode
@@ -128,6 +135,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       rvPflicht,
       kvPflicht,
       totalMinutes,
+      vacationMinutes,
       slotCount: mySlots.length,
       brutto,
       netto,
@@ -288,7 +296,12 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
                     {!r.kvPflicht && <span>PKV</span>}
                   </div>
                 </td>
-                <td className="text-right px-3 py-2.5 tabular-nums">{formatMinutes(r.totalMinutes)}</td>
+                <td className="text-right px-3 py-2.5 tabular-nums">
+                  {formatMinutes(r.totalMinutes)}
+                  {r.vacationMinutes > 0 && (
+                    <span className="block text-xs text-amber-600">inkl. Urlaub {formatMinutes(r.vacationMinutes)}</span>
+                  )}
+                </td>
                 <td className="text-right px-3 py-2.5 tabular-nums">{formatCurrency(r.brutto, currency)}</td>
                 {minijobMode && (
                   <td className="text-right px-3 py-2.5 tabular-nums text-slate-500">

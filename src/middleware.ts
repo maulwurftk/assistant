@@ -37,6 +37,7 @@ export async function middleware(request: NextRequest) {
     '/api/calendar.ics',
     '/api/send-monthly-reminders',
     '/api/remind-open-slots',
+    '/api/urlaub/cron',
   ]
   if (publicTokenPaths.some((p) => pathname.startsWith(p))) {
     return supabaseResponse
