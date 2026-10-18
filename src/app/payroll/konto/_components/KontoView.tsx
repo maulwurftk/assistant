@@ -28,6 +28,12 @@ type Props = {
 export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
   const router = useRouter()
   const [ledger, setLedger] = useState<Entry[]>(initialLedger)
+  // router.refresh() liefert neue Props – useState übernimmt sie sonst nicht
+  const [prevInitialLedger, setPrevInitialLedger] = useState(initialLedger)
+  if (initialLedger !== prevInitialLedger) {
+    setPrevInitialLedger(initialLedger)
+    setLedger(initialLedger)
+  }
   const [busy, setBusy] = useState<string | null>(null)
   const [budgetMonths, setBudgetMonths] = useState('2')
   const [showForm, setShowForm] = useState(false)
@@ -84,19 +90,25 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
     setBusy(null)
   }
 
-  async function generate() {
+  // Offene Vorschläge beim Öffnen automatisch an aktuelle Lohndaten anpassen
+  useEffect(() => {
+    generate(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function generate(silent = false) {
     setBusy('generate')
     try {
       const res = await fetch('/api/payroll/konto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate' }),
+        body: JSON.stringify({ action: 'generate', onlyUpdate: silent }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         toast.error(data.error ?? 'Vorschläge konnten nicht generiert werden')
       } else if ((data.generated ?? 0) === 0 && (data.updated ?? 0) === 0) {
-        toast.info('Keine neuen Vorschläge – keine bestätigten Termine gefunden')
+        if (!silent) toast.info('Keine neuen Vorschläge – keine bestätigten Termine gefunden')
         refresh()
       } else {
         refresh()
@@ -236,7 +248,7 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
           tone="violet"
         />
         <button
-          onClick={generate}
+          onClick={() => generate()}
           disabled={busy === 'generate'}
           className="px-3 py-2 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
         >

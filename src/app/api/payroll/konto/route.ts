@@ -9,6 +9,7 @@ import {
   grossFromBezirkRate,
   ratesFromSettings,
 } from '@/lib/payroll'
+import { vacationPayrollRows, rowMinutes, type Db } from '@/lib/vacation-server'
 
 function adminDb() {
   return createAdminClient<Database>(
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
 
   // Vorschläge aus Lohndaten generieren
   if (body.action === 'generate') {
-    return generateSuggestions(ctx.tenantId, ctx.userId)
+    return generateSuggestions(ctx.tenantId, ctx.userId, body.onlyUpdate === true)
   }
 
   const { booking_date, direction, category, amount, description } = body
@@ -52,13 +53,17 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true })
 }
 
-async function generateSuggestions(tenantId: string, userId: string) {
+async function generateSuggestions(tenantId: string, userId: string, onlyUpdate = false) {
   const db = adminDb()
 
-  const [settingsRes, assistantsRes, slotsRes] = await Promise.all([
+  const [settingsRes, assistantsRes, slotsRes, runsRes, vacationRowsAll] = await Promise.all([
     db.from('payroll_settings').select('*').eq('tenant_id', tenantId).single(),
     db.from('profiles').select('id, full_name, rv_pflicht, kv_pflicht').eq('tenant_id', tenantId).eq('role', 'assistant').eq('active', true),
     db.from('calendar_slots').select('assigned_to, date, start_time, end_time, actual_start_time, actual_end_time').eq('tenant_id', tenantId).eq('status', 'assigned').eq('is_private', false).not('confirmed_at', 'is', null),
+    // Bereits versendete Lohnzettel: eingefrorene Werte (wie /payroll/[year]/[month])
+    db.from('payroll_runs').select('assistant_id, year, month, email_sent_at, netto').eq('tenant_id', tenantId).not('email_sent_at', 'is', null),
+    // Urlaubsentgelt zählt zum Lohn (wie /payroll/[year]/[month])
+    vacationPayrollRows(db as unknown as Db, '2000-01-01', '2100-01-01'),
   ])
 
   const settings = settingsRes.data as any
@@ -66,6 +71,10 @@ async function generateSuggestions(tenantId: string, userId: string) {
 
   const assistants = assistantsRes.data ?? []
   const slots = slotsRes.data ?? []
+  const assistantIds = new Set(assistants.map((a) => a.id))
+  // Service-Role umgeht RLS → nur Urlaubszeilen der eigenen Assistentinnen
+  const vacationRows = vacationRowsAll.filter((r) => assistantIds.has(r.assistant_id))
+  const runs = (runsRes.data ?? []) as Array<{ assistant_id: string; year: number; month: number; email_sent_at: string | null; netto: number | null }>
 
   const monthlyBudget = settings.monthly_budget ?? 0
   const hourlyRate = settings.hourly_rate ?? 0
@@ -83,6 +92,7 @@ async function generateSuggestions(tenantId: string, userId: string) {
     if (!slotsByMonth.has(key)) slotsByMonth.set(key, [])
     slotsByMonth.get(key)!.push(s)
   }
+  for (const r of vacationRows) months.add(r.date.slice(0, 7))
 
   const suggestions: Array<{
     booking_date: string
@@ -115,16 +125,23 @@ async function generateSuggestions(tenantId: string, userId: string) {
 
     // Ausgabe: Nettolohn je Assistent (getrennt, nicht mehr zusammengefasst)
     for (const a of assistants) {
+      const vacationMinutes = vacationRows
+        .filter((r) => r.assistant_id === a.id && r.date.startsWith(ym))
+        .reduce((sum, r) => sum + rowMinutes(r), 0)
       const minutes = monthSlots
         .filter((s) => s.assigned_to === a.id)
         .reduce((sum, s) => sum + entryDurationMinutes(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time), 0)
+        + vacationMinutes
       if (minutes === 0) continue
       const rvPflicht = a.rv_pflicht !== false
       const kvPflicht = a.kv_pflicht !== false
       const bruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, kvPflicht, rates) : hourlyRate
       const brutto = calculatePay(minutes, bruttoRate)
       const minijob = minijobMode ? calculateMinijob(brutto, rvPflicht, uvRate, kvPflicht, rates) : null
-      const netto = Math.round((minijob ? minijob.netto : brutto) * 100) / 100
+      const run = runs.find((r) => r.assistant_id === a.id && r.year === y && r.month === m)
+      const netto = run?.netto != null
+        ? Math.round(Number(run.netto) * 100) / 100
+        : Math.round((minijob ? minijob.netto : brutto) * 100) / 100
       const name = (a as { full_name?: string }).full_name ?? 'Assistent'
 
       if (netto > 0) {
@@ -184,7 +201,8 @@ async function generateSuggestions(tenantId: string, userId: string) {
     (existingRes.data ?? []).map((row) => [(row as { dedup_key: string }).dedup_key, row as { id: string; status: string }])
   )
 
-  const toInsert = suggestions.filter((s) => !existingByKey.has(s.dedup_key))
+  // onlyUpdate (automatischer Abgleich beim Öffnen): verworfene Vorschläge nicht neu anlegen
+  const toInsert = onlyUpdate ? [] : suggestions.filter((s) => !existingByKey.has(s.dedup_key))
   const toUpdate = suggestions.filter((s) => existingByKey.get(s.dedup_key)?.status === 'pending')
 
   if (toInsert.length > 0) {
