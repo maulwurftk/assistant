@@ -1,5 +1,6 @@
 {
   "framework": "nextjs",
+  "regions": ["dub1"],
   "installCommand": "npm install",
   "buildCommand": "next build --webpack",
   "outputDirectory": ".next",
