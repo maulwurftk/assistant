@@ -153,6 +153,20 @@ export default function KalenderPage() {
     const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).single()
     setProfile(p as unknown as Profile)
 
+    // Deep-Link vom Dashboard ("Eintrag hinzufügen"): /kalender?neu=1 öffnet direkt den Eintrag-Dialog
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('neu') === '1') {
+      if ((p as any)?.role === 'assistant') {
+        setProposeForm(emptyProposeForm)
+        setProposeDialogOpen(true)
+      } else if ((p as any)?.role === 'admin') {
+        setEditSlot(null)
+        setForm(emptyForm)
+        setDialogOpen(true)
+      }
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+
     // Assistenten für alle laden (für Farben im Kalender)
     const { data: asst } = await supabase
       .from('profiles')

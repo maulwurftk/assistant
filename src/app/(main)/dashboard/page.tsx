@@ -178,9 +178,9 @@ export default async function DashboardPage() {
                 <p className="text-sm text-amber-700 mt-0.5">
                   Bitte überprüfen und bestätigen Sie Ihre Einträge für {format(now, 'MMMM yyyy', { locale: de })}.
                 </p>
-                <Link href="/zeiterfassung">
+                <Link href="/kalender">
                   <Button size="sm" className="mt-2 bg-amber-600 hover:bg-amber-700">
-                    Zur Zeiterfassung
+                    Zum Kalender
                   </Button>
                 </Link>
               </div>
@@ -204,7 +204,7 @@ export default async function DashboardPage() {
                 </div>
                 <p className="font-medium text-gray-700">Noch keine Einträge diesen Monat</p>
                 <p className="text-sm text-gray-400 mt-0.5">Erfasse deine erste Arbeitszeit.</p>
-                <Link href="/zeiterfassung">
+                <Link href="/kalender?neu=1">
                   <Button size="sm" className="mt-4">Eintrag hinzufügen</Button>
                 </Link>
               </div>

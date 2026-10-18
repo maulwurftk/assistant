@@ -58,7 +58,7 @@ export async function POST(request: Request) {
         related_type: 'monthly_reminder',
         related_id: null,
       } as never)
-      await sendPushToUser(assistant.id, 'Monatsabschluss ausstehend', `Bitte den Monatsbericht für ${monthName} abschließen.`, '/zeiterfassung')
+      await sendPushToUser(assistant.id, 'Monatsabschluss ausstehend', `Bitte den Monatsbericht für ${monthName} abschließen.`, '/kalender')
 
       if (process.env.RESEND_API_KEY) {
         try {
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
                 <h2>Monatsabschluss ${monthName}</h2>
                 <p>Hallo ${assistant.full_name},</p>
                 <p>bitte überprüfen und schließen Sie Ihren Monatsbericht für ${monthName} ab.</p>
-                <p><a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://assistenz.charmely.cloud'}/zeiterfassung">Zur Zeiterfassung</a></p>
+                <p><a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://assistenz.charmely.cloud'}/kalender">Zum Kalender</a></p>
               `,
             }),
           })
