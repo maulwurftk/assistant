@@ -213,7 +213,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: form.title, date: form.date, start_time: form.start_time, end_time: form.end_time,
-          is_private: form.is_private,
+          is_private: form.is_private, activity_id: form.activity_id || null,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -571,7 +571,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                 ))}
               </div>
             </div>
-            {!editId && (
+            {(
               <div className="space-y-2">
                 <Label>Tätigkeit</Label>
                 <Select value={form.activity_id || undefined} onValueChange={(v) => setForm({ ...form, activity_id: v ?? '' })}>
