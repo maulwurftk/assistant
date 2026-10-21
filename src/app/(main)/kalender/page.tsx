@@ -114,6 +114,9 @@ export default function KalenderPage() {
   const [proposeDialogOpen, setProposeDialogOpen] = useState(false)
   const [proposeForm, setProposeForm] = useState<ProposeForm>(emptyProposeForm)
   const [proposing, setProposing] = useState(false)
+  // Gesetzt = Vorschlags-Dialog bearbeitet eine eigene, noch nicht genehmigte Anfrage
+  const [editingProposalId, setEditingProposalId] = useState<string | null>(null)
+  const [withdrawing, setWithdrawing] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [icalUrl, setIcalUrl] = useState<string | null>(null)
   const [icalDialogOpen, setIcalDialogOpen] = useState(false)
@@ -237,24 +240,67 @@ export default function KalenderPage() {
       const res = await fetch('/api/slot-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', ...proposeForm, activity_id: proposeForm.activity_id || null }),
+        body: JSON.stringify({
+          action: editingProposalId ? 'update' : 'create',
+          slot_id: editingProposalId ?? undefined,
+          ...proposeForm,
+          activity_id: proposeForm.activity_id || null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
         toast.error(data.error ?? 'Fehler beim Senden des Vorschlags')
       } else {
         toast.success(
-          proposeForm.self_reported
+          editingProposalId
+            ? 'Änderung gespeichert – wartet weiter auf Freigabe'
+            : proposeForm.self_reported
             ? 'Meldung gesendet – wartet auf Freigabe durch den Admin'
             : 'Terminvorschlag gesendet – der Admin wird benachrichtigt'
         )
         setProposeDialogOpen(false)
+        setEditingProposalId(null)
         loadSlots()
       }
     } catch {
       toast.error('Verbindungsfehler')
     }
     setProposing(false)
+  }
+
+  function openEditProposal(slot: CalendarSlot) {
+    setEditingProposalId(slot.id)
+    setProposeForm({
+      date: slot.date,
+      start_time: slot.start_time.slice(0, 5),
+      end_time: slot.end_time.slice(0, 5),
+      title: slot.title,
+      description: slot.description ?? '',
+      self_reported: !!slot.self_reported,
+      activity_id: slot.activity_id ?? '',
+      actual_start_time: slot.actual_start_time?.slice(0, 5) ?? '',
+      actual_end_time: slot.actual_end_time?.slice(0, 5) ?? '',
+    })
+    setDialogOpen(false)
+    setProposeDialogOpen(true)
+  }
+
+  async function handleWithdrawRequest() {
+    if (!editSlot) return
+    setWithdrawing(true)
+    try {
+      const res = await fetch('/api/slot-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'withdraw', slot_id: editSlot.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) toast.error(data.error ?? 'Fehler beim Zurückziehen')
+      else { toast.success('Anfrage zurückgezogen'); setDialogOpen(false); loadSlots() }
+    } catch {
+      toast.error('Verbindungsfehler')
+    }
+    setWithdrawing(false)
   }
 
   async function handleRequestSlot() {
@@ -353,8 +399,12 @@ export default function KalenderPage() {
       title: form.title,
       description: form.description || null,
       assigned_to: form.assigned_to || null,
-      status: form.assigned_to ? 'assigned' : 'open',
+      status: form.assigned_to ? 'assigned' : (editSlot?.status === 'pending' ? 'pending' : 'open'),
       is_private: form.is_private,
+      // Noch nicht freigegebene nachträgliche Meldung: Ist-Zeit folgt der korrigierten Zeit
+      ...(editSlot?.status === 'pending' && editSlot.self_reported && !form.assigned_to
+        ? { actual_start_time: form.start_time, actual_end_time: form.end_time }
+        : {}),
     }
 
     let error
@@ -700,6 +750,19 @@ export default function KalenderPage() {
                   )
                 )}
 
+                {editSlot.status === 'pending' && editSlot.pending_request_by === profile?.id && (
+                  <div className="flex gap-2">
+                    {editSlot.created_by === profile?.id && (
+                      <Button variant="outline" size="sm" onClick={() => openEditProposal(editSlot)} className="flex-1">
+                        Bearbeiten
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={handleWithdrawRequest} disabled={withdrawing} className="flex-1 text-red-600 border-red-200 hover:bg-red-50">
+                      {withdrawing ? 'Ziehe zurück…' : 'Anfrage zurückziehen'}
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Schließen</Button>
                   {editSlot.status === 'open' && (
@@ -715,10 +778,10 @@ export default function KalenderPage() {
       </Dialog>
 
       {/* Termin vorschlagen (Assistent) */}
-      <Dialog open={proposeDialogOpen} onOpenChange={setProposeDialogOpen}>
+      <Dialog open={proposeDialogOpen} onOpenChange={(o) => { setProposeDialogOpen(o); if (!o) setEditingProposalId(null) }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Termin vorschlagen</DialogTitle>
+            <DialogTitle>{editingProposalId ? 'Anfrage bearbeiten' : 'Termin vorschlagen'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <p className="text-sm text-gray-500">
@@ -828,9 +891,9 @@ export default function KalenderPage() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setProposeDialogOpen(false)}>Abbrechen</Button>
+              <Button variant="outline" onClick={() => { setProposeDialogOpen(false); setEditingProposalId(null) }}>Abbrechen</Button>
               <Button onClick={handleProposeSlot} disabled={proposing}>
-                {proposing ? 'Senden...' : (proposeForm.self_reported ? 'Melden' : 'Vorschlagen')}
+                {proposing ? 'Senden...' : editingProposalId ? 'Änderung speichern' : (proposeForm.self_reported ? 'Melden' : 'Vorschlagen')}
               </Button>
             </div>
           </div>

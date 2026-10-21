@@ -672,6 +672,9 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                 <div className="flex gap-1 shrink-0">
                   {isPending ? (
                     <>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(slot)} title="Bearbeiten">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100" disabled={busyId === slot.id} onClick={() => handleApproveDeny(slot, 'approve')} title="Genehmigen">
                         <Check className="h-3.5 w-3.5" />
                       </Button>

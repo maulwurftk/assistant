@@ -24,6 +24,20 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
   if (is_private !== undefined) patch.is_private = is_private
 
   const service = await createServiceClient()
+
+  // Nachträgliche Meldung (self_reported) noch nicht freigegeben: Ist-Zeit = geänderte Zeit,
+  // sonst zählt nach Freigabe die alte Ist-Zeit in der Lohnabrechnung.
+  if (start_time !== undefined || end_time !== undefined) {
+    const { data: cur } = await service.from('calendar_slots')
+      .select('status, self_reported, start_time, end_time')
+      .eq('id', id).eq('tenant_id', ctx.tenantId).single()
+    const c = cur as { status: string; self_reported: boolean | null; start_time: string; end_time: string } | null
+    if (c && c.status === 'pending' && c.self_reported) {
+      patch.actual_start_time = start_time ?? c.start_time
+      patch.actual_end_time = end_time ?? c.end_time
+    }
+  }
+
   const { data, error } = await service
     .from('calendar_slots')
     .update(patch as never)

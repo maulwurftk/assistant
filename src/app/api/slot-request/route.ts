@@ -44,6 +44,12 @@ export async function POST(req: Request) {
   if (action === 'create') {
     return handleCreateRequest(ctx, body)
   }
+  if (action === 'update') {
+    return handleUpdateRequest(ctx, body)
+  }
+  if (action === 'withdraw') {
+    return handleWithdrawRequest(ctx, slot_id)
+  }
   return handleRequest(ctx, slot_id)
 }
 
@@ -218,6 +224,107 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
   }
 
   return NextResponse.json({ ok: true, slot })
+}
+
+// Eigene, noch nicht genehmigte Anfrage/Meldung nachbessern (nur solange pending)
+async function handleUpdateRequest(ctx: TenantContext, body: any) {
+  const db = adminDb()
+  if (ctx.role !== 'assistant') {
+    return NextResponse.json({ error: 'Nur Assistenten können eigene Anfragen bearbeiten' }, { status: 403 })
+  }
+  const {
+    slot_id, date, start_time, end_time, title, description,
+    self_reported, activity_id, actual_start_time, actual_end_time,
+  } = body
+  if (!slot_id || !date || !start_time || !end_time || !title?.trim()) {
+    return NextResponse.json({ error: 'Bitte Datum, Uhrzeit und Titel angeben' }, { status: 400 })
+  }
+  if (start_time >= end_time) {
+    return NextResponse.json({ error: 'Endzeit muss nach der Startzeit liegen' }, { status: 400 })
+  }
+  const isSelfReported = self_reported === true
+  const aStart = actual_start_time || start_time
+  const aEnd = actual_end_time || end_time
+  if (isSelfReported && aStart >= aEnd) {
+    return NextResponse.json({ error: 'Ist-Endzeit muss nach Ist-Startzeit liegen' }, { status: 400 })
+  }
+
+  const { data: slot } = await db.from('calendar_slots')
+    .select('id, status, created_by, pending_request_by')
+    .eq('id', slot_id).eq('tenant_id', ctx.tenantId).single()
+  if (!slot) return NextResponse.json({ error: 'Termin nicht gefunden' }, { status: 404 })
+  const s = slot as { status: string; created_by: string; pending_request_by: string | null }
+  if (s.status !== 'pending') {
+    return NextResponse.json({ error: 'Termin ist bereits entschieden und kann nicht mehr geändert werden' }, { status: 409 })
+  }
+  if (s.pending_request_by !== ctx.userId || s.created_by !== ctx.userId) {
+    return NextResponse.json({ error: 'Nur eigene Vorschläge können bearbeitet werden' }, { status: 403 })
+  }
+
+  const { data: updated, error } = await db.from('calendar_slots')
+    .update({
+      date,
+      start_time,
+      end_time,
+      title: title.trim(),
+      description: description?.trim() || null,
+      activity_id: activity_id || null,
+      self_reported: isSelfReported,
+      ...(isSelfReported
+        ? { confirmed_at: new Date().toISOString(), confirmed_by: ctx.userId, actual_start_time: aStart, actual_end_time: aEnd }
+        : { confirmed_at: null, confirmed_by: null, actual_start_time: null, actual_end_time: null }),
+    } as never)
+    .eq('id', slot_id)
+    .eq('tenant_id', ctx.tenantId)
+    .eq('status', 'pending') // Race mit gleichzeitiger Genehmigung abfangen
+    .select('id')
+  if (error) return NextResponse.json({ error: 'Datenbankfehler: ' + error.message }, { status: 500 })
+  if (!updated?.length) {
+    return NextResponse.json({ error: 'Termin wurde inzwischen entschieden' }, { status: 409 })
+  }
+
+  const [{ data: assistant }, { data: admins }] = await Promise.all([
+    db.from('profiles').select('full_name').eq('id', ctx.userId).eq('tenant_id', ctx.tenantId).single(),
+    db.from('profiles').select('id').eq('tenant_id', ctx.tenantId).eq('role', 'admin').eq('active', true),
+  ])
+  if (admins?.length) {
+    const dateStr = format(new Date(date), 'EEEE, dd. MMMM', { locale: de })
+    const msg = `${assistant?.full_name ?? 'Eine Assistentin'} hat „${title.trim()}" geändert: ${dateStr}, ${start_time.slice(0, 5)}–${end_time.slice(0, 5)} Uhr.`
+    await db.from('notifications').insert(
+      admins.map(a => ({
+        tenant_id: ctx.tenantId, user_id: a.id, title: 'Anfrage geändert', message: msg,
+        type: 'info', related_type: 'slot_request', related_id: slot_id,
+      })) as never[]
+    )
+  }
+  return NextResponse.json({ ok: true })
+}
+
+// Eigene, noch offene Anfrage zurückziehen
+async function handleWithdrawRequest(ctx: TenantContext, slotId: string) {
+  const db = adminDb()
+  if (ctx.role !== 'assistant') {
+    return NextResponse.json({ error: 'Nur Assistenten können eigene Anfragen zurückziehen' }, { status: 403 })
+  }
+  const { data: slot } = await db.from('calendar_slots')
+    .select('id, status, created_by, pending_request_by')
+    .eq('id', slotId).eq('tenant_id', ctx.tenantId).single()
+  if (!slot) return NextResponse.json({ error: 'Termin nicht gefunden' }, { status: 404 })
+  const s = slot as { status: string; created_by: string; pending_request_by: string | null }
+  if (s.status !== 'pending' || s.pending_request_by !== ctx.userId) {
+    return NextResponse.json({ error: 'Anfrage kann nicht mehr zurückgezogen werden' }, { status: 409 })
+  }
+  // Eigener Vorschlag → verwerfen; Anfrage auf offenen Admin-Slot → wieder offen
+  const patch = s.created_by === ctx.userId
+    ? { status: 'cancelled' }
+    : { status: 'open', pending_request_by: null }
+  const { data: updated, error } = await db.from('calendar_slots')
+    .update(patch as never)
+    .eq('id', slotId).eq('tenant_id', ctx.tenantId).eq('status', 'pending')
+    .select('id')
+  if (error) return NextResponse.json({ error: 'Datenbankfehler: ' + error.message }, { status: 500 })
+  if (!updated?.length) return NextResponse.json({ error: 'Termin wurde inzwischen entschieden' }, { status: 409 })
+  return NextResponse.json({ ok: true })
 }
 
 async function handleAdminAction(
