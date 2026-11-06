@@ -10,6 +10,7 @@ import {
   ratesFromSettings,
 } from '@/lib/payroll'
 import { vacationPayrollRows, rowMinutes, type Db } from '@/lib/vacation-server'
+import { maternitySubsidyFor } from '@/lib/maternity-server'
 
 function adminDb() {
   return createAdminClient<Database>(
@@ -58,7 +59,7 @@ async function generateSuggestions(tenantId: string, userId: string, onlyUpdate 
 
   const [settingsRes, assistantsRes, slotsRes, runsRes, vacationRowsAll] = await Promise.all([
     db.from('payroll_settings').select('*').eq('tenant_id', tenantId).single(),
-    db.from('profiles').select('id, full_name, rv_pflicht, kv_pflicht').eq('tenant_id', tenantId).eq('role', 'assistant').eq('active', true),
+    db.from('profiles').select('id, full_name, rv_pflicht, kv_pflicht, leave_reason, leave_from, leave_until').eq('tenant_id', tenantId).eq('role', 'assistant').eq('active', true).eq('exclude_from_payroll', false),
     db.from('calendar_slots').select('assigned_to, date, start_time, end_time, actual_start_time, actual_end_time').eq('tenant_id', tenantId).eq('status', 'assigned').eq('is_private', false).not('confirmed_at', 'is', null),
     // Bereits versendete Lohnzettel: eingefrorene Werte (wie /payroll/[year]/[month])
     db.from('payroll_runs').select('assistant_id, year, month, email_sent_at, netto').eq('tenant_id', tenantId).not('email_sent_at', 'is', null),
@@ -94,6 +95,23 @@ async function generateSuggestions(tenantId: string, userId: string, onlyUpdate 
   }
   for (const r of vacationRows) months.add(r.date.slice(0, 7))
 
+  // Bezirkszahlung kommt jeden Monat – auch wenn (noch) keine bestätigten
+  // Einsätze existieren. Daher alle Monate vom ersten Einsatzmonat bis zum
+  // aktuellen Monat lückenlos berücksichtigen.
+  if (months.size > 0) {
+    const sorted = [...months].sort()
+    let [cy, cm] = sorted[0].split('-').map(Number)
+    const now = new Date()
+    const endKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    while (true) {
+      const key = `${cy}-${String(cm).padStart(2, '0')}`
+      months.add(key)
+      if (key >= endKey) break
+      cm += 1
+      if (cm > 12) { cm = 1; cy += 1 }
+    }
+  }
+
   const suggestions: Array<{
     booking_date: string
     direction: 'in' | 'out'
@@ -125,6 +143,18 @@ async function generateSuggestions(tenantId: string, userId: string, onlyUpdate 
 
     // Ausgabe: Nettolohn je Assistent (getrennt, nicht mehr zusammengefasst)
     for (const a of assistants) {
+      // Mutterschutz: Arbeitgeberzuschuss zum Mutterschaftsgeld
+      const mat = await maternitySubsidyFor(db, a.id, a, y, m)
+      if (mat && mat.amount > 0) {
+        suggestions.push({
+          booking_date: `${ym}-${lastDay.toString().padStart(2, '0')}`,
+          direction: 'out',
+          category: `Mutterschutz-Zuschuss – ${(a as { full_name?: string }).full_name ?? 'Assistent'}`,
+          amount: mat.amount,
+          description: `AG-Zuschuss Mutterschaftsgeld ${ym}`,
+          dedup_key: `mutterschutz-${ym}-${a.id}`,
+        })
+      }
       const vacationMinutes = vacationRows
         .filter((r) => r.assistant_id === a.id && r.date.startsWith(ym))
         .reduce((sum, r) => sum + rowMinutes(r), 0)

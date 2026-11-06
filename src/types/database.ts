@@ -72,6 +72,7 @@ export type Database = {
           leave_until: string | null
           employment_start: string | null
           employment_end: string | null
+          exclude_from_payroll: boolean
         }
         Insert: {
           id: string
@@ -91,6 +92,7 @@ export type Database = {
           leave_until?: string | null
           employment_start?: string | null
           employment_end?: string | null
+          exclude_from_payroll?: boolean
         }
         Update: {
           email?: string
@@ -107,6 +109,7 @@ export type Database = {
           leave_until?: string | null
           employment_start?: string | null
           employment_end?: string | null
+          exclude_from_payroll?: boolean
           minijob_limit?: number | null
         }
         Relationships: Rel[]

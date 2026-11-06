@@ -47,6 +47,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .select('id, full_name, email, rv_pflicht, kv_pflicht, leave_reason, leave_from, leave_until')
       .eq('role', 'assistant')
       .eq('active', true)
+      .eq('exclude_from_payroll', false)
       .order('full_name'),
     supabase
       .from('monthly_reports')

@@ -16,6 +16,7 @@ export interface Profile {
   leave_reason?: string | null
   leave_from?: string | null
   leave_until?: string | null
+  exclude_from_payroll?: boolean
   created_at: string
 }
 

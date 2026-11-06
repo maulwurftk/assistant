@@ -127,6 +127,17 @@ export default function BenutzerPage() {
     }
   }
 
+  async function updateExcludeFromPayroll(profileId: string, value: boolean) {
+    setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, exclude_from_payroll: value } : p))
+    const { error } = await supabase.from('profiles').update({ exclude_from_payroll: value } as any).eq('id', profileId)
+    if (error) {
+      toast.error('Fehler beim Speichern')
+      loadProfiles()
+    } else {
+      toast.success(value ? 'Aus der Abrechnung ausgenommen' : 'Wieder in der Abrechnung')
+    }
+  }
+
   async function updateLeave(profileId: string, leave: { leave_reason: string | null; leave_from: string | null; leave_until: string | null }) {
     const { error } = await supabase.from('profiles').update(leave as any).eq('id', profileId)
     if (error) {
@@ -199,6 +210,7 @@ export default function BenutzerPage() {
                 <TableHead>Farbe</TableHead>
                 <TableHead>Minijobgrenze</TableHead>
                 <TableHead>Abwesenheit</TableHead>
+                <TableHead>Abrechnung</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Erstellt</TableHead>
                 <TableHead className="text-right">Aktionen</TableHead>
@@ -243,6 +255,21 @@ export default function BenutzerPage() {
                   <TableCell>
                     {p.role === 'assistant' ? (
                       <LeaveEditor profile={p} onSave={(leave) => updateLeave(p.id, leave)} />
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {p.role === 'assistant' ? (
+                      <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer whitespace-nowrap" title="Ausgenommene Benutzer erscheinen nicht in Lohnabrechnung, Zeitraum-Auswertung und Konto-Vorschlägen">
+                        <input
+                          type="checkbox"
+                          checked={!!p.exclude_from_payroll}
+                          onChange={e => updateExcludeFromPayroll(p.id, e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        ausnehmen
+                      </label>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}

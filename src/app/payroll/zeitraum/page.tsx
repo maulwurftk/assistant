@@ -52,6 +52,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       .select('id, full_name, email, rv_pflicht, kv_pflicht, iban')
       .eq('role', 'assistant')
       .eq('active', true)
+      .eq('exclude_from_payroll', false)
       .order('full_name'),
     supabase
       .from('calendar_slots')
