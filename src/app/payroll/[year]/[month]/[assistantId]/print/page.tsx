@@ -15,6 +15,8 @@ import {
   normalizeCountryMode,
 } from '@/lib/payroll'
 import { vacationPayrollRows, type Db } from '@/lib/vacation-server'
+import { maternitySubsidyFor } from '@/lib/maternity-server'
+import { MUTTERSCHAFTSGELD_TAGESSATZ, type MaternitySubsidy } from '@/lib/maternity'
 import PrintButton from './_components/PrintButton'
 
 type Props = {
@@ -34,7 +36,7 @@ export default async function PrintPage({ params }: Props) {
   const [assistantRes, settingsRes, slotsRes, runRes] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, rv_pflicht, kv_pflicht')
+      .select('id, full_name, email, rv_pflicht, kv_pflicht, leave_reason, leave_from, leave_until')
       .eq('id', assistantId)
       .eq('role', 'assistant')
       .single(),
@@ -61,7 +63,7 @@ export default async function PrintPage({ params }: Props) {
 
   if (!assistantRes.data) notFound()
 
-  const assistant = assistantRes.data as { id: string; full_name: string; email: string; rv_pflicht?: boolean; kv_pflicht?: boolean }
+  const assistant = assistantRes.data as { id: string; full_name: string; email: string; rv_pflicht?: boolean; kv_pflicht?: boolean; leave_reason?: string | null; leave_from?: string | null; leave_until?: string | null }
   const settings = settingsRes.data as {
     hourly_rate: number
     currency: string
@@ -177,6 +179,13 @@ export default async function PrintPage({ params }: Props) {
     totalMinutes = allRows.reduce((sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time), 0)
     brutto = atBreakdown ? atBreakdown.brutto : minijob ? minijob.brutto : calculatePay(totalMinutes, effectiveBruttoRate)
   }
+
+  // Mutterschutz: Arbeitgeberzuschuss (eingefroren, falls schon versendet)
+  const maternity: MaternitySubsidy | null = frozenSnapshot
+    ? ((frozenSnapshot.maternity as MaternitySubsidy | undefined) ?? null)
+    : await maternitySubsidyFor(supabase, assistantId, assistant, year, month)
+  const basePay = atBreakdown ? atBreakdown.netto : minijob ? minijob.netto : brutto
+  const totalPayout = Math.round((basePay + (maternity?.amount ?? 0)) * 100) / 100
 
   const today = new Date().toLocaleDateString('de-DE')
   const hoursLabel = allRows.some((r) => r.label.startsWith('Urlaub'))
@@ -563,6 +572,53 @@ export default async function PrintPage({ params }: Props) {
                   <span>{formatCurrency(atBreakdown.totalKosten, currency)}</span>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mutterschutz – Arbeitgeberzuschuss */}
+        {maternity && (
+          <div className="mb-6 border border-pink-200 rounded-xl overflow-hidden bg-pink-50 print:break-inside-avoid">
+            <div className="bg-pink-100 px-5 py-3 border-b border-pink-200">
+              <h2 className="text-xs font-semibold text-pink-700 uppercase tracking-wide">
+                Mutterschutz – Arbeitgeberzuschuss zum Mutterschaftsgeld
+              </h2>
+            </div>
+            <div className="px-5 py-4 space-y-1.5 text-sm text-pink-900">
+              <div className="flex justify-between">
+                <span>Tage im Mutterschutz ({monthName(month)})</span>
+                <span>{maternity.days} Kalendertage</span>
+              </div>
+              {maternity.hasReference ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>Ø Netto je Kalendertag (Referenz {maternity.refMonths.join(', ')})</span>
+                    <span>{formatCurrency(maternity.avgNetPerDay, currency)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>− Mutterschaftsgeld-Satz (Krankenkasse/BAS)</span>
+                    <span>−{formatCurrency(MUTTERSCHAFTSGELD_TAGESSATZ, currency)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Zuschuss je Kalendertag</span>
+                    <span>{formatCurrency(maternity.dailySubsidy, currency)}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs italic">Keine versendeten Abrechnungen im Referenzzeitraum – Zuschuss nicht berechenbar.</p>
+              )}
+              <div className="border-t border-pink-200 pt-2 flex justify-between font-semibold">
+                <span>Arbeitgeberzuschuss (steuer- und SV-frei)</span>
+                <span>{formatCurrency(maternity.amount, currency)}</span>
+              </div>
+              <div className="border-t-2 border-pink-300 pt-3 flex justify-between items-baseline">
+                <span className="text-lg font-bold text-slate-900">Gesamtauszahlung</span>
+                <span className="text-2xl font-bold text-green-700">{formatCurrency(totalPayout, currency)}</span>
+              </div>
+              <p className="text-xs text-pink-700 italic">
+                Das Mutterschaftsgeld selbst zahlt die Krankenkasse bzw. das Bundesamt für Soziale Sicherung
+                direkt an die Arbeitnehmerin. Der Zuschuss wird über die U2-Umlage erstattet.
+              </p>
             </div>
           </div>
         )}

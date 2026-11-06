@@ -11,6 +11,7 @@ type Props = {
   month: number
   totalMinutes: number
   totalPay: number
+  extraPay?: number
   hourlyRate: number
   currency: string
   emailSentAt: string | null
@@ -24,6 +25,7 @@ export default function PayrollActions({
   month,
   totalMinutes,
   totalPay,
+  extraPay = 0,
   hourlyRate,
   currency,
   emailSentAt,
@@ -84,9 +86,9 @@ export default function PayrollActions({
       <div className="flex flex-col items-end">
         <button
           onClick={sendEmail}
-          disabled={sending || totalMinutes === 0}
+          disabled={sending || (totalMinutes === 0 && extraPay <= 0)}
           title={
-            totalMinutes === 0
+            totalMinutes === 0 && extraPay <= 0
               ? 'Keine Stunden erfasst'
               : sent
                 ? 'Erneut senden'

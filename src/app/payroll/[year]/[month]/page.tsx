@@ -16,6 +16,8 @@ import {
   ratesFromSettings,
 } from '@/lib/payroll'
 import { vacationPayrollRows, rowMinutes, type Db } from '@/lib/vacation-server'
+import { maternitySubsidyFor } from '@/lib/maternity-server'
+import type { MaternitySubsidy } from '@/lib/maternity'
 import PayrollActions from './_components/PayrollActions'
 import RvPflichtToggle from './_components/RvPflichtToggle'
 import KvPflichtToggle from './_components/KvPflichtToggle'
@@ -42,7 +44,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     supabase.from('payroll_settings').select('*').limit(1).single(),
     supabase
       .from('profiles')
-      .select('id, full_name, email, rv_pflicht, kv_pflicht')
+      .select('id, full_name, email, rv_pflicht, kv_pflicht, leave_reason, leave_from, leave_until')
       .eq('role', 'assistant')
       .eq('active', true)
       .order('full_name'),
@@ -53,7 +55,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .eq('month', month),
     supabase
       .from('payroll_runs')
-      .select('assistant_id, email_sent_at, total_pay, total_minutes, brutto, netto')
+      .select('assistant_id, email_sent_at, total_pay, total_minutes, brutto, netto, snapshot')
       .eq('year', year)
       .eq('month', month),
     supabase
@@ -89,6 +91,9 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     email: string
     rv_pflicht?: boolean
     kv_pflicht?: boolean
+    leave_reason?: string | null
+    leave_from?: string | null
+    leave_until?: string | null
   }>
   const reports = reportsRes.data ?? []
   const runs = (runsRes.data ?? []) as Array<{
@@ -98,6 +103,8 @@ export default async function MonthlyPayrollPage({ params }: Props) {
     total_minutes: number
     brutto: number | null
     netto: number | null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    snapshot?: any
   }>
   const slots = (slotsRes.data ?? []) as Array<{
     id: string
@@ -129,7 +136,20 @@ export default async function MonthlyPayrollPage({ params }: Props) {
   // Derive the actual employee brutto from it (GKV default, shown in header).
   const effectiveBruttoRate = bezirkMode ? grossFromBezirkRate(hourlyRate, uvRate, true, rates) : hourlyRate
 
+  // Mutterschutz-Zuschuss je Assistentin (eingefroren, falls versendet)
+  const maternityMap = new Map<string, MaternitySubsidy | null>()
+  await Promise.all(
+    assistants.map(async (a) => {
+      const run = runs.find((r) => r.assistant_id === a.id)
+      const m = run?.email_sent_at
+        ? ((run.snapshot?.maternity as MaternitySubsidy | undefined) ?? null)
+        : await maternitySubsidyFor(supabase, a.id, a, year, month)
+      maternityMap.set(a.id, m)
+    })
+  )
+
   const assistantData = assistants.map((a) => {
+    const zuschuss = maternityMap.get(a.id)?.amount ?? 0
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
     const vacationMinutes = vacationRows
       .filter((r) => r.assistant_id === a.id)
@@ -153,6 +173,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
         vacationMinutes: 0,
         brutto: run.brutto,
         netto: run.netto,
+        zuschuss,
         minijob: null,
         reportStatus: report?.status ?? null,
         emailSentAt: run.email_sent_at,
@@ -184,6 +205,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       vacationMinutes,
       brutto,
       netto,
+      zuschuss,
       minijob,
       reportStatus: report?.status ?? null,
       emailSentAt: run?.email_sent_at ?? null,
@@ -386,7 +408,12 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                         <KvPflichtToggle assistantId={a.id} kvPflicht={a.kvPflicht} />
                       </td>
                       <td className="px-5 py-4 text-right font-semibold text-green-700">
-                        {a.totalMinutes > 0 ? formatCurrency(a.netto, currency) : '–'}
+                        {a.totalMinutes > 0 || a.zuschuss > 0 ? formatCurrency((a.totalMinutes > 0 ? a.netto : 0) + a.zuschuss, currency) : '–'}
+                        {a.zuschuss > 0 && (
+                          <span className="block text-xs font-normal text-pink-600" title="Arbeitgeberzuschuss zum Mutterschaftsgeld">
+                            inkl. Mutterschutz-Zuschuss {formatCurrency(a.zuschuss, currency)}
+                          </span>
+                        )}
                       </td>
                     </>
                   )}
@@ -402,6 +429,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
                       month={month}
                       totalMinutes={a.totalMinutes}
                       totalPay={a.brutto}
+                      extraPay={a.zuschuss}
                       hourlyRate={hourlyRate}
                       currency={currency}
                       emailSentAt={a.emailSentAt}

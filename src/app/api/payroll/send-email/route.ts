@@ -18,6 +18,8 @@ import {
 } from '@/lib/payroll'
 import { vacationPayrollRows, type Db } from '@/lib/vacation-server'
 import { escapeHtml } from '@/lib/utils'
+import { maternitySubsidyFor } from '@/lib/maternity-server'
+import { MUTTERSCHAFTSGELD_TAGESSATZ } from '@/lib/maternity'
 
 type Body = {
   assistantId: string
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
       .order('date')
       .order('start_time'),
     supabase.from('payroll_settings').select('*').limit(1).single(),
-    supabase.from('profiles').select('full_name, email, rv_pflicht, kv_pflicht').eq('id', assistantId).single(),
+    supabase.from('profiles').select('full_name, email, rv_pflicht, kv_pflicht, leave_reason, leave_from, leave_until').eq('id', assistantId).single(),
   ])
 
   // Empfänger IMMER aus der DB (nie aus dem Request-Body) – verhindert
@@ -150,7 +152,10 @@ export async function POST(request: Request) {
       )
     : null
 
-  if (totalMinutes === 0) {
+  // Mutterschutz: Arbeitgeberzuschuss zum Mutterschaftsgeld (§ 20 MuSchG)
+  const maternity = await maternitySubsidyFor(supabase, assistantId, assistantRes.data as never, year, month)
+
+  if (totalMinutes === 0 && !(maternity && maternity.amount > 0)) {
     return NextResponse.json({ error: 'Keine Stunden für diesen Monat erfasst' }, { status: 400 })
   }
 
@@ -176,6 +181,7 @@ export async function POST(request: Request) {
     },
     minijob,
     atBreakdown,
+    maternity,
     entries: allEntries,
   }
 
@@ -331,6 +337,24 @@ export async function POST(request: Request) {
       </table>
     </div>`
 
+  const baseNet = atBreakdown ? atBreakdown.netto : minijob ? minijob.netto : brutto
+  const maternityHtml = maternity
+    ? `<div style="margin:16px 32px 0;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:12px;padding:20px">
+      <h3 style="margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#be185d">Mutterschutz – Arbeitgeberzuschuss zum Mutterschaftsgeld</h3>
+      <table style="width:100%;font-size:14px;border-collapse:collapse;color:#831843">
+        <tr><td style="padding:3px 0">Tage im Mutterschutz (${monthName(month)})</td><td style="text-align:right">${maternity.days} Kalendertage</td></tr>
+        ${maternity.hasReference
+          ? `<tr><td style="padding:3px 0">Ø Netto je Kalendertag (Referenz ${maternity.refMonths.join(', ')})</td><td style="text-align:right">${formatCurrency(maternity.avgNetPerDay, currency)}</td></tr>
+        <tr><td style="padding:3px 0">− Mutterschaftsgeld-Satz (Krankenkasse/BAS)</td><td style="text-align:right">−${formatCurrency(MUTTERSCHAFTSGELD_TAGESSATZ, currency)}</td></tr>
+        <tr><td style="padding:3px 0">Zuschuss je Kalendertag</td><td style="text-align:right">${formatCurrency(maternity.dailySubsidy, currency)}</td></tr>`
+          : `<tr><td colspan="2" style="padding:3px 0;font-style:italic">Keine versendeten Abrechnungen im Referenzzeitraum – Zuschuss nicht berechenbar.</td></tr>`}
+        <tr style="border-top:1px solid #fbcfe8"><td style="padding:8px 0 3px;font-weight:600">Arbeitgeberzuschuss (steuer- und SV-frei)</td><td style="text-align:right;font-weight:600;padding-top:8px">${formatCurrency(maternity.amount, currency)}</td></tr>
+        <tr><td style="color:#15803d;font-weight:700;padding:10px 0 2px;font-size:16px">Gesamtauszahlung</td><td style="text-align:right;font-weight:700;font-size:20px;color:#15803d;padding:10px 0 2px">${formatCurrency(Math.round((baseNet + maternity.amount) * 100) / 100, currency)}</td></tr>
+      </table>
+      <p style="margin:10px 0 0;font-size:12px;color:#9d174d;font-style:italic">Das Mutterschaftsgeld selbst zahlt die Krankenkasse bzw. das Bundesamt für Soziale Sicherung direkt an Sie.</p>
+    </div>`
+    : ''
+
   const html = `
 <!DOCTYPE html>
 <html lang="de">
@@ -373,6 +397,8 @@ export async function POST(request: Request) {
     </div>
 
     ${payBoxHtml}
+
+    ${maternityHtml}
 
     <!-- Footer -->
     <div style="padding:24px 32px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px">
