@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import { formatCurrency, formatDate } from '@/lib/payroll'
 import { Wallet, Pencil, Trash2, FileDown, Printer } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
+import { BankImport } from './BankImport'
 import { toast } from 'sonner'
 
 type Entry = {
@@ -16,7 +17,7 @@ type Entry = {
   amount: number
   description: string | null
   status: 'pending' | 'confirmed'
-  source: 'manual' | 'auto'
+  source: 'manual' | 'auto' | 'bank'
 }
 
 type Props = {
@@ -247,13 +248,20 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
           subtitle="Kontostand ohne Bankzugriff – jede Buchung wird bestätigt."
           tone="violet"
         />
-        <button
-          onClick={() => generate()}
-          disabled={busy === 'generate'}
-          className="px-3 py-2 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
-        >
-          {busy === 'generate' ? 'Berechne…' : '↻ Vorschläge aus Lohndaten'}
-        </button>
+        <div className="flex items-center gap-2">
+          <BankImport
+            currency={currency}
+            defaultFrom={ledger.length ? ledger.reduce((m, e) => (e.booking_date < m ? e.booking_date : m), ledger[0].booking_date) : ''}
+            onDone={refresh}
+          />
+          <button
+            onClick={() => generate()}
+            disabled={busy === 'generate'}
+            className="px-3 py-2 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+          >
+            {busy === 'generate' ? 'Berechne…' : '↻ Vorschläge aus Lohndaten'}
+          </button>
+        </div>
       </div>
 
       {/* Übersicht Ist / Soll */}

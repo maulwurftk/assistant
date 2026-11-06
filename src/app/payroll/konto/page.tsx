@@ -24,7 +24,7 @@ export default async function KontoPage() {
     amount: number
     description: string | null
     status: 'pending' | 'confirmed'
-    source: 'manual' | 'auto'
+    source: 'manual' | 'auto' | 'bank'
   }>
 
   return (

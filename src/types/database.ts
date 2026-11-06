@@ -513,8 +513,9 @@ export type Database = {
           amount: number
           description: string | null
           status: 'pending' | 'confirmed'
-          source: 'manual' | 'auto'
+          source: 'manual' | 'auto' | 'bank'
           dedup_key: string | null
+          bank_ref: string | null
           created_by: string | null
           created_at: string
           confirmed_at: string | null
@@ -528,8 +529,9 @@ export type Database = {
           amount: number
           description?: string | null
           status?: 'pending' | 'confirmed'
-          source?: 'manual' | 'auto'
+          source?: 'manual' | 'auto' | 'bank'
           dedup_key?: string | null
+          bank_ref?: string | null
           created_by?: string | null
           confirmed_at?: string | null
         }
@@ -540,8 +542,9 @@ export type Database = {
           amount?: number
           description?: string | null
           status?: 'pending' | 'confirmed'
-          source?: 'manual' | 'auto'
+          source?: 'manual' | 'auto' | 'bank'
           dedup_key?: string | null
+          bank_ref?: string | null
           created_by?: string | null
           confirmed_at?: string | null
         }
