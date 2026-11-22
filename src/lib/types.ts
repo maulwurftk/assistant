@@ -68,6 +68,8 @@ export interface CalendarSlot {
   actual_end_time?: string | null
   activity_id?: string | null
   self_reported?: boolean
+  series_id?: string | null
+  series_rule?: import('./recurrence').RecurrenceRule | null
 }
 
 export type ReportStatus = 'pending' | 'confirmed' | 'sent'

@@ -33,7 +33,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Plus, X, CalendarPlus, Copy, RefreshCw, CalendarDays, CheckCircle2 } from 'lucide-react'
+import { Plus, X, CalendarPlus, Copy, RefreshCw, CalendarDays, CheckCircle2, Repeat } from 'lucide-react'
+import { generateOccurrences, describeRule, validateRule, MAX_OCCURRENCES, RecurrenceFreq, RecurrenceRule } from '@/lib/recurrence'
 import { PageHeader } from '@/components/page-header'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -58,7 +59,22 @@ interface SlotForm {
   description: string
   assigned_to: string
   is_private: boolean
+  repeat: boolean
+  repeat_freq: RecurrenceFreq
+  repeat_interval: number
+  repeat_weekdays: number[]
+  repeat_until: string
 }
+
+type SeriesScope = 'single' | 'following' | 'all'
+
+// Mo … So (Werte wie Date.getDay: 0 = Sonntag)
+const WEEKDAY_OPTIONS = [
+  { value: 1, label: 'Mo' }, { value: 2, label: 'Di' }, { value: 3, label: 'Mi' }, { value: 4, label: 'Do' },
+  { value: 5, label: 'Fr' }, { value: 6, label: 'Sa' }, { value: 0, label: 'So' },
+]
+
+const weekdayOf = (iso: string) => new Date(iso + 'T12:00:00').getDay()
 
 const emptyForm: SlotForm = {
   date: format(new Date(), 'yyyy-MM-dd'),
@@ -68,6 +84,11 @@ const emptyForm: SlotForm = {
   description: '',
   assigned_to: '',
   is_private: false,
+  repeat: false,
+  repeat_freq: 'weekly',
+  repeat_interval: 1,
+  repeat_weekdays: [],
+  repeat_until: '',
 }
 
 interface ProposeForm {
@@ -110,6 +131,8 @@ export default function KalenderPage() {
   const [editSlot, setEditSlot] = useState<CalendarSlot | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  // Bei Serien-Terminen: worauf sich Bearbeiten/Entfernen bezieht
+  const [seriesScope, setSeriesScope] = useState<SeriesScope>('single')
   const [loading, setLoading] = useState(false)
   const [proposeDialogOpen, setProposeDialogOpen] = useState(false)
   const [proposeForm, setProposeForm] = useState<ProposeForm>(emptyProposeForm)
@@ -367,7 +390,13 @@ export default function KalenderPage() {
       description: slot.description ?? '',
       assigned_to: slot.assigned_to ?? '',
       is_private: slot.is_private ?? false,
+      repeat: false,
+      repeat_freq: 'weekly',
+      repeat_interval: 1,
+      repeat_weekdays: [],
+      repeat_until: '',
     })
+    setSeriesScope('single')
     setConfirmActualStart(slot.actual_start_time?.slice(0, 5) || slot.start_time.slice(0, 5))
     setConfirmActualEnd(slot.actual_end_time?.slice(0, 5) || slot.end_time.slice(0, 5))
     setConfirmActivityId(slot.activity_id ?? '')
@@ -378,6 +407,11 @@ export default function KalenderPage() {
     if (!profile) return
     if (form.start_time >= form.end_time) { toast.error('Endzeit muss nach Startzeit liegen'); return }
     if (!form.title.trim()) { toast.error('Bitte einen Titel eingeben'); return }
+
+    // Neue Serie bzw. Änderung an mehreren Serien-Terminen
+    if (!editSlot && form.repeat) { await createSeries(); return }
+    if (editSlot?.series_id && seriesScope !== 'single') { await updateSeries(); return }
+
     if (form.assigned_to) {
       const assignee = assistants.find(a => a.id === form.assigned_to)
       if (assignee && isOnLeaveAt(assignee, form.date)) {
@@ -421,8 +455,152 @@ export default function KalenderPage() {
     setLoading(false)
   }
 
+  /** Ist die Assistenz an diesem Tag abwesend (Mutterschutz/Elternzeit o. genehmigte Abwesenheit)? */
+  function unavailableOn(assistantId: string, date: string) {
+    const a = assistants.find(x => x.id === assistantId)
+    return !!a && (isOnLeaveAt(a, date) || !!absenceOn(assistantId, date))
+  }
+
+  const fmtDate = (iso: string) => iso.split('-').reverse().join('.')
+
+  function currentRule(): RecurrenceRule {
+    return {
+      freq: form.repeat_freq,
+      interval: Number(form.repeat_interval) || 1,
+      ...(form.repeat_freq === 'weekly'
+        ? { weekdays: form.repeat_weekdays.length ? form.repeat_weekdays : [weekdayOf(form.date)] }
+        : {}),
+      until: form.repeat_until,
+    }
+  }
+
+  /** Serien-Termine, auf die sich der gewählte Umfang bezieht (bestätigte bleiben unangetastet). */
+  function seriesTargets(scope: SeriesScope) {
+    if (!editSlot?.series_id) return { targets: [] as CalendarSlot[], lockedCount: 0 }
+    const inScope = slots.filter(s =>
+      s.series_id === editSlot.series_id &&
+      s.status !== 'cancelled' &&
+      (scope === 'all' || s.date >= editSlot.date))
+    const targets = inScope.filter(s => !s.confirmed_at)
+    return { targets, lockedCount: inScope.length - targets.length }
+  }
+
+  async function createSeries() {
+    if (!profile) return
+    const rule = currentRule()
+    const invalid = validateRule(form.date, rule)
+    if (invalid) { toast.error(invalid); return }
+    const { dates, truncated } = generateOccurrences(form.date, rule)
+    if (truncated) { toast.error(`Zu viele Termine – maximal ${MAX_OCCURRENCES} pro Serie. Bitte ein früheres Ablaufdatum wählen.`); return }
+    if (dates.length === 0) { toast.error('Mit dieser Regel entsteht kein einziger Termin'); return }
+
+    setLoading(true)
+    const seriesId = crypto.randomUUID()
+    const unassigned: string[] = []
+    const rows = dates.map(date => {
+      // Ist die Assistenz an einem Tag abwesend, bleibt der Termin offen (Vertretung nötig)
+      const assignee = form.assigned_to && !unavailableOn(form.assigned_to, date) ? form.assigned_to : null
+      if (form.assigned_to && !assignee) unassigned.push(date)
+      return {
+        date,
+        start_time: form.start_time,
+        end_time: form.end_time,
+        title: form.title,
+        description: form.description || null,
+        assigned_to: assignee,
+        status: assignee ? 'assigned' : 'open',
+        is_private: form.is_private,
+        created_by: profile.id,
+        series_id: seriesId,
+        series_rule: rule,
+      }
+    })
+
+    let error: { message: string } | null = null
+    for (let i = 0; i < rows.length && !error; i += 200) {
+      const r = await supabase.from('calendar_slots').insert(rows.slice(i, i + 200) as any)
+      error = r.error
+    }
+    if (error) {
+      // Teilweise angelegte Serie wieder entfernen, damit nichts halb stehen bleibt
+      await supabase.from('calendar_slots').update({ status: 'cancelled' } as any).eq('series_id', seriesId)
+      toast.error('Fehler: ' + error.message)
+    } else {
+      toast.success(`${rows.length} Termine angelegt (${describeRule(rule, form.date)})`)
+      if (unassigned.length) {
+        toast.warning(`${unassigned.length} Termin(e) offen gelassen, weil die Assistenz abwesend ist: ${unassigned.slice(0, 6).map(fmtDate).join(', ')}${unassigned.length > 6 ? ' …' : ''}`, { duration: 10000 })
+      }
+      setDialogOpen(false)
+      loadSlots()
+    }
+    setLoading(false)
+  }
+
+  async function updateSeries() {
+    if (!editSlot) return
+    const { targets, lockedCount } = seriesTargets(seriesScope)
+    if (targets.length === 0) { toast.error('Keine änderbaren Termine – bestätigte Termine bleiben unverändert'); return }
+
+    setLoading(true)
+    const unassigned: string[] = []
+    // Nach resultierendem Status/Zuweisung gruppieren → wenige Updates
+    const groups = new Map<string, { assigned_to: string | null; status: string; ids: string[] }>()
+    for (const s of targets) {
+      const assignee = form.assigned_to && !unavailableOn(form.assigned_to, s.date) ? form.assigned_to : null
+      if (form.assigned_to && !assignee) unassigned.push(s.date)
+      const status = assignee ? 'assigned' : (s.status === 'pending' ? 'pending' : 'open')
+      const key = `${assignee}|${status}`
+      if (!groups.has(key)) groups.set(key, { assigned_to: assignee, status, ids: [] })
+      groups.get(key)!.ids.push(s.id)
+    }
+
+    let error: { message: string } | null = null
+    for (const g of groups.values()) {
+      for (let i = 0; i < g.ids.length && !error; i += 200) {
+        const r = await supabase.from('calendar_slots').update({
+          start_time: form.start_time,
+          end_time: form.end_time,
+          title: form.title,
+          description: form.description || null,
+          is_private: form.is_private,
+          assigned_to: g.assigned_to,
+          status: g.status,
+        } as any).in('id', g.ids.slice(i, i + 200))
+        error = r.error
+      }
+      if (error) break
+    }
+
+    if (error) { toast.error('Fehler: ' + error.message) }
+    else {
+      toast.success(`${targets.length} Termine der Serie aktualisiert`)
+      if (lockedCount) toast.info(`${lockedCount} bereits bestätigte(r) Termin(e) unverändert gelassen`)
+      if (unassigned.length) toast.warning(`${unassigned.length} Termin(e) offen gelassen (Assistenz abwesend): ${unassigned.slice(0, 6).map(fmtDate).join(', ')}${unassigned.length > 6 ? ' …' : ''}`, { duration: 10000 })
+      setDialogOpen(false)
+      loadSlots()
+    }
+    setLoading(false)
+  }
+
   async function handleDelete() {
     if (!editSlot) return
+    if (editSlot.series_id && seriesScope !== 'single') {
+      const { targets, lockedCount } = seriesTargets(seriesScope)
+      if (targets.length === 0) { toast.error('Keine entfernbaren Termine – bestätigte Termine bleiben erhalten'); return }
+      let error: { message: string } | null = null
+      const ids = targets.map(s => s.id)
+      for (let i = 0; i < ids.length && !error; i += 200) {
+        const r = await supabase.from('calendar_slots').update({ status: 'cancelled' } as any).in('id', ids.slice(i, i + 200))
+        error = r.error
+      }
+      if (error) { toast.error('Fehler beim Löschen') }
+      else {
+        toast.success(`${ids.length} Termine der Serie entfernt`)
+        if (lockedCount) toast.info(`${lockedCount} bereits bestätigte(r) Termin(e) bleiben erhalten`)
+        setDeleteDialogOpen(false); setDialogOpen(false); loadSlots()
+      }
+      return
+    }
     const { error } = await supabase.from('calendar_slots').update({ status: 'cancelled' } as any).eq('id', editSlot.id)
     if (error) { toast.error('Fehler beim Löschen') }
     else { toast.success('Slot entfernt'); setDeleteDialogOpen(false); setDialogOpen(false); loadSlots() }
@@ -595,8 +773,13 @@ export default function KalenderPage() {
                 <Input placeholder="z.B. Nachmittagsbetreuung" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Datum</Label>
-                <Input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+                <Label>{!editSlot && form.repeat ? 'Erster Termin' : 'Datum'}</Label>
+                <Input
+                  type="date"
+                  value={form.date}
+                  disabled={!!editSlot?.series_id && seriesScope !== 'single'}
+                  onChange={e => setForm({ ...form, date: e.target.value })}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
@@ -608,6 +791,117 @@ export default function KalenderPage() {
                   <Input type="time" value={form.end_time} onChange={e => setForm({ ...form, end_time: e.target.value })} />
                 </div>
               </div>
+
+              {/* Wiederholung – nur beim Anlegen */}
+              {!editSlot && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.repeat}
+                      onChange={e => setForm({
+                        ...form,
+                        repeat: e.target.checked,
+                        repeat_weekdays: form.repeat_weekdays.length ? form.repeat_weekdays : [weekdayOf(form.date)],
+                      })}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                      <Repeat className="h-3.5 w-3.5" /> Wiederkehrender Termin
+                    </span>
+                  </label>
+                  {form.repeat && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Alle</Label>
+                          <Input
+                            type="number" min={1} max={52}
+                            value={form.repeat_interval}
+                            onChange={e => setForm({ ...form, repeat_interval: Math.max(1, Number(e.target.value) || 1) })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">&nbsp;</Label>
+                          <Select value={form.repeat_freq} onValueChange={v => setForm({ ...form, repeat_freq: (v as RecurrenceFreq) ?? 'weekly' })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="daily">{form.repeat_interval > 1 ? 'Tage' : 'Tag'}</SelectItem>
+                              <SelectItem value="weekly">{form.repeat_interval > 1 ? 'Wochen' : 'Woche'}</SelectItem>
+                              <SelectItem value="monthly">{form.repeat_interval > 1 ? 'Monate' : 'Monat'}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {form.repeat_freq === 'weekly' && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">An diesen Tagen</Label>
+                          <div className="flex gap-1 flex-wrap">
+                            {WEEKDAY_OPTIONS.map(d => {
+                              const active = form.repeat_weekdays.includes(d.value)
+                              return (
+                                <button
+                                  key={d.value}
+                                  type="button"
+                                  onClick={() => setForm({
+                                    ...form,
+                                    repeat_weekdays: active
+                                      ? form.repeat_weekdays.filter(w => w !== d.value)
+                                      : [...form.repeat_weekdays, d.value],
+                                  })}
+                                  className={`h-8 w-9 rounded-md text-xs font-medium border ${active ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                                >
+                                  {d.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <Label className="text-xs">Endet am (Ablaufdatum)</Label>
+                        <Input type="date" min={form.date} value={form.repeat_until} onChange={e => setForm({ ...form, repeat_until: e.target.value })} />
+                      </div>
+                      {(() => {
+                        const rule = currentRule()
+                        if (validateRule(form.date, rule)) return null
+                        const { dates, truncated } = generateOccurrences(form.date, rule)
+                        return (
+                          <p className={`text-xs ${truncated || dates.length === 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                            {describeRule(rule, form.date)} ·{' '}
+                            {truncated ? `mehr als ${MAX_OCCURRENCES} Termine – bitte früher enden lassen` : `${dates.length} Termin${dates.length === 1 ? '' : 'e'}`}
+                          </p>
+                        )
+                      })()}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Bearbeiten eines Serien-Termins: Umfang wählen */}
+              {editSlot?.series_id && (
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 space-y-2">
+                  <p className="text-xs text-blue-800 flex items-center gap-1.5">
+                    <Repeat className="h-3.5 w-3.5 shrink-0" />
+                    Teil einer Serie{editSlot.series_rule ? `: ${describeRule(editSlot.series_rule, editSlot.date)}` : ''}
+                  </p>
+                  <Select value={seriesScope} onValueChange={v => setSeriesScope((v as SeriesScope) ?? 'single')}>
+                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single">Nur diesen Termin</SelectItem>
+                      <SelectItem value="following">Diesen und alle folgenden</SelectItem>
+                      <SelectItem value="all">Alle Termine der Serie</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {seriesScope !== 'single' && (
+                    <p className="text-xs text-blue-700">
+                      Betrifft {seriesTargets(seriesScope).targets.length} Termin(e). Das Datum bleibt je Termin erhalten;
+                      bereits bestätigte Termine werden nicht verändert.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Assistent zuweisen <span className="text-gray-400 font-normal">(optional)</span></Label>
                 <Select value={form.assigned_to || 'none'} onValueChange={v => setForm({ ...form, assigned_to: (v === 'none' || !v) ? '' : v })}>
@@ -675,6 +969,11 @@ export default function KalenderPage() {
                   <p className="text-sm text-gray-500">Zeit</p>
                   <p className="font-medium">{editSlot.start_time.slice(0, 5)} – {editSlot.end_time.slice(0, 5)} Uhr</p>
                 </div>
+                {editSlot.series_rule && (
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                    <Repeat className="h-3.5 w-3.5" /> {describeRule(editSlot.series_rule, editSlot.date)}
+                  </p>
+                )}
                 {editSlot.description && (
                   <div>
                     <p className="text-sm text-gray-500">Notizen</p>
@@ -903,8 +1202,14 @@ export default function KalenderPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Slot entfernen?</AlertDialogTitle>
-            <AlertDialogDescription>Dieser Kalendereintrag wird entfernt.</AlertDialogDescription>
+            <AlertDialogTitle>
+              {editSlot?.series_id && seriesScope !== 'single' ? 'Serien-Termine entfernen?' : 'Slot entfernen?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {editSlot?.series_id && seriesScope !== 'single'
+                ? `${seriesTargets(seriesScope).targets.length} Termin(e) ${seriesScope === 'all' ? 'der gesamten Serie' : 'ab diesem Datum'} werden entfernt. Bereits bestätigte Termine bleiben erhalten.`
+                : 'Dieser Kalendereintrag wird entfernt.'}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>

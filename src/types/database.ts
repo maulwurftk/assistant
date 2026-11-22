@@ -454,6 +454,8 @@ export type Database = {
           actual_end_time: string | null
           activity_id: string | null
           self_reported: boolean
+          series_id: string | null
+          series_rule: import('../lib/recurrence').RecurrenceRule | null
           created_at: string
         }
         Insert: {
@@ -476,6 +478,8 @@ export type Database = {
           actual_end_time?: string | null
           activity_id?: string | null
           self_reported?: boolean
+          series_id?: string | null
+          series_rule?: import('../lib/recurrence').RecurrenceRule | null
         }
         Update: {
           date?: string
@@ -494,6 +498,8 @@ export type Database = {
           actual_end_time?: string | null
           activity_id?: string | null
           self_reported?: boolean
+          series_id?: string | null
+          series_rule?: import('../lib/recurrence').RecurrenceRule | null
         }
         Relationships: [
           { foreignKeyName: 'calendar_slots_assigned_to_fkey', columns: ['assigned_to'], isOneToOne: false, referencedRelation: 'profiles', referencedColumns: ['id'] },
