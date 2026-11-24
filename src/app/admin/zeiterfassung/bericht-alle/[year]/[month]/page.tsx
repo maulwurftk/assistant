@@ -97,12 +97,12 @@ export default async function BerichtAllePage({ params, searchParams }: Props) {
       .eq('exclude_from_payroll', false)
       .order('full_name'),
     loadSlots(),
-    supabase.from('activities').select('id, name'),
+    supabase.from('activities').select('id, name, report_label'),
     supabase.from('payroll_settings').select('employer_name, employer_address').limit(1).single(),
   ])
 
   const allAssistants = assistantsRes.data ?? []
-  const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.name]))
+  const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.report_label || a.name]))
   const settings = settingsRes.data
   const employer = settings ? { name: settings.employer_name ?? null, address: settings.employer_address ?? null } : null
   const today = new Date().toLocaleDateString('de-DE')

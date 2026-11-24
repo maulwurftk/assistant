@@ -26,6 +26,10 @@ export interface Activity {
   active: boolean
   sort_order: number
   created_at: string
+  /** Kategorie, die im Tätigkeitsbericht statt des Namens erscheint (z. B. Zielvereinbarung). */
+  report_label?: string | null
+  /** Vorschlagstext, der beim Auswählen in die Notizen übernommen wird. */
+  default_description?: string | null
 }
 
 export type MonthStatus = 'draft' | 'confirmed' | 'sent'

@@ -122,6 +122,8 @@ export type Database = {
           active: boolean
           sort_order: number
           created_at: string
+          report_label: string | null
+          default_description: string | null
         }
         Insert: {
           id?: string
@@ -129,11 +131,15 @@ export type Database = {
           name: string
           active?: boolean
           sort_order?: number
+          report_label?: string | null
+          default_description?: string | null
         }
         Update: {
           name?: string
           active?: boolean
           sort_order?: number
+          report_label?: string | null
+          default_description?: string | null
         }
         Relationships: Rel[]
       }

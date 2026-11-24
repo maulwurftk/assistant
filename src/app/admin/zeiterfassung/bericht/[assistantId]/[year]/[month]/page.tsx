@@ -30,7 +30,7 @@ export default async function BerichtPage({ params }: Props) {
       .not('confirmed_at', 'is', null)
       .gte('date', dateFrom).lt('date', dateTo)
       .order('date').order('start_time'),
-    supabase.from('activities').select('id, name'),
+    supabase.from('activities').select('id, name, report_label'),
     supabase.from('payroll_settings').select('employer_name, employer_address').limit(1).single(),
   ])
 
@@ -38,7 +38,7 @@ export default async function BerichtPage({ params }: Props) {
 
   const assistant = assistantRes.data
   const slots = slotsRes.data ?? []
-  const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.name]))
+  const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.report_label || a.name]))
   const settings = settingsRes.data
 
   // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die

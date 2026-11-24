@@ -39,6 +39,7 @@ import { PageHeader } from '@/components/page-header'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { MonthlyCloseCard } from './_components/MonthlyCloseCard'
+import { ActivitySelect, applyActivity } from './_components/ActivitySelect'
 import { isOnLeaveAt, formatLeaveBadge } from '@/lib/leave'
 import { addDays, ABSENCE_TYPE_LABELS } from '@/lib/vacation'
 
@@ -58,6 +59,7 @@ interface SlotForm {
   title: string
   description: string
   assigned_to: string
+  activity_id: string
   is_private: boolean
   repeat: boolean
   repeat_freq: RecurrenceFreq
@@ -83,6 +85,7 @@ const emptyForm: SlotForm = {
   title: '',
   description: '',
   assigned_to: '',
+  activity_id: '',
   is_private: false,
   repeat: false,
   repeat_freq: 'weekly',
@@ -389,6 +392,7 @@ export default function KalenderPage() {
       title: slot.title,
       description: slot.description ?? '',
       assigned_to: slot.assigned_to ?? '',
+      activity_id: slot.activity_id ?? '',
       is_private: slot.is_private ?? false,
       repeat: false,
       repeat_freq: 'weekly',
@@ -432,6 +436,7 @@ export default function KalenderPage() {
       end_time: form.end_time,
       title: form.title,
       description: form.description || null,
+      activity_id: form.activity_id || null,
       assigned_to: form.assigned_to || null,
       status: form.assigned_to ? 'assigned' : (editSlot?.status === 'pending' ? 'pending' : 'open'),
       is_private: form.is_private,
@@ -507,6 +512,7 @@ export default function KalenderPage() {
         end_time: form.end_time,
         title: form.title,
         description: form.description || null,
+        activity_id: form.activity_id || null,
         assigned_to: assignee,
         status: assignee ? 'assigned' : 'open',
         is_private: form.is_private,
@@ -562,6 +568,7 @@ export default function KalenderPage() {
           end_time: form.end_time,
           title: form.title,
           description: form.description || null,
+          activity_id: form.activity_id || null,
           is_private: form.is_private,
           assigned_to: g.assigned_to,
           status: g.status,
@@ -768,6 +775,16 @@ export default function KalenderPage() {
 
           {profile?.role === 'admin' ? (
             <div className="space-y-4 pt-2">
+              {activities.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Tätigkeit</Label>
+                  <ActivitySelect
+                    activities={activities}
+                    value={form.activity_id}
+                    onChange={id => setForm(applyActivity(form, id, activities))}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Titel</Label>
                 <Input placeholder="z.B. Nachmittagsbetreuung" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
@@ -1024,15 +1041,7 @@ export default function KalenderPage() {
                       {activities.length > 0 && (
                         <div className="space-y-1">
                           <Label className="text-xs">Tätigkeit <span className="text-gray-400 font-normal">(optional)</span></Label>
-                          <Select value={confirmActivityId || 'none'} onValueChange={v => setConfirmActivityId((v === 'none' || !v) ? '' : v)}>
-                            <SelectTrigger><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">— Keine Angabe —</SelectItem>
-                              {activities.map(a => (
-                                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <ActivitySelect activities={activities} value={confirmActivityId} onChange={setConfirmActivityId} />
                         </div>
                       )}
                       <div className="flex gap-2 justify-end">
@@ -1110,6 +1119,16 @@ export default function KalenderPage() {
                 </p>
               </span>
             </label>
+            {activities.length > 0 && (
+              <div className="space-y-2">
+                <Label>Tätigkeit</Label>
+                <ActivitySelect
+                  activities={activities}
+                  value={proposeForm.activity_id}
+                  onChange={id => setProposeForm(applyActivity(proposeForm, id, activities))}
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Titel</Label>
               <Input
@@ -1164,20 +1183,6 @@ export default function KalenderPage() {
                     />
                   </div>
                 </div>
-                {activities.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Tätigkeit <span className="text-gray-400 font-normal">(optional)</span></Label>
-                    <Select value={proposeForm.activity_id || 'none'} onValueChange={v => setProposeForm({ ...proposeForm, activity_id: (v === 'none' || !v) ? '' : v })}>
-                      <SelectTrigger><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">— Keine Angabe —</SelectItem>
-                        {activities.map(a => (
-                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </>
             )}
             <div className="space-y-2">

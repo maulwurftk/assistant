@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Activity } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,7 +32,7 @@ import { PageHeader } from '@/components/page-header'
 export default function TaetigkeitenPage() {
   const supabase = createClient()
   const [activities, setActivities] = useState<Activity[]>([])
-  const [form, setForm] = useState({ name: '' })
+  const [form, setForm] = useState({ name: '', report_label: '', default_description: '' })
   const [editId, setEditId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
@@ -46,27 +47,32 @@ export default function TaetigkeitenPage() {
 
   function openNew() {
     setEditId(null)
-    setForm({ name: '' })
+    setForm({ name: '', report_label: '', default_description: '' })
     setDialogOpen(true)
   }
 
   function openEdit(a: Activity) {
     setEditId(a.id)
-    setForm({ name: a.name })
+    setForm({ name: a.name, report_label: a.report_label ?? '', default_description: a.default_description ?? '' })
     setDialogOpen(true)
   }
 
   async function handleSave() {
     if (!form.name.trim()) { toast.error('Bitte einen Namen eingeben'); return }
     setLoading(true)
+    const fields = {
+      name: form.name.trim(),
+      report_label: form.report_label.trim() || null,
+      default_description: form.default_description.trim() || null,
+    }
 
     let error
     if (editId) {
-      const r = await supabase.from('activities').update({ name: form.name.trim() }).eq('id', editId)
+      const r = await supabase.from('activities').update({ ...fields }).eq('id', editId)
       error = r.error
     } else {
       const maxOrder = activities.length > 0 ? Math.max(...activities.map(a => a.sort_order)) + 1 : 0
-      const r = await supabase.from('activities').insert({ name: form.name.trim(), sort_order: maxOrder, active: true })
+      const r = await supabase.from('activities').insert({ ...fields, sort_order: maxOrder, active: true })
       error = r.error
     }
 
@@ -116,8 +122,10 @@ export default function TaetigkeitenPage() {
               {activities.map(a => (
                 <li key={a.id} className="flex items-center gap-3 px-4 py-3">
                   <GripVertical className="h-4 w-4 text-gray-300 shrink-0" />
-                  <span className={`flex-1 font-medium text-sm ${!a.active ? 'text-gray-400 line-through' : ''}`}>
-                    {a.name}
+                  <span className={`flex-1 min-w-0 text-sm ${!a.active ? 'text-gray-400 line-through' : ''}`}>
+                    <span className="font-medium">{a.name}</span>
+                    {a.report_label && <span className="block text-xs text-gray-500">Im Bericht: {a.report_label}</span>}
+                    {a.default_description && <span className="block text-xs text-gray-400 truncate">{a.default_description}</span>}
                   </span>
                   {!a.active && <Badge variant="secondary" className="text-xs">Ausgeblendet</Badge>}
                   <div className="flex gap-1 shrink-0">
@@ -152,13 +160,13 @@ export default function TaetigkeitenPage() {
       <Card className="bg-gray-50 border-dashed">
         <CardContent className="pt-4">
           <p className="text-sm text-gray-500">
-            <strong>Vorschläge:</strong> Ausflug, Kinderzimmer aufräumen, Hausaufgaben, Kochen/Mahlzeiten, Persönliche Pflege, Arztbegleitung, Einkaufen, Freizeit/Spiel
+            <strong>Tipp:</strong> Mit „Kategorie im Bericht“ lassen sich viele konkrete Tätigkeiten (z.B. „Spielplatz mit Kind“) einer Leistungsart aus dem Bescheid zuordnen. Der Vorschlagstext landet beim Auswählen im Kalender automatisch in den Notizen.
           </p>
         </CardContent>
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editId ? 'Tätigkeit bearbeiten' : 'Neue Tätigkeit'}</DialogTitle>
           </DialogHeader>
@@ -168,9 +176,26 @@ export default function TaetigkeitenPage() {
               <Input
                 placeholder="z.B. Ausflug"
                 value={form.name}
-                onChange={e => setForm({ name: e.target.value })}
-                onKeyDown={e => e.key === 'Enter' && handleSave()}
+                onChange={e => setForm({ ...form, name: e.target.value })}
                 autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Kategorie im Bericht <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input
+                placeholder="z.B. Elternassistenz – Freizeit mit Kind"
+                value={form.report_label}
+                onChange={e => setForm({ ...form, report_label: e.target.value })}
+              />
+              <p className="text-xs text-gray-500">Erscheint im Tätigkeitsbericht statt des Namens. Leer = Name.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Vorschlagstext <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Textarea
+                placeholder="Wird beim Auswählen in die Notizen übernommen"
+                value={form.default_description}
+                onChange={e => setForm({ ...form, default_description: e.target.value })}
+                rows={3}
               />
             </div>
             <div className="flex gap-2">
