@@ -23,7 +23,7 @@ export default async function BerichtPage({ params }: Props) {
     supabase.from('profiles').select('id, full_name, email').eq('id', assistantId).single(),
     supabase
       .from('calendar_slots')
-      .select('id, date, start_time, end_time, title, actual_start_time, actual_end_time, activity_id')
+      .select('id, date, start_time, end_time, title, description, actual_start_time, actual_end_time, activity_id')
       .eq('assigned_to', assistantId)
       .eq('status', 'assigned')
       .eq('is_private', false)
@@ -51,6 +51,7 @@ export default async function BerichtPage({ params }: Props) {
       start_time: s.actual_start_time || s.start_time,
       end_time: s.actual_end_time || s.end_time,
       label: s.activity_id ? (activityMap[s.activity_id] ?? s.title) : s.title,
+      description: s.description,
     }))
     .sort((a, b) => {
       const d = a.date.localeCompare(b.date)

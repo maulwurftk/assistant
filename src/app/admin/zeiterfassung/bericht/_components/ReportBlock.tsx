@@ -1,6 +1,10 @@
 import { entryDurationMinutes, formatMinutes, formatDate, monthName } from '@/lib/payroll'
 
-export type ReportRow = { id: string; date: string; start_time: string; end_time: string; label: string }
+export type ReportRow = {
+  id: string; date: string; start_time: string; end_time: string; label: string
+  /** Ausführliche Beschreibung des Einsatzes (calendar_slots.description), erscheint unter der Tätigkeit. */
+  description?: string | null
+}
 
 type Props = {
   assistant: { full_name: string; email: string }
@@ -66,9 +70,14 @@ export function ReportBlock({ assistant, employer, year, month, rows, today, pag
               {rows.map((e) => {
                 const mins = entryDurationMinutes(e.start_time, e.end_time)
                 return (
-                  <tr key={e.id} className="border-b border-slate-100 print:break-inside-avoid">
+                  <tr key={e.id} className="border-b border-slate-100 align-top print:break-inside-avoid">
                     <td className="py-2 pr-4 text-slate-800">{formatDate(e.date)}</td>
-                    <td className="py-2 pr-4 text-slate-700">{e.label}</td>
+                    <td className="py-2 pr-4 text-slate-700">
+                      <div>{e.label}</div>
+                      {e.description && (
+                        <div className="text-xs text-slate-500 mt-0.5 leading-snug whitespace-pre-line">{e.description}</div>
+                      )}
+                    </td>
                     <td className="py-2 pr-3 font-mono text-xs text-slate-600">{e.start_time.slice(0, 5)}</td>
                     <td className="py-2 pr-3 font-mono text-xs text-slate-600">{e.end_time.slice(0, 5)}</td>
                     <td className="py-2 text-right text-slate-800">{formatMinutes(mins)}</td>
