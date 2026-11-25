@@ -232,9 +232,6 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
               </p>
             )}
           </div>
-          <div className="text-right text-xs text-slate-500">
-            Erstellt am {formatDate(new Date().toISOString().slice(0, 10))}
-          </div>
         </div>
 
         {/* Summen-Boxen */}

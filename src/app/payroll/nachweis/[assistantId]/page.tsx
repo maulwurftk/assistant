@@ -146,7 +146,7 @@ export default async function NachweisPage({ params, searchParams }: Props) {
           <div><div className="border-t border-slate-400 pt-1">Ort, Datum, Arbeitgeber/in</div></div>
           <div><div className="border-t border-slate-400 pt-1">Erhalten am / Arbeitnehmerin</div></div>
         </div>
-        <p className="mt-8 text-xs text-slate-400">Erstellt am {de(today)}{term ? ` · Arbeitsbedingungen gültig ab ${de(term.valid_from)}` : ''}</p>
+        {term && <p className="mt-8 text-xs text-slate-400">Arbeitsbedingungen gültig ab {de(term.valid_from)}</p>}
       </div>
     </div>
   )

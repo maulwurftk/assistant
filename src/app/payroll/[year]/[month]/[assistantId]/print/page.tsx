@@ -186,7 +186,6 @@ export default async function PrintPage({ params }: Props) {
   const basePay = atBreakdown ? atBreakdown.netto : minijob ? minijob.netto : brutto
   const totalPayout = Math.round((basePay + (maternity?.amount ?? 0)) * 100) / 100
 
-  const today = new Date().toLocaleDateString('de-DE')
   const hoursLabel = allRows.some((r) => r.label.startsWith('Urlaub'))
     ? 'Bezahlte Stunden (inkl. Urlaub)'
     : 'Gearbeitete Stunden'
@@ -213,7 +212,6 @@ export default async function PrintPage({ params }: Props) {
             </p>
           </div>
           <div className="text-right text-sm text-slate-500">
-            <p>Erstellt am {today}</p>
             {isFrozen && (
               <p className="text-xs text-slate-400 mt-0.5">
                 🔒 Werte wie am {runRes.data?.email_sent_at ? new Date(runRes.data.email_sent_at).toLocaleDateString('de-DE') : ''} versendet
