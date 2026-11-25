@@ -60,7 +60,7 @@ async function generateSuggestions(tenantId: string, userId: string, onlyUpdate 
   const [settingsRes, assistantsRes, slotsRes, runsRes, vacationRowsAll] = await Promise.all([
     db.from('payroll_settings').select('*').eq('tenant_id', tenantId).single(),
     db.from('profiles').select('id, full_name, rv_pflicht, kv_pflicht, leave_reason, leave_from, leave_until').eq('tenant_id', tenantId).eq('role', 'assistant').eq('active', true).eq('exclude_from_payroll', false),
-    db.from('calendar_slots').select('assigned_to, date, start_time, end_time, actual_start_time, actual_end_time').eq('tenant_id', tenantId).eq('status', 'assigned').eq('is_private', false).not('confirmed_at', 'is', null),
+    db.from('calendar_slots').select('assigned_to, date, start_time, end_time, actual_start_time, actual_end_time').eq('tenant_id', tenantId).eq('status', 'assigned').eq('is_private', false),
     // Bereits versendete Lohnzettel: eingefrorene Werte (wie /payroll/[year]/[month])
     db.from('payroll_runs').select('assistant_id, year, month, email_sent_at, netto').eq('tenant_id', tenantId).not('email_sent_at', 'is', null),
     // Urlaubsentgelt zählt zum Lohn (wie /payroll/[year]/[month])

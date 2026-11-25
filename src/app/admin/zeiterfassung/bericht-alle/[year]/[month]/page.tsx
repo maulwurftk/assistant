@@ -75,7 +75,6 @@ export default async function BerichtAllePage({ params, searchParams }: Props) {
         .select('id, assigned_to, date, start_time, end_time, title, description, actual_start_time, actual_end_time, activity_id')
         .eq('status', 'assigned')
         .eq('is_private', false)
-        .not('confirmed_at', 'is', null)
         .gte('date', dateFrom).lt('date', dateTo)
         .order('date').order('start_time').order('id')
         .range(from, from + PAGE_SIZE - 1)
@@ -105,7 +104,6 @@ export default async function BerichtAllePage({ params, searchParams }: Props) {
   const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.report_label || a.name]))
   const settings = settingsRes.data
   const employer = settings ? { name: settings.employer_name ?? null, address: settings.employer_address ?? null } : null
-  const today = new Date().toLocaleDateString('de-DE')
 
   // Einsätze je Assistent und Monat gruppieren
   const rowsBy = new Map<string, ReportRow[]>() // `${assistantId}|${YYYY-MM}`
@@ -194,7 +192,6 @@ export default async function BerichtAllePage({ params, searchParams }: Props) {
             year={m.year}
             month={m.month}
             rows={rows}
-            today={today}
             pageBreak={i < reports.length - 1}
           />
         ))

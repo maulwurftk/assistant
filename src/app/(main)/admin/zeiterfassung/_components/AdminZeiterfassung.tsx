@@ -233,7 +233,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
         created_by: adminId,
         status: 'assigned',
         is_private: form.is_private,
-        // Manuell vom Admin erfasste Einsätze gelten als bereits geleistet und bestätigt.
+        // Manuell vom Admin erfasste Einsätze: Ist-Zeit = erfasste Zeit.
         confirmed_at: now,
         confirmed_by: adminId,
         actual_start_time: form.start_time,
@@ -251,33 +251,6 @@ export default function AdminZeiterfassung({ assistants }: Props) {
     if (error) toast.error('Fehler beim Entfernen')
     else { toast.success('Einsatz entfernt'); loadSlots() }
     setCancelTargetId(null)
-  }
-
-  async function handleToggleConfirm(slot: Slot) {
-    setBusyId(slot.id)
-    try {
-      if (slot.confirmed_at) {
-        const res = await fetch(`/api/calendar-slots/${slot.id}/confirm`, { method: 'DELETE' })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) toast.error(data.error ?? 'Fehler')
-        else { toast.success('Bestätigung zurückgenommen'); loadSlots() }
-      } else {
-        const res = await fetch(`/api/calendar-slots/${slot.id}/confirm`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            actual_start_time: slot.actual_start_time || slot.start_time,
-            actual_end_time: slot.actual_end_time || slot.end_time,
-            activity_id: slot.activity_id,
-          }),
-        })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) toast.error(data.error ?? 'Fehler')
-        else { toast.success('Bestätigt – zählt jetzt zur Lohnabrechnung'); loadSlots() }
-      }
-    } finally {
-      setBusyId(null)
-    }
   }
 
   async function handleApproveDeny(slot: Slot, action: 'approve' | 'deny') {
@@ -351,8 +324,8 @@ export default function AdminZeiterfassung({ assistants }: Props) {
   function addRow() { setEditingTemplate((prev) => [...prev, { jsDay: 1, start: '08:00', end: '10:00', activityName: activities[0]?.name ?? '' }]) }
 
   const relevantSlots = slots.filter((s) => s.status !== 'pending' && !s.is_private)
-  const confirmedSlots = relevantSlots.filter((s) => s.confirmed_at)
-  const totalHours = confirmedSlots.reduce(
+  // Alle zugewiesenen Einsätze zählen – keine Bestätigung mehr nötig (2026-11-25)
+  const totalHours = relevantSlots.reduce(
     (acc, s) => acc + durationHours(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),
     0
   )
@@ -373,7 +346,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
       <PageHeader
         icon={<Clock className="h-5 w-5" />}
         title="Einsätze verwalten"
-        subtitle="Kalender-Slots von Assistentinnen einsehen, bestätigen und bearbeiten"
+        subtitle="Kalender-Slots von Assistentinnen einsehen und bearbeiten"
         tone="sky"
       />
 
@@ -409,7 +382,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-gray-500">
-          {totalHours.toFixed(1)} Std. bestätigt · {confirmedSlots.length}/{relevantSlots.length} Einsätze
+          {totalHours.toFixed(1)} Std. · {relevantSlots.length} Einsätze
           {pendingSlots.length > 0 && <span className="text-violet-600"> · {pendingSlots.length} wartend</span>}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -518,7 +491,7 @@ export default function AdminZeiterfassung({ assistants }: Props) {
             )}
           </div>
           <p className="text-xs text-gray-400">
-            Neu angelegte Einsätze sind noch nicht bestätigt – die Assistentin bestätigt die Ist-Zeit im Kalender.
+            Neu angelegte Einsätze zählen sofort zur Lohnabrechnung; abweichende Ist-Zeiten kann die Assistentin im Kalender erfassen.
           </p>
           <div className="flex gap-2 pt-1">
             <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} className="flex-1">Abbrechen</Button>
@@ -655,13 +628,9 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                       </Badge>
                     ) : slot.confirmed_at ? (
                       <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                        <CheckCircle2 className="h-3 w-3 mr-1" /> Bestätigt
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Ist-Zeit erfasst
                       </Badge>
-                    ) : (
-                      <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
-                        Nicht bestätigt
-                      </Badge>
-                    )}
+                    ) : null}
                   </div>
                   <div className="mt-0.5 text-xs text-gray-500">
                     {slot.title}
@@ -686,15 +655,6 @@ export default function AdminZeiterfassung({ assistants }: Props) {
                     <>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(slot)} title="Bearbeiten">
                         <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="icon"
-                        className={cn('h-8 w-8', slot.confirmed_at ? 'text-amber-600 hover:text-amber-800 hover:bg-amber-50' : 'text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50')}
-                        disabled={busyId === slot.id}
-                        onClick={() => handleToggleConfirm(slot)}
-                        title={slot.confirmed_at ? 'Bestätigung zurücknehmen' : 'Bestätigen'}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setCancelTargetId(slot.id)} title="Entfernen">
                         <X className="h-3.5 w-3.5" />

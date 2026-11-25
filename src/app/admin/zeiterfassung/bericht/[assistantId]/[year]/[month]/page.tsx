@@ -27,7 +27,6 @@ export default async function BerichtPage({ params }: Props) {
       .eq('assigned_to', assistantId)
       .eq('status', 'assigned')
       .eq('is_private', false)
-      .not('confirmed_at', 'is', null)
       .gte('date', dateFrom).lt('date', dateTo)
       .order('date').order('start_time'),
     supabase.from('activities').select('id, name, report_label'),
@@ -41,7 +40,7 @@ export default async function BerichtPage({ params }: Props) {
   const activityMap = Object.fromEntries((activitiesRes.data ?? []).map((a) => [a.id, a.report_label || a.name]))
   const settings = settingsRes.data
 
-  // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
+  // Alle zugewiesenen Slots zählen (Bestätigung nicht mehr nötig, 2026-11-25) – die
   // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit, und
   // die bei der Bestätigung gewählte Tätigkeit hat Vorrang vor dem Slot-Titel.
   const rows: ReportRow[] = slots
@@ -58,7 +57,6 @@ export default async function BerichtPage({ params }: Props) {
       return d !== 0 ? d : a.start_time.localeCompare(b.start_time)
     })
 
-  const today = new Date().toLocaleDateString('de-DE')
 
   return (
     <div className="min-h-screen bg-surface">
@@ -78,7 +76,6 @@ export default async function BerichtPage({ params }: Props) {
         year={year}
         month={month}
         rows={rows}
-        today={today}
       />
     </div>
   )

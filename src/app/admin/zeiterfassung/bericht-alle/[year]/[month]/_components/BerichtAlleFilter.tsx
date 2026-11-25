@@ -157,7 +157,7 @@ export default function BerichtAlleFilter({
           </p>
         )}
         {visibleAssistants.length === 0 ? (
-          <p className="text-sm text-slate-400">Niemand hat im gewählten Zeitraum bestätigte Einsätze.</p>
+          <p className="text-sm text-slate-400">Niemand hat im gewählten Zeitraum Einsätze.</p>
         ) : (
           <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
             {visibleAssistants.map((a) => (

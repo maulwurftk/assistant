@@ -66,7 +66,6 @@ export async function loadWorkedSlots(
     .eq('assigned_to', assistantId)
     .eq('status', 'assigned')
     .eq('is_private', false)
-    .not('confirmed_at', 'is', null)
     .gte('date', from)
     .lte('date', to)
   return (data ?? []).map((s) => ({

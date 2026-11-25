@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { ChevronLeft, ChevronRight, Send, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Send, CheckCircle2 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { de } from 'date-fns/locale'
 
@@ -121,14 +121,13 @@ export function MonthlyCloseCard({ userId }: { userId: string }) {
   }
 
   const relevantSlots = slots.filter(s => !s.is_private)
-  const confirmedSlots = relevantSlots.filter(s => s.confirmed_at)
-  const unconfirmedCount = relevantSlots.length - confirmedSlots.length
-  const totalHours = confirmedSlots.reduce(
+  // Alle zugewiesenen Termine zählen – keine Bestätigung mehr nötig (2026-11-25)
+  const totalHours = relevantSlots.reduce(
     (acc, s) => acc + durationHours(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),
     0
   )
   const isSent = reportStatus?.status === 'sent'
-  const canClose = !isSent && relevantSlots.length > 0 && unconfirmedCount === 0
+  const canClose = !isSent && relevantSlots.length > 0
 
   return (
     <Card>
@@ -170,14 +169,8 @@ export function MonthlyCloseCard({ userId }: { userId: string }) {
         ) : (
           <>
             <p className="text-sm text-gray-500">
-              {confirmedSlots.length} von {relevantSlots.length} Terminen bestätigt · {totalHours.toFixed(1)} Std.
+              {relevantSlots.length} Termine · {totalHours.toFixed(1)} Std.
             </p>
-            {unconfirmedCount > 0 && (
-              <div className="flex items-center gap-1.5 text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                Noch {unconfirmedCount} Termin{unconfirmedCount === 1 ? '' : 'e'} nicht bestätigt – bitte im Kalender die Ist-Zeit bestätigen, bevor Sie den Monat abschließen.
-              </div>
-            )}
             <Button
               className="bg-emerald-600 hover:bg-emerald-700"
               size="sm"
@@ -196,7 +189,7 @@ export function MonthlyCloseCard({ userId }: { userId: string }) {
               <AlertDialogTitle>Monat abschließen?</AlertDialogTitle>
               <AlertDialogDescription>
                 Sie schließen {format(currentMonth, 'MMMM yyyy', { locale: de })} mit{' '}
-                {totalHours.toFixed(1)} Stunden ({confirmedSlots.length} Termine) ab und der Admin wird benachrichtigt.
+                {totalHours.toFixed(1)} Stunden ({relevantSlots.length} Termine) ab und der Admin wird benachrichtigt.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

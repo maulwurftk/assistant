@@ -60,7 +60,6 @@ export async function POST(request: Request) {
       .eq('assigned_to', assistantId)
       .eq('status', 'assigned')
       .eq('is_private', false)
-      .not('confirmed_at', 'is', null)
       .gte('date', dateFrom)
       .lt('date', dateTo)
       .order('date')
@@ -101,7 +100,7 @@ export async function POST(request: Request) {
     at_include_urlaubsgeld?: boolean
     at_include_weihnachtsgeld?: boolean
   } | null
-  // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
+  // Alle zugewiesenen Slots zählen (Bestätigung nicht mehr nötig, 2026-11-25) – die
   // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
   type WorkRow = { date: string; start_time: string; end_time: string; label: string }
   // Urlaubsentgelt (genehmigter Urlaub/Abgeltung) als eigene Zeilen –

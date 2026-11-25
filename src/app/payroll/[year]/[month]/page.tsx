@@ -64,7 +64,6 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       .select('id, assigned_to, date, start_time, end_time, title, confirmed_at, actual_start_time, actual_end_time')
       .eq('status', 'assigned')
       .eq('is_private', false)
-      .not('confirmed_at', 'is', null)
       .gte('date', dateFrom)
       .lt('date', dateTo),
   ])
@@ -182,7 +181,7 @@ export default async function MonthlyPayrollPage({ params }: Props) {
       }
     }
 
-    // Nur bestätigte Slots zählen (siehe Migration 0024_slot_confirmation.sql) –
+    // Alle zugewiesenen Slots zählen (Bestätigung nicht mehr nötig, 2026-11-25) –
     // die tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
     const totalMinutes = mySlots.reduce(
       (sum, s) => sum + entryDurationMinutes(s.actual_start_time || s.start_time, s.actual_end_time || s.end_time),

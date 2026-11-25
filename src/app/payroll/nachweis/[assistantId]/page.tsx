@@ -98,7 +98,7 @@ export default async function NachweisPage({ params, searchParams }: Props) {
         </Row>
         <Row n={8} title="Arbeitsentgelt">
           <p>{formatCurrency(gross, currency)} brutto je Stunde. Keine Zuschläge, Prämien oder Sonderzahlungen.</p>
-          <p>Abrechnung monatlich nach den bestätigten Einsätzen; Auszahlung bargeldlos auf das angegebene Konto nach Monatsabschluss.</p>
+          <p>Abrechnung monatlich nach den geleisteten Einsätzen; Auszahlung bargeldlos auf das angegebene Konto nach Monatsabschluss.</p>
           <p>Urlaubsentgelt nach § 11 BUrlG (Durchschnitt der letzten 13 Wochen).</p>
         </Row>
         <Row n={9} title="Arbeitszeit">

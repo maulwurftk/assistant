@@ -59,7 +59,6 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
       .select('id, assigned_to, date, start_time, end_time, actual_start_time, actual_end_time')
       .eq('status', 'assigned')
       .eq('is_private', false)
-      .not('confirmed_at', 'is', null)
       .gte('date', from)
       .lte('date', to),
   ])
@@ -107,7 +106,7 @@ export default async function PayrollPeriodPage({ searchParams }: Props) {
 
   const rows = assistants.map((a) => {
     const mySlots = slots.filter((s) => s.assigned_to === a.id)
-    // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
+    // Alle zugewiesenen Slots zählen (Bestätigung nicht mehr nötig, 2026-11-25) – die
     // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
     const vacationMinutes = vacationRows
       .filter((r) => r.assistant_id === a.id)

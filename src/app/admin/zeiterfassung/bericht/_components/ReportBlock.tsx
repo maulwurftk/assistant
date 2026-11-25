@@ -12,14 +12,13 @@ type Props = {
   year: number
   month: number
   rows: ReportRow[]
-  today: string
   /** In der Sammel-Druckansicht soll jeder Bericht auf einer eigenen Seite beginnen. */
   pageBreak?: boolean
 }
 
 /** Ein einzelner Tätigkeitsbericht (Kopf, Einsätze, Bestätigungstext, Unterschriften) –
  * wird sowohl auf der Einzel- als auch der Sammel-Druckseite verwendet. */
-export function ReportBlock({ assistant, employer, year, month, rows, today, pageBreak }: Props) {
+export function ReportBlock({ assistant, employer, year, month, rows, pageBreak }: Props) {
   const totalMinutes = rows.reduce((sum, e) => sum + entryDurationMinutes(e.start_time, e.end_time), 0)
 
   return (
@@ -28,9 +27,6 @@ export function ReportBlock({ assistant, employer, year, month, rows, today, pag
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Tätigkeitsbericht</h1>
           <p className="text-xl text-slate-600 mt-1">{monthName(month)} {year}</p>
-        </div>
-        <div className="text-right text-sm text-slate-400">
-          <p>Erstellt am {today}</p>
         </div>
       </div>
 
@@ -54,7 +50,7 @@ export function ReportBlock({ assistant, employer, year, month, rows, today, pag
       <div className="mb-8">
         <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Bestätigte Einsätze</h2>
         {rows.length === 0 ? (
-          <p className="text-slate-400 text-sm py-6">Keine bestätigten Einsätze für diesen Monat.</p>
+          <p className="text-slate-400 text-sm py-6">Keine Einsätze für diesen Monat.</p>
         ) : (
           <table className="w-full text-sm border-collapse">
             <thead>

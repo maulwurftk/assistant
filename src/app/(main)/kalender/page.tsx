@@ -279,10 +279,10 @@ export default function KalenderPage() {
       } else {
         toast.success(
           editingProposalId
-            ? 'Änderung gespeichert – wartet weiter auf Freigabe'
+            ? 'Änderung gespeichert'
             : proposeForm.self_reported
-            ? 'Meldung gesendet – wartet auf Freigabe durch den Admin'
-            : 'Terminvorschlag gesendet – der Admin wird benachrichtigt'
+            ? 'Termin gemeldet – zählt zur Lohnabrechnung'
+            : 'Termin eingetragen – der Admin wird informiert'
         )
         setProposeDialogOpen(false)
         setEditingProposalId(null)
@@ -342,7 +342,7 @@ export default function KalenderPage() {
       if (!res.ok) {
         toast.error(data.error ?? 'Fehler beim Senden der Anfrage')
       } else {
-        toast.success('Anfrage gesendet – der Admin wird benachrichtigt')
+        toast.success('Termin übernommen – der Admin wird informiert')
         setDialogOpen(false)
         loadSlots()
       }
@@ -369,7 +369,7 @@ export default function KalenderPage() {
       if (!res.ok) {
         toast.error(data.error ?? 'Fehler beim Bestätigen')
       } else {
-        toast.success('Termin bestätigt – zählt jetzt zur Lohnabrechnung')
+        toast.success('Ist-Zeit gespeichert')
         setConfirmDialogOpen(false)
         setDialogOpen(false)
         loadSlots()
@@ -703,7 +703,7 @@ export default function KalenderPage() {
           )}
           {profile?.role === 'assistant' && (
             <Button onClick={() => { setProposeForm(emptyProposeForm); setProposeDialogOpen(true) }}>
-              <Plus className="h-4 w-4 mr-2" /> Termin vorschlagen
+              <Plus className="h-4 w-4 mr-2" /> Termin eintragen
             </Button>
           )}
         </div>
@@ -1011,13 +1011,9 @@ export default function KalenderPage() {
                   {editSlot.status === 'assigned' && (
                     editSlot.confirmed_at ? (
                       <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                        <CheckCircle2 className="h-3 w-3 mr-1" /> Bestätigt
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Ist-Zeit erfasst
                       </Badge>
-                    ) : (
-                      <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
-                        Noch nicht bestätigt
-                      </Badge>
-                    )
+                    ) : null
                   )}
                 </div>
 
@@ -1025,8 +1021,8 @@ export default function KalenderPage() {
                   confirmDialogOpen ? (
                     <div className="space-y-3 bg-emerald-50 border border-emerald-100 rounded-lg p-3">
                       <p className="text-xs text-emerald-800">
-                        Bitte die tatsächlich geleistete Zeit bestätigen – erst danach zählt der Termin
-                        zur Lohnabrechnung.
+                        Nur nötig, wenn die tatsächliche Zeit von der geplanten abweicht – ohne Angabe
+                        zählt die geplante Zeit.
                       </p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
@@ -1053,7 +1049,7 @@ export default function KalenderPage() {
                     </div>
                   ) : (
                     <Button variant="outline" size="sm" onClick={() => setConfirmDialogOpen(true)} className="w-full text-emerald-700 border-emerald-200 hover:bg-emerald-50">
-                      <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Ist-Zeit bestätigen
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Abweichende Ist-Zeit erfassen
                     </Button>
                   )
                 )}
@@ -1075,7 +1071,7 @@ export default function KalenderPage() {
                   <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Schließen</Button>
                   {editSlot.status === 'open' && (
                     <Button onClick={handleRequestSlot} disabled={requesting} className="flex-1">
-                      {requesting ? 'Sende…' : 'Anfragen'}
+                      {requesting ? 'Übernehme…' : 'Übernehmen'}
                     </Button>
                   )}
                 </div>
@@ -1089,13 +1085,13 @@ export default function KalenderPage() {
       <Dialog open={proposeDialogOpen} onOpenChange={(o) => { setProposeDialogOpen(o); if (!o) setEditingProposalId(null) }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingProposalId ? 'Anfrage bearbeiten' : 'Termin vorschlagen'}</DialogTitle>
+            <DialogTitle>{editingProposalId ? 'Anfrage bearbeiten' : 'Termin eintragen'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <p className="text-sm text-gray-500">
               {proposeForm.self_reported
-                ? 'Sie melden einen Termin, der bereits stattgefunden hat. Er zählt erst nach Freigabe durch den Admin zur Lohnabrechnung.'
-                : 'Ihr Vorschlag geht als Anfrage an den Admin und erscheint erst nach Genehmigung als fester Termin.'}
+                ? 'Sie melden einen Termin, der bereits stattgefunden hat. Er zählt sofort zur Lohnabrechnung.'
+                : 'Der Termin wird sofort fest für Sie eingetragen; der Admin wird informiert.'}
             </p>
             <label className="flex items-start gap-2.5 bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-pointer">
               <input

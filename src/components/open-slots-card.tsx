@@ -33,7 +33,7 @@ export function OpenSlotsCard({ slots }: Props) {
         toast.error(data.error ?? 'Fehler beim Senden der Anfrage')
       } else {
         setRequested(prev => new Set([...prev, slotId]))
-        toast.success('Anfrage gesendet – der Admin wird benachrichtigt')
+        toast.success('Termin übernommen – der Admin wird informiert')
       }
     } catch {
       toast.error('Verbindungsfehler')
@@ -63,7 +63,7 @@ export function OpenSlotsCard({ slots }: Props) {
               </div>
               {requested.has(slot.id) ? (
                 <Badge className="bg-emerald-100 text-emerald-700 border-0 shrink-0 gap-1">
-                  <CheckCircle className="h-3 w-3" /> Angefragt
+                  <CheckCircle className="h-3 w-3" /> Übernommen
                 </Badge>
               ) : (
                 <Button

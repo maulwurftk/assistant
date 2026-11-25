@@ -1,10 +1,11 @@
+-- HINWEIS: Ohne begin/commit – der Supabase-SQL-Editor rollt offene Transaktionen am Ende jedes Laufs zurück.
+-- Jede Anweisung wird sofort gespeichert. Mehrfaches Ausführen ist unschädlich.
 -- Tätigkeitsberichte: Langtexte + Zuordnung zur Zielvereinbarung (Bezirk Oberpfalz, ZV vom 07.04.2026)
 -- Erzeugt am 24.11.2026. Betrifft nur bestätigte, nicht-private Einsätze Mai–Oktober 2026.
 -- Erwartung: Schritt 1 meldet 70 aktualisierte Einsätze, Schritt 2 genau 1 gelöschten Test-Einsatz.
 -- Nicht angefasst (bewusst offen): Kindergarten bringen 07.09., Terminbegleitung/Urlaubsvorbereitung 10.09.,
 -- Packen helfen 12.09., Urlaubsvorbereitung 11.09.
 
-begin;
 
 -- 1) Beschreibung setzen + Tätigkeit auf die passende Kategorie der Zielvereinbarung stellen
 with v(assistant, d, t, act, txt) as (values
@@ -14,8 +15,8 @@ with v(assistant, d, t, act, txt) as (values
   ('Antonia Kleinert', date '2026-05-16', time '10:00', 'Elternassistenz – Freizeit mit Kind', 'Pias Kindergeburtstag: zusammen mit Thomas auf die Kinder aufgepasst, mit ihnen gespielt und bei der Feier geholfen.'),
   ('Antonia Kleinert', date '2026-05-20', time '14:00', 'Elternassistenz – Betreuung Tochter', 'Zuhause mit Pia und Thomas: gespielt, Pias Kinderzimmer aufgeräumt und gemeinsam gekocht.'),
   ('Antonia Kleinert', date '2026-05-22', time '15:00', 'Elternassistenz – Freizeit mit Kind', 'Ausflug mit Thomas und Pia. Gefahren und unterwegs auf Pia aufgepasst.'),
-  ('Antonia Kleinert', date '2026-05-25', time '10:00', 'Elternassistenz – Betreuung Tochter', 'Pia zusammen mit Thomas betreut und ihn im Alltag mit Pia unterstützt.'),
-  ('Antonia Kleinert', date '2026-05-29', time '16:00', 'Elternassistenz – Freizeit mit Kind', 'Mit Pia und Thomas auf dem Spielplatz, danach Pia beim Abendessen geholfen.'),
+  ('Antonia Kleinert', date '2026-05-25', time '10:00', 'Elternassistenz – Freizeit mit Kind', 'Ausflug mit Thomas und Pia zur Holhöhe. Gefahren und unterwegs auf Pia aufgepasst.'),
+  ('Antonia Kleinert', date '2026-05-29', time '16:00', 'Elternassistenz – Freizeit mit Kind', 'Mit Pia und Thomas auf dem Spielplatz, danach Pia beim Abendessen geholfen und mit ihr ihr Zimmer aufgeräumt.'),
   ('Lisa Kapfer', date '2026-05-13', time '14:00', 'Elternassistenz – Freizeit mit Kind', 'Ausflug in den Tierpark mit Thomas und Pia, gefahren und auf Pia aufgepasst.'),
   ('Lisa Kapfer', date '2026-05-18', time '09:00', 'Pers. Assistenz – Arzttermin', 'Thomas zum Arzttermin gefahren, in die Praxis begleitet und beim Ein- und Aussteigen geholfen.'),
   ('Lisa Kapfer', date '2026-05-19', time '14:30', 'Elternassistenz – Freizeit mit Kind', 'Mit Pia und Thomas unterwegs gewesen, Fahrt übernommen und Pia betreut.'),
@@ -56,12 +57,12 @@ with v(assistant, d, t, act, txt) as (values
   ('Antonia Kleinert', date '2026-08-18', time '09:00', 'Elternassistenz – Aufräumen / Einkauf', 'Mit Thomas Pias Kinderzimmer aufgeräumt und Sachen für Pia eingekauft.'),
   ('Antonia Kleinert', date '2026-08-19', time '12:30', 'Pers. Assistenz – Freizeitbegleitung', 'Thomas bei einer Unternehmung außer Haus begleitet, gefahren und vor Ort unterstützt.'),
   ('Antonia Kleinert', date '2026-08-24', time '14:00', 'Pers. Assistenz – Freizeitbegleitung', 'Freizeitbegleitung für Thomas, Fahrt hin und zurück und unterwegs geholfen, wo es nötig war.'),
-  ('Antonia Kleinert', date '2026-08-26', time '15:00', 'Elternassistenz – Betreuung Tochter', 'Gemeinsam mit Thomas auf Pia geschaut und mit ihr gespielt.'),
+  ('Antonia Kleinert', date '2026-08-26', time '15:00', 'Elternassistenz – Betreuung Tochter', 'Pia zusammen mit Thomas betreut und ihn im Alltag mit Pia unterstützt.'),
   ('Antonia Kleinert', date '2026-08-31', time '07:45', 'Pers. Assistenz – Arzttermin', 'Arztbegleitung: Thomas hin- und zurückgefahren und in der Praxis unterstützt.'),
   ('Lisa Kapfer', date '2026-08-11', time '12:00', 'Pers. Assistenz – Freizeitbegleitung', 'Thomas bei einer Unternehmung außer Haus begleitet, gefahren und vor Ort unterstützt.'),
   ('Lisa Kapfer', date '2026-08-13', time '09:00', 'Elternassistenz – Freizeit mit Kind', 'Pia zur Klettergruppe gefahren und vor Ort gesichert, Thomas war dabei.'),
   ('Lisa Kapfer', date '2026-08-14', time '14:00', 'Elternassistenz – Freizeit mit Kind', 'Nachmittagsausflug mit Pia und Thomas zum Eisessen, auf Pia aufgepasst.'),
-  ('Lisa Kapfer', date '2026-08-21', time '13:00', 'Elternassistenz – Betreuung Tochter', 'Pia mit Thomas zusammen betreut.'),
+  ('Lisa Kapfer', date '2026-08-21', time '13:00', 'Elternassistenz – Betreuung Tochter', 'Gemeinsam mit Thomas auf Pia geschaut und mit ihr gespielt.'),
   ('Lisa Kapfer', date '2026-08-25', time '14:00', 'Elternassistenz – Freizeit mit Kind', 'Mit Pia und Thomas auf dem Spielplatz, Pia hat sich mit Freunden getroffen. Auf die Kinder aufgepasst.'),
   ('Lisa Kapfer', date '2026-08-27', time '15:00', 'Elternassistenz – Freizeit mit Kind', 'Nachmittag mit Pia und Thomas unterwegs, auf Pia aufgepasst.'),
   ('Lisa Kapfer', date '2026-08-28', time '15:00', 'Elternassistenz – Freizeit mit Kind', 'Mit Thomas und Pia auf dem Spielplatz. Auf Pia an den Spielgeräten aufgepasst und ihr geholfen, wo Thomas mit dem Rollstuhl nicht hinkommt.'),
@@ -73,8 +74,8 @@ with v(assistant, d, t, act, txt) as (values
   ('Antonia Kleinert', date '2026-10-05', time '12:30', 'Pers. Assistenz – Einkauf', 'Mit Thomas einkaufen gewesen, Sachen aus den Regalen geholt, getragen und ins Auto geladen.'),
   ('Antonia Kleinert', date '2026-10-13', time '15:00', 'Elternassistenz – Freizeit mit Kind', 'Freizeit mit Pia und Thomas, Pia beschäftigt und beaufsichtigt.'),
   ('Antonia Kleinert', date '2026-10-14', time '13:30', 'Elternassistenz – Freizeit mit Kind', 'Mit Thomas zusammen etwas mit Pia unternommen, ich habe auf Pia geachtet.'),
-  ('Antonia Kleinert', date '2026-10-15', time '10:00', 'Elternassistenz – Betreuung Tochter', 'Pia zusammen mit Thomas betreut und ihn im Alltag mit Pia unterstützt.'),
-  ('Antonia Kleinert', date '2026-10-16', time '15:00', 'Elternassistenz – Betreuung Tochter', 'Gemeinsam mit Thomas auf Pia geschaut und mit ihr gespielt.'),
+  ('Antonia Kleinert', date '2026-10-15', time '10:00', 'Elternassistenz – Betreuung Tochter', 'Pia mit Thomas zusammen betreut.'),
+  ('Antonia Kleinert', date '2026-10-16', time '15:00', 'Elternassistenz – Betreuung Tochter', 'Pia zusammen mit Thomas betreut und ihn im Alltag mit Pia unterstützt.'),
   ('Antonia Kleinert', date '2026-10-19', time '13:30', 'Elternassistenz – Freizeit mit Kind', 'Nachmittag mit Pia und Thomas unterwegs, auf Pia aufgepasst.'),
   ('Antonia Kleinert', date '2026-10-21', time '15:30', 'Pers. Assistenz – Einkauf', 'Einkauf mit Thomas, an die Regale geholfen und die Einkäufe getragen.'),
   ('Antonia Kleinert', date '2026-10-26', time '15:30', 'Elternassistenz – Freizeit mit Kind', 'Freizeit mit Pia und Thomas, Pia beschäftigt und beaufsichtigt.')
@@ -109,4 +110,3 @@ with del as (
 )
 select count(*) as geloescht_erwartet_1 from del;
 
--- Wenn beide Zahlen stimmen:  commit;   sonst:  rollback;

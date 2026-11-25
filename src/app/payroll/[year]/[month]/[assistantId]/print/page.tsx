@@ -47,7 +47,6 @@ export default async function PrintPage({ params }: Props) {
       .eq('assigned_to', assistantId)
       .eq('status', 'assigned')
       .eq('is_private', false)
-      .not('confirmed_at', 'is', null)
       .gte('date', dateFrom)
       .lt('date', dateTo)
       .order('date')
@@ -93,7 +92,7 @@ export default async function PrintPage({ params }: Props) {
   } | null
   const calendarSlots = (slotsRes.data ?? []) as Array<{ id: string; date: string; start_time: string; end_time: string; title: string; actual_start_time: string | null; actual_end_time: string | null }>
 
-  // Nur bestätigte Slots (siehe Migration 0024_slot_confirmation.sql) – die
+  // Alle zugewiesenen Slots zählen (Bestätigung nicht mehr nötig, 2026-11-25) – die
   // tatsächlich geleistete Zeit (Ist) hat Vorrang vor der geplanten Zeit.
   type WorkRow = { id: string; date: string; start_time: string; end_time: string; label: string }
   let allRows: WorkRow[] = calendarSlots

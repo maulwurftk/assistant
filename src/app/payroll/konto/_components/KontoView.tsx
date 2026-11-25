@@ -109,7 +109,7 @@ export function KontoView({ currency, monthlyBudget, initialLedger }: Props) {
       if (!res.ok) {
         toast.error(data.error ?? 'Vorschläge konnten nicht generiert werden')
       } else if ((data.generated ?? 0) === 0 && (data.updated ?? 0) === 0) {
-        if (!silent) toast.info('Keine neuen Vorschläge – keine bestätigten Termine gefunden')
+        if (!silent) toast.info('Keine neuen Vorschläge – keine Termine gefunden')
         refresh()
       } else {
         refresh()

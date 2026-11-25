@@ -1,9 +1,10 @@
+-- HINWEIS: Ohne begin/commit – der Supabase-SQL-Editor rollt offene Transaktionen am Ende jedes Laufs zurück.
+-- Jede Anweisung wird sofort gespeichert. Mehrfaches Ausführen ist unschädlich.
 -- Tätigkeits-Vorlagen für Karas (Zielvereinbarung Bezirk Oberpfalz) – 24.11.2026
 -- Schritt 0: Migration 0030 (Spalten), Schritt 1: 13 Vorlagen anlegen, Schritt 2: die 6 Kategorien ausblenden.
 -- Erwartung: 13 neue Tätigkeiten, 6 ausgeblendet. Mehrfach ausführbar (legt keine Duplikate an).
 -- Reihenfolge: dieses SQL ZUERST, dann das Bericht-Langtext-SQL, dann git push.
 
-begin;
 
 alter table public.activities
   add column if not exists report_label text,
@@ -47,4 +48,3 @@ with hid as (
 )
 select count(*) as ausgeblendet_erwartet_6 from hid;
 
--- Wenn beide Zahlen stimmen:  commit;   sonst:  rollback;

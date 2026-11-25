@@ -69,48 +69,52 @@ async function handleRequest(ctx: TenantContext, slotId: string) {
   if (!slot) return NextResponse.json({ error: 'Slot nicht gefunden' }, { status: 404 })
   if (slot.status !== 'open') return NextResponse.json({ error: 'Slot ist nicht mehr verfügbar' }, { status: 409 })
 
-  const { error: updateError } = await db
+  // Keine Admin-Genehmigung mehr nötig (2026-11-25): offener Slot wird direkt zugewiesen.
+  const { data: taken, error: updateError } = await db
     .from('calendar_slots')
-    .update({ status: 'pending', pending_request_by: ctx.userId } as never)
+    .update({ status: 'assigned', assigned_to: ctx.userId, pending_request_by: null } as never)
     .eq('id', slotId)
     .eq('tenant_id', ctx.tenantId)
+    .eq('status', 'open') // Race: zwei Assistentinnen greifen gleichzeitig zu
+    .select('id')
 
   if (updateError) {
     console.error('slot update error:', updateError)
     return NextResponse.json({ error: 'Datenbankfehler: ' + updateError.message }, { status: 500 })
   }
+  if (!taken?.length) return NextResponse.json({ error: 'Slot ist nicht mehr verfügbar' }, { status: 409 })
 
   const { data: admins } = await db.from('profiles').select('id, email')
     .eq('tenant_id', ctx.tenantId).eq('role', 'admin').eq('active', true)
   if (admins?.length) {
     const dateStr = format(new Date(slot.date), 'EEEE, dd. MMMM', { locale: de })
     const timeStr = `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)} Uhr`
-    const msg = `${assistant.full_name} möchte „${slot.title}" am ${dateStr} (${timeStr}) übernehmen.`
+    const msg = `${assistant.full_name} hat „${slot.title}" am ${dateStr} (${timeStr}) übernommen.`
 
     await db.from('notifications').insert(
       admins.map(a => ({
         tenant_id: ctx.tenantId,
         user_id: a.id,
-        title: 'Neue Slot-Anfrage',
+        title: 'Slot übernommen',
         message: msg,
-        type: 'warning',
-        related_type: 'slot_request',
+        type: 'info',
+        related_type: 'slot_taken',
         related_id: slotId,
       })) as never[]
     )
-    await sendPushToUsers(admins.map(a => a.id), 'Neue Slot-Anfrage', msg)
+    await sendPushToUsers(admins.map(a => a.id), 'Slot übernommen', msg)
 
     for (const admin of admins) {
       await sendEmail(
         admin.email,
-        'Neue Slot-Anfrage',
+        'Slot übernommen',
         `
-          <h2 style="color:#059669">Neue Slot-Anfrage</h2>
+          <h2 style="color:#059669">Slot übernommen</h2>
           <p>${escapeHtml(msg)}</p>
           <p>
-            <a href="${APP_URL}/benachrichtigungen"
+            <a href="${APP_URL}/kalender"
                style="display:inline-block;padding:10px 20px;background:#059669;color:#fff;border-radius:6px;text-decoration:none">
-              Jetzt genehmigen oder ablehnen
+              Im Kalender ansehen
             </a>
           </p>
         `
@@ -145,10 +149,7 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
   if (!assistant) return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
 
   // Nachträglich gemeldete, bereits geleistete Termine (self_reported): die
-  // Assistentin bestätigt die Ist-Zeit direkt bei der Meldung – der Slot ist
-  // damit schon "confirmed", zählt aber erst nach Admin-Freigabe (status
-  // 'pending' -> 'assigned') zur Lohnabrechnung, da payroll nur assigned+
-  // confirmed Slots berücksichtigt.
+  // Assistentin erfasst die Ist-Zeit direkt bei der Meldung.
   const isSelfReported = self_reported === true
 
   const { data: slot, error: insertError } = await db
@@ -161,8 +162,10 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
       title: title.trim(),
       description: description?.trim() || null,
       created_by: ctx.userId,
-      pending_request_by: ctx.userId,
-      status: 'pending',
+      // Keine Admin-Genehmigung mehr nötig (2026-11-25): direkt fest eingetragen.
+      assigned_to: ctx.userId,
+      pending_request_by: null,
+      status: 'assigned',
       self_reported: isSelfReported,
       activity_id: activity_id || null,
       ...(isSelfReported
@@ -188,9 +191,9 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
     const dateStr = format(new Date((slot as any).date), 'EEEE, dd. MMMM', { locale: de })
     const timeStr = `${(slot as any).start_time.slice(0, 5)}–${(slot as any).end_time.slice(0, 5)} Uhr`
     const msg = isSelfReported
-      ? `${assistant.full_name} meldet einen bereits geleisteten Termin „${(slot as any).title}" am ${dateStr} (${timeStr}) – wartet auf Freigabe.`
-      : `${assistant.full_name} schlägt einen neuen Termin „${(slot as any).title}" am ${dateStr} (${timeStr}) vor.`
-    const notifTitle = isSelfReported ? 'Nachträgliche Meldung wartet auf Freigabe' : 'Neuer Terminvorschlag'
+      ? `${assistant.full_name} hat einen bereits geleisteten Termin „${(slot as any).title}" am ${dateStr} (${timeStr}) nachgetragen.`
+      : `${assistant.full_name} hat einen neuen Termin „${(slot as any).title}" am ${dateStr} (${timeStr}) eingetragen.`
+    const notifTitle = isSelfReported ? 'Termin nachgetragen' : 'Neuer Termin eingetragen'
 
     await db.from('notifications').insert(
       admins.map(a => ({
@@ -198,8 +201,8 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
         user_id: a.id,
         title: notifTitle,
         message: msg,
-        type: 'warning',
-        related_type: 'slot_request',
+        type: 'info',
+        related_type: 'slot_taken',
         related_id: (slot as any).id,
       })) as never[]
     )
@@ -213,9 +216,9 @@ async function handleCreateRequest(ctx: TenantContext, body: any) {
           <h2 style="color:#059669">${notifTitle}</h2>
           <p>${escapeHtml(msg)}</p>
           <p>
-            <a href="${APP_URL}/benachrichtigungen"
+            <a href="${APP_URL}/kalender"
                style="display:inline-block;padding:10px 20px;background:#059669;color:#fff;border-radius:6px;text-decoration:none">
-              Jetzt genehmigen oder ablehnen
+              Im Kalender ansehen
             </a>
           </p>
         `
